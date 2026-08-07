@@ -53,7 +53,7 @@ class DeleteUserDevice(Interactor[DeleteUserDeviceDto, bool]):
         if not current_subscription:
             raise ValueError(f"Subscription for user_id '{data.user_id}' not found")
 
-        if extra.cooldown_hours > 0 and current_subscription.device_single_reset_at:
+        if is_self and extra.cooldown_hours > 0 and current_subscription.device_single_reset_at:
             available_at = current_subscription.device_single_reset_at + timedelta(
                 hours=extra.cooldown_hours
             )
@@ -66,7 +66,8 @@ class DeleteUserDevice(Interactor[DeleteUserDeviceDto, bool]):
                 data.hwid,
             )
             await self.remnawave.drop_connections(current_subscription.user_remna_id)
-            current_subscription.device_single_reset_at = datetime_now()
+            if is_self:
+                current_subscription.device_single_reset_at = datetime_now()
             await self.subscription_dao.update(current_subscription)
             await self.uow.commit()
 
