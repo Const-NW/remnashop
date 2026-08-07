@@ -21,7 +21,8 @@ from src.application.use_cases.misc.commands.navigation import RedirectMenu
 from src.core.config import AppConfig
 from src.core.constants import CONFIG_KEY, CONTAINER_KEY
 from src.core.enums import Command, MiddlewareEventType
-from src.core.exceptions import MenuRenderError, PermissionDeniedError
+from src.core.exceptions import CooldownError, MenuRenderError, PermissionDeniedError
+from src.core.utils.i18n_helpers import i18n_format_expire_time
 from src.telegram.keyboards import get_contact_support_keyboard
 
 from .base import EventTypedMiddleware
@@ -83,6 +84,18 @@ class ErrorMiddleware(EventTypedMiddleware):
                 await notifier.notify_user(
                     TempUserDto.from_aiogram(aiogram_user),
                     i18n_key="ntf-error.permission-denied",
+                )
+                return
+
+            if isinstance(event.exception, CooldownError):
+                await notifier.notify_user(
+                    user=TempUserDto.from_aiogram(aiogram_user),
+                    payload=MessagePayloadDto(
+                        i18n_key="ntf-common.cooldown-active",
+                        i18n_kwargs={
+                            "available_at": i18n_format_expire_time(event.exception.available_at)
+                        },
+                    ),
                 )
                 return
 
