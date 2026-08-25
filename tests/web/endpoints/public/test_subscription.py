@@ -3,7 +3,7 @@ from fastapi import HTTPException, status
 
 from src.application.dto import UserDto
 from src.core.enums import AuthType
-from src.web.purchase_access import assert_web_purchase_email_verified
+from src.web.purchase_access import assert_web_payment_allowed
 
 
 def test_telegram_auth_can_purchase_without_verified_email() -> None:
@@ -13,7 +13,7 @@ def test_telegram_auth_can_purchase_without_verified_email() -> None:
         name="Telegram user",
     )
 
-    assert_web_purchase_email_verified(user)
+    assert_web_payment_allowed(user)
 
 
 def test_email_auth_cannot_purchase_without_verified_email() -> None:
@@ -24,7 +24,7 @@ def test_email_auth_cannot_purchase_without_verified_email() -> None:
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        assert_web_purchase_email_verified(user)
+        assert_web_payment_allowed(user)
 
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert exc_info.value.detail == (
@@ -39,4 +39,4 @@ def test_email_auth_can_purchase_with_verified_email() -> None:
         name="Email user",
     )
 
-    assert_web_purchase_email_verified(user)
+    assert_web_payment_allowed(user)
