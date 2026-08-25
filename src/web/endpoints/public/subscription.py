@@ -48,6 +48,7 @@ from src.core.exceptions import (
     PromocodeNotFoundError,
     TrialNotAvailableError,
 )
+from src.web.purchase_access import assert_web_purchase_email_verified
 from src.web.schemas import (
     DeviceDeleteResponse,
     DeviceResponse,
@@ -90,16 +91,6 @@ def _assert_web_gateway(gateway_type: PaymentGatewayType) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="TELEGRAM_STARS gateway is not available for web purchase",
         )
-
-
-def _assert_web_purchase_email_verified(user: UserDto) -> None:
-    if user.is_email_verified:
-        return
-
-    raise HTTPException(
-        status_code=status.HTTP_409_CONFLICT,
-        detail="Email must be verified before purchasing or extending a subscription",
-    )
 
 
 async def _get_available_plan_by_code(
@@ -231,7 +222,7 @@ async def activate_promocode_web(
     user: CurrentUser,
     activate_promocode: FromDishka[ActivatePromocode],
 ) -> PromocodeActivateResponse:
-    _assert_web_purchase_email_verified(user)
+    assert_web_purchase_email_verified(user)
     try:
         promo = await activate_promocode(user, ActivatePromocodeDto(code=body.code, user=user))
     except PromocodeNotFoundError as e:
@@ -255,7 +246,7 @@ async def activate_trial_web(
     get_available_trial: FromDishka[GetAvailableTrial],
     activate_trial: FromDishka[ActivateTrialSubscription],
 ) -> TrialActivateResponse:
-    _assert_web_purchase_email_verified(user)
+    assert_web_purchase_email_verified(user)
 
     plan = await get_available_trial.system(user)
     if not plan or not plan.durations:
@@ -327,7 +318,7 @@ async def purchase_trial_web(
     create_payment: FromDishka[CreatePayment],
     process_payment: FromDishka[ProcessPayment],
 ) -> PaymentInitResponse:
-    _assert_web_purchase_email_verified(user)
+    assert_web_purchase_email_verified(user)
     await _validate_gateway_for_web(body.gateway_type, payment_gateway_dao)
 
     plan = await get_available_trial.system(user)
@@ -397,7 +388,7 @@ async def purchase_subscription(
     create_payment: FromDishka[CreatePayment],
     process_payment: FromDishka[ProcessPayment],
 ) -> PaymentInitResponse:
-    _assert_web_purchase_email_verified(user)
+    assert_web_purchase_email_verified(user)
     await _validate_gateway_for_web(body.gateway_type, payment_gateway_dao)
 
     plan = await _get_available_plan_by_code(user, body.plan_code, get_available_plans)
@@ -469,7 +460,7 @@ async def extend_subscription(
     create_payment: FromDishka[CreatePayment],
     process_payment: FromDishka[ProcessPayment],
 ) -> PaymentInitResponse:
-    _assert_web_purchase_email_verified(user)
+    assert_web_purchase_email_verified(user)
     await _validate_gateway_for_web(body.gateway_type, payment_gateway_dao)
 
     current_subscription = await subscription_dao.get_current(user.id)
