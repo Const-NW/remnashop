@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 import pytest
 from fastapi import HTTPException, status
 
@@ -40,3 +43,28 @@ def test_email_auth_can_purchase_with_verified_email() -> None:
     )
 
     assert_web_payment_allowed(user)
+
+
+def test_free_trial_endpoint_uses_telegram_aware_access_policy() -> None:
+    endpoint_path = (
+        Path(__file__).resolve().parents[4]
+        / "src"
+        / "web"
+        / "endpoints"
+        / "public"
+        / "subscription.py"
+    )
+    tree = ast.parse(endpoint_path.read_text(encoding="utf-8"))
+    endpoint = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "activate_trial_web"
+    )
+    calls = {
+        node.func.id
+        for node in ast.walk(endpoint)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+
+    assert "assert_web_payment_allowed" in calls
+    assert "_assert_web_purchase_email_verified" not in calls

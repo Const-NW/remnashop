@@ -256,7 +256,7 @@ async def activate_trial_web(
     get_available_trial: FromDishka[GetAvailableTrial],
     activate_trial: FromDishka[ActivateTrialSubscription],
 ) -> TrialActivateResponse:
-    _assert_web_purchase_email_verified(user)
+    assert_web_payment_allowed(user)
 
     plan = await get_available_trial.system(user)
     if not plan or not plan.durations:
