@@ -17,6 +17,7 @@ from app.core.enums import (
     SubscriptionStatus,
 )
 from app.core.security.connect_signature import sign_subscription_url
+from app.core.utils.telegram_text import PREMIUM_EMOJI_RE
 from app.modules.subscriptions.dto import PlanSnapshot, SubscriptionDto
 from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotResponse
 
@@ -163,6 +164,12 @@ class PublicPlanResponse(BaseModel):
     durations: list[PublicPlanDurationResponse]
     discount_percent: int = 0
     discount_ends_at: Optional[datetime] = None
+
+    # the cabinet can't draw a Telegram premium emoji: its glyph stands in
+    @field_validator("description", mode="before")
+    @classmethod
+    def _premium_emoji_as_glyph(cls, value: Any) -> Any:
+        return PREMIUM_EMOJI_RE.sub(r"\1", value) if isinstance(value, str) else value
 
 
 class PublicPlanListResponse(BaseModel):

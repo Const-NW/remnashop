@@ -21,7 +21,8 @@ function CopyLinkButton({ url, label, icon: Icon }: { url: string; label: string
   return (
     <IconButton size="9" tone="glass" className="group relative" onClick={copy}>
       {isCopied ? <Check className="size-4 text-primary" /> : <Icon className="size-4" />}
-      <Tooltip text={label} side="top" />
+      {/* below: above it the dialog body's scroll edge clips the bubble */}
+      <Tooltip text={label} side="bottom-end" />
     </IconButton>
   );
 }
