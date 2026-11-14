@@ -9,7 +9,6 @@ import { toast } from "@shared/lib/toast";
 import { Modal } from "@shared/ui/Modal";
 import { useModalClose } from "@shared/ui/modal-hooks";
 import { Button } from "@shared/ui/Button";
-import { Badge } from "@shared/ui/Badge";
 import { normalizeEmail, normalizePositiveInt } from "@shared/lib/chip-normalizers";
 import { ChipsInput } from "@shared/ui/ChipsInput";
 import { GLASS_DIALOG_BODY_CLASS, GLASS_DIALOG_CARD_CLASS, GLASS_DIALOG_FOOTER_CLASS } from "@shared/ui/classes";
@@ -19,7 +18,6 @@ import { Tag } from "@shared/ui/Tag";
 import { Pressable } from "@shared/ui/Pressable";
 
 const AVAILABILITIES: PlanAvailability[] = ["ALL", "NEW", "EXISTING", "INVITED", "ALLOWED", "LINK"];
-const RESTRICTED_AVAILABILITIES: ReadonlySet<PlanAvailability> = new Set(["INVITED", "ALLOWED", "LINK"]);
 
 interface PlanAccessDialogProps {
   plan: Plan;
@@ -137,11 +135,6 @@ export function PlanAccessFields({
                       {isDisabled ? t("plans.access.trialUnavailable") : t(`plans.access.availabilityHint.${option}`)}
                     </span>
                   </span>
-                  {RESTRICTED_AVAILABILITIES.has(option) && (
-                    <Badge tone="violet">
-                      {t("plans.access.restricted")}
-                    </Badge>
-                  )}
                 </Pressable>
               );
             })}

@@ -8,7 +8,8 @@ export function useMeasuredHeight(): [RefObject<HTMLDivElement | null>, number |
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setHeight(entry.contentRect.height));
+    // border box: the measured element's own padding is part of the height to animate to
+    const observer = new ResizeObserver(([entry]) => setHeight(entry.borderBoxSize[0].blockSize));
     observer.observe(element);
     return () => observer.disconnect();
   }, []);

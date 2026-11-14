@@ -316,6 +316,28 @@ textarea::-webkit-resizer {
   --fade-bottom-size: 4px;
 }
 
+/* A dialog body fades only an edge nothing else cuts cleanly: the header's and the footer's
+   borders do, a pinned row above the body (tabs) and the dialog's rounded bottom don't. */
+[data-dialog] .scroll-fade-y {
+  --fade-top-size: 0px;
+  --fade-bottom-size: 0px;
+}
+
+[data-dialog] .scroll-fade-y:not(:first-child, [data-dialog-header] + *) {
+  --fade-top-size: 12px;
+}
+
+[data-dialog] .scroll-fade-y:last-child {
+  --fade-bottom-size: 16px;
+}
+
+/* Over the dialog's own glass a control's blur has nothing to blur, and every backdrop-filter is
+   a layer of its own. Popovers and nested dialogs render outside the panel and keep theirs. */
+[data-dialog] [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 [data-dialog] > .min-h-0.flex-1.overflow-y-auto:last-child::-webkit-scrollbar-track {
   margin-block-end: 0;
 }

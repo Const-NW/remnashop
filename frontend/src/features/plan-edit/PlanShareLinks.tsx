@@ -1,9 +1,30 @@
+import { Bot, Check, Globe } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getPlanShareUrls } from "@entities/plans/api";
+import { copyToClipboard } from "@shared/lib/clipboard";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
-import { Field } from "@shared/ui/glass/Field";
-import { CopyInput } from "@shared/ui/glass/Input";
+import { IconButton } from "@shared/ui/IconButton";
+import { Tooltip } from "@shared/ui/Tooltip";
+
+function CopyLinkButton({ url, label, icon: Icon }: { url: string; label: string; icon: LucideIcon }) {
+  const [isCopied, setIsCopied] = useState(false);
+  const copy = () => {
+    void copyToClipboard(url).then((copied) => {
+      if (!copied) return;
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 1500);
+    });
+  };
+  return (
+    <IconButton size="9" tone="glass" className="group relative" onClick={copy}>
+      {isCopied ? <Check className="size-4 text-primary" /> : <Icon className="size-4" />}
+      <Tooltip text={label} side="top" />
+    </IconButton>
+  );
+}
 
 export function PlanShareLinks({ planId }: { planId: number }) {
   const { t } = useTranslation();
@@ -12,20 +33,8 @@ export function PlanShareLinks({ planId }: { planId: number }) {
   const { bot_url: botUrl, webcabinet_url: cabinetUrl } = state.data;
   return (
     <>
-      {botUrl && (
-        <div className="sm:col-span-2">
-          <Field label={t("plans.edit.botLinkLabel")}>
-            <CopyInput value={botUrl} />
-          </Field>
-        </div>
-      )}
-      {cabinetUrl && (
-        <div className="sm:col-span-2">
-          <Field label={t("plans.edit.cabinetLinkLabel")}>
-            <CopyInput value={cabinetUrl} />
-          </Field>
-        </div>
-      )}
+      {botUrl && <CopyLinkButton url={botUrl} label={t("plans.edit.botLinkLabel")} icon={Bot} />}
+      {cabinetUrl && <CopyLinkButton url={cabinetUrl} label={t("plans.edit.cabinetLinkLabel")} icon={Globe} />}
     </>
   );
 }
