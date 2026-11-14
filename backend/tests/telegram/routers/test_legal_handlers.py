@@ -10,7 +10,7 @@ from aiogram.types import CallbackQuery, Chat, Message, User
 from redis.asyncio import Redis
 
 from app.core.config import AppConfig
-from app.core.constants import USER_KEY
+from app.core.constants import CUSTOMER_NOTIFICATION_CLOSE_CALLBACK, USER_KEY
 from app.core.enums import Currency, LegalDocumentKind, Locale, PurchaseChannel
 from app.modules.legal import LegalRevisionDto, PendingLegalDocumentsDto
 from app.modules.settings import BotRequirementsDto
@@ -78,19 +78,31 @@ def _callback(bot: Bot, kind: LegalDocumentKind) -> CallbackQuery:
     ).as_(bot)
 
 
+def _sent(method: Any) -> Message:
+    return Message(
+        message_id=100,
+        date=datetime(2026, 10, 21, tzinfo=timezone.utc),
+        chat=Chat(id=9, type="private"),
+    )
+
+
+def _no_previous() -> Any:
+    return MagicMock(set=AsyncMock(return_value=None))
+
+
 def test_terms_is_a_bot_command() -> None:
     assert "terms" in {command.command for command in BOT_COMMANDS}
 
 
 async def test_terms_lists_visible_documents() -> None:
-    session = FakeAiogramSession({"SendMessage": True})
+    session = FakeAiogramSession({"SendMessage": _sent})
     visible = _visible(
         [_revision(LegalDocumentKind.OFFER), _revision(LegalDocumentKind.PRIVACY_POLICY)]
     )
     hub = _hub()
     runner = hub.get_translator_by_locale("en")
 
-    await on_terms_command(_message(_bot(session)), _USER, visible, hub)
+    await on_terms_command(_message(_bot(session)), _USER, visible, hub, _no_previous())
 
     visible.execute.assert_awaited_once_with(PurchaseChannel.BOT, Locale.EN)
     [sent] = session.called("SendMessage")
@@ -99,20 +111,22 @@ async def test_terms_lists_visible_documents() -> None:
     assert [b.text for b in buttons] == [
         runner.get("btn-legal.OFFER"),
         runner.get("btn-legal.PRIVACY_POLICY"),
+        runner.get("ntf-customer-button-close"),
     ]
+    assert buttons[-1].callback_data == CUSTOMER_NOTIFICATION_CLOSE_CALLBACK
     assert buttons[0].callback_data == LegalDocumentCallback(kind=LegalDocumentKind.OFFER).pack()
 
 
 async def test_terms_without_documents_sends_nothing() -> None:
     session = FakeAiogramSession({"SendMessage": True})
 
-    await on_terms_command(_message(_bot(session)), _USER, _visible([]), _hub())
+    await on_terms_command(_message(_bot(session)), _USER, _visible([]), _hub(), _no_previous())
 
     assert session.called("SendMessage") == []
 
 
 async def test_document_callback_sends_rich_message() -> None:
-    session = FakeAiogramSession({"SendRichMessage": True, "AnswerCallbackQuery": True})
+    session = FakeAiogramSession({"SendRichMessage": _sent, "AnswerCallbackQuery": True})
     visible = _visible(
         [_revision(LegalDocumentKind.OFFER, title="Public offer", body="**1.** Terms")]
     )
@@ -123,11 +137,50 @@ async def test_document_callback_sends_rich_message() -> None:
         _USER,
         visible,
         _hub(),
+        _no_previous(),
     )
 
     [sent] = session.called("SendRichMessage")
     assert sent.chat_id == 9
     assert sent.rich_message.markdown == "# Public offer\n\n**1.** Terms"
+    [[close]] = sent.reply_markup.inline_keyboard
+    assert close.callback_data == CUSTOMER_NOTIFICATION_CLOSE_CALLBACK
+
+
+async def test_reopened_document_and_list_replace_previous_copies(redis: Redis) -> None:
+    ids = iter(range(200, 210))
+
+    def _next(method: Any) -> Message:
+        return Message(
+            message_id=next(ids),
+            date=datetime(2026, 10, 21, tzinfo=timezone.utc),
+            chat=Chat(id=9, type="private"),
+        )
+
+    user: Any = SimpleNamespace(id=-77, telegram_id=9, language=Locale.EN, log="[user -77]")
+    await redis.delete("remnashop:legal_sent:list:-77", "remnashop:legal_sent:document:-77")
+    session = FakeAiogramSession(
+        {
+            "SendMessage": _next,
+            "SendRichMessage": _next,
+            "AnswerCallbackQuery": True,
+            "DeleteMessage": True,
+        }
+    )
+    bot = _bot(session)
+    visible = _visible([_revision(LegalDocumentKind.OFFER)])
+    kind = LegalDocumentKind.OFFER
+
+    await on_terms_command(_message(bot), user, visible, _hub(), redis)  # 200
+    await on_legal_document(
+        _callback(bot, kind), LegalDocumentCallback(kind=kind), user, visible, _hub(), redis
+    )  # 201
+    await on_terms_command(_message(bot), user, visible, _hub(), redis)  # 202, drops 200
+    await on_legal_document(
+        _callback(bot, kind), LegalDocumentCallback(kind=kind), user, visible, _hub(), redis
+    )  # 203, drops 201
+
+    assert [call.message_id for call in session.called("DeleteMessage")] == [200, 201]
 
 
 def _list_callback(bot: Bot, kind: LegalDocumentKind) -> CallbackQuery:
@@ -156,6 +209,7 @@ async def test_document_gone_by_the_tap_redraws_the_list_silently() -> None:
         _USER,
         _visible([_revision(LegalDocumentKind.PRIVACY_POLICY)]),
         _hub(),
+        _no_previous(),
     )
 
     assert session.called("SendRichMessage") == []
@@ -163,7 +217,8 @@ async def test_document_gone_by_the_tap_redraws_the_list_silently() -> None:
     assert answer.text is None
     [edit] = session.called("EditMessageReplyMarkup")
     assert [row[0].callback_data for row in edit.reply_markup.inline_keyboard] == [
-        LegalDocumentCallback(kind=LegalDocumentKind.PRIVACY_POLICY).pack()
+        LegalDocumentCallback(kind=LegalDocumentKind.PRIVACY_POLICY).pack(),
+        CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
     ]
 
 
@@ -176,6 +231,7 @@ async def test_last_document_gone_by_the_tap_removes_the_list() -> None:
         _USER,
         _visible([]),
         _hub(),
+        _no_previous(),
     )
 
     assert len(session.called("DeleteMessage")) == 1
