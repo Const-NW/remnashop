@@ -190,6 +190,9 @@ async def test_menu_drops_banner_when_text_exceeds_caption(monkeypatch) -> None:
             list_own_active_subscriptions=AsyncMock(return_value=[]),
             list_own_subscriptions=AsyncMock(return_value=[]),
             get_available_trial=trial,
+            get_cabinet_auth_settings=MagicMock(
+                system=AsyncMock(return_value=MagicMock(telegram_enabled=True))
+            ),
             get_shop_settings=shop,
             get_referral_settings=referral,
             list_visible_legal_documents=MagicMock(execute=AsyncMock(return_value=[])),

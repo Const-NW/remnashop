@@ -12,7 +12,7 @@ from app.core.enums import PurchaseChannel, SubscriptionStatus
 from app.modules.banners import GetBannerForDisplayUseCase
 from app.modules.legal import ListVisibleLegalDocumentsUseCase
 from app.modules.referrals import GetReferralSettingsUseCase
-from app.modules.settings import GetShopSettingsUseCase
+from app.modules.settings import GetCabinetAuthSettingsUseCase, GetShopSettingsUseCase
 from app.modules.subscriptions import (
     GetAvailableTrialUseCase,
     ListOwnActiveSubscriptionsUseCase,
@@ -125,6 +125,7 @@ async def menu_getter(
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     get_shop_settings: FromDishka[GetShopSettingsUseCase],
     get_referral_settings: FromDishka[GetReferralSettingsUseCase],
     list_visible_legal_documents: FromDishka[ListVisibleLegalDocumentsUseCase],
@@ -152,6 +153,7 @@ async def menu_getter(
         user,
         active,
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
         can_purchase=can_purchase,
         referral_enabled=referral_enabled,

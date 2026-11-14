@@ -92,6 +92,9 @@ async def test_menu_getter_includes_rendered_buttons(
         ),
         list_own_subscriptions=ListOwnSubscriptionsUseCase(subscription_repository, uow),
         get_available_trial=get_available_trial,
+        get_cabinet_auth_settings=MagicMock(
+            system=AsyncMock(return_value=MagicMock(telegram_enabled=True))
+        ),
         get_shop_settings=_shop_settings(),
         get_referral_settings=_referral_settings(),
         list_visible_legal_documents=MagicMock(execute=AsyncMock(return_value=[])),
@@ -155,6 +158,9 @@ async def test_menu_getter_passes_name_variable_to_menu_text(
         ),
         list_own_subscriptions=ListOwnSubscriptionsUseCase(subscription_repository, uow),
         get_available_trial=get_available_trial,
+        get_cabinet_auth_settings=MagicMock(
+            system=AsyncMock(return_value=MagicMock(telegram_enabled=True))
+        ),
         get_shop_settings=_shop_settings(),
         get_referral_settings=_referral_settings(),
         list_visible_legal_documents=MagicMock(execute=AsyncMock(return_value=[])),

@@ -4,7 +4,7 @@ from aiogram_dialog import DialogManager
 
 from app.core.enums import SubscriptionStatus
 from app.modules.referrals import GetReferralSettingsUseCase
-from app.modules.settings import GetShopSettingsUseCase
+from app.modules.settings import GetCabinetAuthSettingsUseCase, GetShopSettingsUseCase
 from app.modules.subscriptions import GetAvailableTrialUseCase, SubscriptionDto
 from app.modules.users import UserDto
 from app.telegram.i18n import format_price
@@ -37,6 +37,7 @@ async def build_condition_data(
     user: UserDto,
     active: list[SubscriptionDto],
     get_available_trial: GetAvailableTrialUseCase,
+    get_cabinet_auth_settings: GetCabinetAuthSettingsUseCase,
     *,
     cabinet_url: str,
     selected_id: Optional[int] = None,
@@ -89,4 +90,7 @@ async def build_condition_data(
         "has_device_limit": subscription is not None and subscription.effective_device_limit != 0,
         "connect_url": subscription.url if subscription is not None else "",
         "cabinet_url": cabinet_url,
+        # the cabinet button opens it as a Mini App, which signs in only with this on
+        "cabinet_webapp": bool(cabinet_url)
+        and (await get_cabinet_auth_settings.system()).telegram_enabled,
     }

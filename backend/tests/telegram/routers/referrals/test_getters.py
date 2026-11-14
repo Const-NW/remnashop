@@ -77,6 +77,9 @@ async def _render(
         list_own_active_subscriptions=AsyncMock(return_value=[]),
         list_own_subscriptions=AsyncMock(return_value=[]),
         get_available_trial=AsyncMock(return_value=MagicMock(is_trial_available=False)),
+        get_cabinet_auth_settings=MagicMock(
+            system=AsyncMock(return_value=MagicMock(telegram_enabled=True))
+        ),
         get_shop_settings=_system(MagicMock(max_active_subscriptions=None)),
         get_referral_settings=_system(MagicMock(enabled=True)),
         get_own_referral_stats=AsyncMock(return_value=stats),

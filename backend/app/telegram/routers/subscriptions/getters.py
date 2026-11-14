@@ -11,7 +11,7 @@ from app.core.enums import SubscriptionStatus
 from app.core.exceptions import NotFoundError, ValidationError
 from app.modules.banners import GetBannerForDisplayUseCase
 from app.modules.referrals import GetReferralSettingsUseCase
-from app.modules.settings import GetShopSettingsUseCase
+from app.modules.settings import GetCabinetAuthSettingsUseCase, GetShopSettingsUseCase
 from app.modules.subscriptions import (
     DeviceDto,
     GetAvailableTrialUseCase,
@@ -48,6 +48,7 @@ async def subscriptions_list_getter(
     get_banner: FromDishka[GetBannerForDisplayUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     get_shop_settings: FromDishka[GetShopSettingsUseCase],
     get_referral_settings: FromDishka[GetReferralSettingsUseCase],
     i18n: FromDishka[TranslatorHub],
@@ -65,6 +66,7 @@ async def subscriptions_list_getter(
         user,
         active,
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
         can_purchase=can_purchase,
         referral_enabled=referral_enabled,
@@ -105,6 +107,7 @@ async def subscription_card_getter(
     get_banner: FromDishka[GetBannerForDisplayUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     i18n: FromDishka[TranslatorHub],
     dialog_config_cache: FromDishka[DialogConfigCache],
     **kwargs: Any,
@@ -115,6 +118,7 @@ async def subscription_card_getter(
         user,
         await list_own_subscriptions(user),
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
         selected_id=selected_subscription_id(dialog_manager),
     )
