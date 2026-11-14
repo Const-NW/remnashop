@@ -1,5 +1,4 @@
 import time
-from datetime import datetime, timezone
 from typing import Final, Optional
 
 from app.core.telegram_api import BOT_API_ERRORS, bot_api_error_text, bot_client
@@ -25,12 +24,13 @@ async def fetch_bot_status(token: str, proxy: Optional[str]) -> BotStatusDto:
             info = await bot.call("getWebhookInfo")
     except BOT_API_ERRORS as error:
         return BotStatusDto(is_configured=True, error=bot_api_error_text(error))
+    pending = info.get("pending_update_count", 0)
     return BotStatusDto(
         is_configured=True,
         webhook_url=info.get("url") or None,
-        pending_update_count=info.get("pending_update_count", 0),
-        error=info.get("last_error_message"),
-        last_error_at=_unix_time(info.get("last_error_date")),
+        pending_update_count=pending,
+        # Telegram keeps the last error after delivery recovers; an empty queue means it did
+        error=info.get("last_error_message") if pending > 0 else None,
     )
 
 
@@ -72,7 +72,3 @@ async def is_channel_member(
         # a broken channel setup or Telegram outage must not lock the customer out
         return True
     return member.get("status") not in _LEFT_STATUSES
-
-
-def _unix_time(value: Optional[int]) -> Optional[datetime]:
-    return datetime.fromtimestamp(value, timezone.utc) if value is not None else None

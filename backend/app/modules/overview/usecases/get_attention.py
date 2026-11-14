@@ -26,7 +26,6 @@ from app.modules.overview.system_health import read_health_problems
 from app.modules.plans import PlanDto, PlanRepository
 from app.modules.settings import (
     BotSettingsDto,
-    BotStatusDto,
     SettingsRepository,
     fetch_bot_status,
 )
@@ -61,10 +60,6 @@ _TOKEN_EXPIRING_WITHIN: Final[timedelta] = timedelta(days=7)
 
 # enum order is the display order within one severity
 _ORDER: Final[tuple[AttentionKind, ...]] = tuple(AttentionKind)
-
-
-def _bot_needs_attention(status: BotStatusDto) -> bool:
-    return not status.webhook_url or status.has_recent_error
 
 
 class GetAttentionUseCase(UseCase[None, AttentionDto]):
@@ -182,7 +177,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         if bot_settings is None or not bot_settings.is_configured or not bot_settings.token:
             return []
         status = await fetch_bot_status(bot_settings.token.get_secret_value(), bot_settings.proxy)
-        if not _bot_needs_attention(status):
+        if status.is_running:
             return []
         return [
             AttentionItemDto(

@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import partial
 from typing import AsyncGenerator, Final, Optional
 
@@ -31,8 +31,8 @@ from app.telegram.i18n import read_translator_hub
 from app.telegram.signal_listener import listen_for_bot_signals
 from app.telegram.webhook import TelegramWebhookEndpoint
 
-# Telegram keeps the last error indefinitely; only one this recent is news on startup
-_WEBHOOK_ERROR_MAX_AGE: Final[timedelta] = timedelta(minutes=10)
+# long enough for Telegram to try the new webhook with what queued during the restart
+_WEBHOOK_CHECK_DELAY_SECONDS: Final[float] = 60.0
 _BOT_STATE_LABELS: Final[dict[Optional[bool], str]] = {
     True: "Enabled",
     False: "Disabled",
@@ -40,10 +40,31 @@ _BOT_STATE_LABELS: Final[dict[Optional[bool], str]] = {
 }
 
 
-def is_fresh_webhook_error(info: WebhookInfo, now: datetime) -> bool:
+def is_live_webhook_error(info: WebhookInfo, webhook_set_at: datetime) -> bool:
+    # Telegram keeps the last error indefinitely, including ones from the restart's downtime;
+    # an empty queue means delivery works again
     if not info.last_error_message or info.last_error_date is None:
         return False
-    return now - info.last_error_date < _WEBHOOK_ERROR_MAX_AGE
+    return info.last_error_date >= webhook_set_at and info.pending_update_count > 0
+
+
+async def _report_webhook_error(
+    bot: Bot, container: AsyncContainer, webhook_set_at: datetime
+) -> None:
+    await asyncio.sleep(_WEBHOOK_CHECK_DELAY_SECONDS)
+    try:
+        info = await bot(GetWebhookInfo())
+        if not is_live_webhook_error(info, webhook_set_at):
+            return
+        logger.critical(f"Webhook delivery fails: '{info.last_error_message}'")
+        async with container(scope=Scope.REQUEST) as check_container:
+            await (await check_container.get(ReportBotStatusUseCase)).system(
+                ReportBotStatusDto(
+                    kind=BotStatusKind.WEBHOOK_FAILED, detail=info.last_error_message
+                )
+            )
+    except Exception:
+        logger.exception("Failed to check the webhook after startup")
 
 
 @asynccontextmanager
@@ -65,6 +86,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         report_status = await startup_container.get(ReportBotStatusUseCase)
         webhook_url = config.bot.webhook_url(config.domain).get_secret_value()
+        # Telegram dates errors to the second
+        webhook_set_at = datetime_now().replace(microsecond=0)
         try:
             await bot(
                 SetWebhook(
@@ -81,18 +104,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             )
             raise
         logger.info(f"Webhook set to '{webhook_url}'")
-
-        webhook_info = await bot(GetWebhookInfo())
-        if webhook_info.last_error_message:
-            logger.critical(
-                f"Webhook has a last error message: '{webhook_info.last_error_message}'"
-            )
-        if is_fresh_webhook_error(webhook_info, datetime_now()):
-            await report_status.system(
-                ReportBotStatusDto(
-                    kind=BotStatusKind.WEBHOOK_FAILED, detail=webhook_info.last_error_message
-                )
-            )
 
         me = await bot.get_me()
         await report_status.system(
@@ -112,6 +123,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     runtime_heartbeat_task = asyncio.create_task(
         poll_runtime_heartbeat(redis, "telegram", config.instance_name)
     )
+    webhook_check_task = asyncio.create_task(_report_webhook_error(bot, container, webhook_set_at))
 
     await endpoint.startup()
 
@@ -156,6 +168,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     runtime_heartbeat_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await runtime_heartbeat_task
+    webhook_check_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await webhook_check_task
     bot_signals_task.cancel()
     # a listener that died on its own must not stop the shutdown below
     with contextlib.suppress(asyncio.CancelledError, Exception):

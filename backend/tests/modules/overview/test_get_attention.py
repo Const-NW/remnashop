@@ -366,29 +366,12 @@ async def _configure_bot(settings: SettingsRepository, uow: UnitOfWork) -> None:
     [
         (BotStatusDto(is_configured=True, webhook_url="https://x"), False),
         (BotStatusDto(is_configured=True), True),
-        (
-            BotStatusDto(
-                is_configured=True,
-                webhook_url="https://x",
-                error="old",
-                last_error_at=datetime_now() - timedelta(hours=2),
-            ),
-            False,
-        ),
-        (
-            BotStatusDto(
-                is_configured=True,
-                webhook_url="https://x",
-                error="fresh",
-                last_error_at=datetime_now() - timedelta(minutes=5),
-            ),
-            True,
-        ),
+        (BotStatusDto(is_configured=True, webhook_url="https://x", error="boom"), True),
         (BotStatusDto(is_configured=True, error="unreachable"), True),
     ],
-    ids=["healthy", "no-webhook", "stale-error", "fresh-error", "status-call-failed"],
+    ids=["healthy", "no-webhook", "delivery-error", "status-call-failed"],
 )
-async def test_bot_webhook_item_ignores_a_stale_telegram_error(
+async def test_bot_webhook_item_follows_the_bot_status(
     session: AsyncSession,
     settings_repository: SettingsRepository,
     uow: UnitOfWork,
