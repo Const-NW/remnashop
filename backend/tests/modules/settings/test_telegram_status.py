@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 import pytest
 
 from app.core.telegram_api import BotApiError
@@ -27,22 +25,36 @@ async def test_a_malformed_token_becomes_a_status_error(monkeypatch: pytest.Monk
     assert status.error
 
 
-async def test_last_error_date_becomes_a_utc_datetime(monkeypatch: pytest.MonkeyPatch) -> None:
-    info = {
+def _webhook_info(pending: int) -> dict[str, object]:
+    return {
         "url": "https://x",
         "has_custom_certificate": False,
-        "pending_update_count": 0,
+        "pending_update_count": pending,
         "last_error_message": "boom",
         "last_error_date": 1_700_000_000,
     }
-    session = use_fake_bot(monkeypatch, FakeBotSession({"getWebhookInfo": info}))
+
+
+async def test_an_error_with_updates_queued_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = use_fake_bot(monkeypatch, FakeBotSession({"getWebhookInfo": _webhook_info(3)}))
 
     status = await fetch_bot_status("123:abc", "socks5://proxy:1080")
 
-    assert status.last_error_at == datetime(2023, 11, 14, 22, 13, 20, tzinfo=timezone.utc)
     assert status.error == "boom"
+    assert status.is_running is False
     assert session.proxy == "socks5://proxy:1080"
     assert session.closed
+
+
+async def test_an_error_kept_after_delivery_recovered_is_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    use_fake_bot(monkeypatch, FakeBotSession({"getWebhookInfo": _webhook_info(0)}))
+
+    status = await fetch_bot_status("123:abc", None)
+
+    assert status.error is None
+    assert status.is_running is True
 
 
 @pytest.fixture(autouse=True)
