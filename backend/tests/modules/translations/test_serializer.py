@@ -112,8 +112,23 @@ def test_function_call_is_disallowed() -> None:
     assert find_disallowed_placeable("{ NUMBER($count) }", _ALLOWED) is not None
 
 
-def test_select_expression_is_disallowed() -> None:
+def test_inline_select_expression_is_disallowed() -> None:
     text = "{ $count -> [one] item *[other] items }"
+    assert find_disallowed_placeable(text, _ALLOWED) is not None
+
+
+def test_select_over_known_variable_is_allowed() -> None:
+    text = "{ $count ->\n    [one] item\n   *[other] { $name } items\n}"
+    assert find_disallowed_placeable(text, _ALLOWED) is None
+
+
+def test_select_over_unknown_variable_is_disallowed() -> None:
+    text = "{ $unknown ->\n    [one] item\n   *[other] items\n}"
+    assert find_disallowed_placeable(text, _ALLOWED) is not None
+
+
+def test_unknown_variable_inside_select_variant_is_disallowed() -> None:
+    text = "{ $count ->\n    [one] item\n   *[other] { $unknown }\n}"
     assert find_disallowed_placeable(text, _ALLOWED) is not None
 
 

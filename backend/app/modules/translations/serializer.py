@@ -227,11 +227,11 @@ def _check_placeable_expression(
 
 def find_disallowed_placeable(text: str, allowed_variables: frozenset[str]) -> Optional[str]:
     """The reason the first disallowed placeable in a dialog text is refused, or
-    None. Only a bare `{ $name }` with `name` in `allowed_variables` passes;
-    message and term references, functions and selects never do. A value that
-    parses as Junk and holds both braces is refused too."""
+    None. A `{ $name }` with `name` in `allowed_variables`, a select over one and
+    string literals pass; message and term references and functions never do. A
+    value that parses as Junk and holds both braces is refused too."""
     return _find_disallowed(
-        text, lambda expression: _check_placeable_expression(expression, allowed_variables)
+        text, lambda expression: _check_translation_expression(expression, allowed_variables)
     )
 
 
