@@ -1,14 +1,17 @@
 from decimal import Decimal
 from typing import Final, Optional
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.errors import constraint_name
+from app.core.db.filters import in_ids
+from app.core.db.models.active_locale import ActiveLocale
 from app.core.db.models.plan import Plan
 from app.core.db.models.plan_duration import PlanDuration
 from app.core.db.models.plan_price_override import PlanPriceOverride
+from app.core.db.models.plan_translation import PlanTranslation
 from app.core.db.partial_update import apply_partial_update
 from app.core.enums import Currency, PlanAvailability, PlanBadge, PlanType
 from app.core.error_codes import ErrorCode
@@ -18,6 +21,7 @@ from app.modules.plans.dto import (
     PlanDto,
     PlanDurationDto,
     PlanPriceOverrideDto,
+    PlanTranslationDto,
     ReorderPlansDto,
     SetPlanDurationBasePriceDto,
     SetPlanDurationsDto,
@@ -105,7 +109,66 @@ class PlanRepository:
             )
         return durations_by_plan
 
-    def _to_dto(self, row: Plan, durations: list[PlanDurationDto]) -> PlanDto:
+    async def _load_translations(self, plan_ids: list[int]) -> dict[int, list[PlanTranslationDto]]:
+        # a switched-off locale's translations stay stored for when it comes back
+        result = await self.session.execute(
+            select(PlanTranslation)
+            .where(
+                in_ids(PlanTranslation.plan_id, plan_ids),
+                PlanTranslation.locale.in_(select(ActiveLocale.locale)),
+            )
+            .order_by(PlanTranslation.locale)
+        )
+        translations_by_plan: dict[int, list[PlanTranslationDto]] = {}
+        for row in result.scalars():
+            translations_by_plan.setdefault(row.plan_id, []).append(self._to_translation_dto(row))
+        return translations_by_plan
+
+    async def _replace_translations(
+        self, plan_id: int, translations: list[PlanTranslationDto]
+    ) -> None:
+        await self.session.execute(
+            delete(PlanTranslation).where(
+                PlanTranslation.plan_id == plan_id,
+                or_(
+                    PlanTranslation.locale.in_(select(ActiveLocale.locale)),
+                    PlanTranslation.locale.in_([item.locale for item in translations]),
+                ),
+            )
+        )
+        self.session.add_all(
+            PlanTranslation(
+                plan_id=plan_id,
+                locale=item.locale,
+                name=item.name,
+                description=item.description,
+            )
+            for item in translations
+        )
+
+    async def _to_dtos(self, rows: list[Plan]) -> list[PlanDto]:
+        plan_ids = [row.id for row in rows]
+        durations_by_plan = await self._load_durations(plan_ids)
+        translations_by_plan = await self._load_translations(plan_ids)
+        return [
+            self._to_dto(
+                row, durations_by_plan.get(row.id, []), translations_by_plan.get(row.id, [])
+            )
+            for row in rows
+        ]
+
+    async def _hydrate(self, row: Plan) -> PlanDto:
+        return (await self._to_dtos([row]))[0]
+
+    def _to_translation_dto(self, row: PlanTranslation) -> PlanTranslationDto:
+        return PlanTranslationDto(locale=row.locale, name=row.name, description=row.description)
+
+    def _to_dto(
+        self,
+        row: Plan,
+        durations: list[PlanDurationDto],
+        translations: list[PlanTranslationDto],
+    ) -> PlanDto:
         return PlanDto(
             id=row.id,
             public_code=row.public_code,
@@ -133,6 +196,7 @@ class PlanRepository:
             discount_starts_at=row.discount_starts_at,
             discount_ends_at=row.discount_ends_at,
             durations=durations,
+            translations=translations,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -143,9 +207,7 @@ class PlanRepository:
             query = query.where(Plan.is_active.is_(True))
 
         result = await self.session.execute(query)
-        rows = result.scalars().all()
-        durations_by_plan = await self._load_durations([row.id for row in rows])
-        return [self._to_dto(row, durations_by_plan.get(row.id, [])) for row in rows]
+        return await self._to_dtos(list(result.scalars().all()))
 
     async def list_all(self) -> list[PlanDto]:
         return await self._list(active_only=False)
@@ -161,8 +223,7 @@ class PlanRepository:
 
     async def get_by_id(self, plan_id: int) -> PlanDto:
         row = await self._get_or_raise(plan_id)
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def create(self, data: CreatePlanDto) -> PlanDto:
         _check_trial_badge(data.is_trial, data.badge)
@@ -214,14 +275,15 @@ class PlanRepository:
                 ) from error
             raise
 
+        await self._replace_translations(row.id, data.translations)
         await self.session.refresh(row)
-        return self._to_dto(row, [])
+        return await self._hydrate(row)
 
     async def update(self, data: UpdatePlanDto) -> PlanDto:
         row = await self._get_or_raise(data.plan_id)
         was_trial = row.is_trial
 
-        apply_partial_update(row, data, skip=frozenset({"plan_id", "cleared"}))
+        apply_partial_update(row, data, skip=frozenset({"plan_id", "cleared", "translations"}))
         if row.is_trial and not was_trial:
             _check_trial_availability(row.availability)
         for name in data.cleared:
@@ -258,9 +320,10 @@ class PlanRepository:
                 ) from error
             raise
 
+        if data.translations is not None:
+            await self._replace_translations(row.id, data.translations)
         await self.session.refresh(row)
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def delete(self, plan_id: int) -> None:
         await self._get_or_raise(plan_id)
@@ -326,8 +389,7 @@ class PlanRepository:
                 kept.base_price = duration.base_price
         await self.session.flush()
 
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def set_price_override(self, data: SetPlanPriceOverrideDto) -> PlanDto:
         row = await self._get_or_raise(data.plan_id)
@@ -369,8 +431,7 @@ class PlanRepository:
                 override_row.price = data.price
 
         await self.session.flush()
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def set_duration_base_price(self, data: SetPlanDurationBasePriceDto) -> PlanDto:
         row = await self._get_or_raise(data.plan_id)
@@ -390,8 +451,7 @@ class PlanRepository:
         duration_row.base_price = data.base_price
         await self.session.flush()
 
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def set_duration_base_prices(self, values: dict[int, Decimal]) -> None:
         for duration_id, base_price in values.items():
@@ -435,8 +495,7 @@ class PlanRepository:
 
         await self.session.flush()
         await self.session.refresh(row)
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def update_squads(self, data: UpdatePlanSquadsDto) -> PlanDto:
         row = await self._get_or_raise(data.plan_id)
@@ -445,8 +504,7 @@ class PlanRepository:
 
         await self.session.flush()
         await self.session.refresh(row)
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def update_discount(self, data: UpdatePlanDiscountDto) -> PlanDto:
         row = await self._get_or_raise(data.plan_id)
@@ -456,8 +514,7 @@ class PlanRepository:
 
         await self.session.flush()
         await self.session.refresh(row)
-        durations_by_plan = await self._load_durations([row.id])
-        return self._to_dto(row, durations_by_plan.get(row.id, []))
+        return await self._hydrate(row)
 
     async def reorder(self, data: ReorderPlansDto) -> list[PlanDto]:
         await self.session.execute(select(func.pg_advisory_xact_lock(_PLAN_ORDER_LOCK_KEY)))

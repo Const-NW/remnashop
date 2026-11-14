@@ -28,6 +28,12 @@ export const NO_PLAN_ICON: PlanIconValue = { icon_emoji_id: null, icon_emoji_fal
 // lucide_dev's "box"
 export const DEFAULT_PLAN_ICON: PlanIconValue = { icon_emoji_id: "5429613693287578957", icon_emoji_fallback: "📦" };
 
+export interface PlanTranslation {
+  locale: string;
+  name: string;
+  description: string | null;
+}
+
 export interface Plan extends PlanIconValue {
   id: number;
   public_code: string;
@@ -53,6 +59,7 @@ export interface Plan extends PlanIconValue {
   discount_starts_at: string | null;
   discount_ends_at: string | null;
   durations: PlanDuration[];
+  translations: PlanTranslation[];
 }
 
 export function getPlan(planId: number, signal?: AbortSignal): Promise<Plan> {
@@ -77,6 +84,7 @@ export interface CreatePlanRequest {
   is_trial: boolean;
   allow_bonus_days: boolean;
   allow_promocodes: boolean;
+  translations: PlanTranslation[];
 }
 
 export function createPlan(payload: CreatePlanRequest): Promise<Plan> {
@@ -98,6 +106,7 @@ export interface UpdatePlanRequest {
   is_trial?: boolean;
   allow_bonus_days?: boolean;
   allow_promocodes?: boolean;
+  translations?: PlanTranslation[];
 }
 
 export function updatePlan(planId: number, payload: UpdatePlanRequest): Promise<Plan> {

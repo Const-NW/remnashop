@@ -17,7 +17,13 @@ from app.core.constants import (
     TTL_7D,
 )
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AppearanceTarget, PaymentOutcome, PurchaseChannel, SessionAudience
+from app.core.enums import (
+    AppearanceTarget,
+    Locale,
+    PaymentOutcome,
+    PurchaseChannel,
+    SessionAudience,
+)
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import BotSignals
 from app.core.usecase import UseCase
@@ -168,7 +174,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                 args["traffic_strategy"] = subscription.traffic_limit_strategy.value
             data = replace(data, args=args)
         if data.event_type == SubscriptionGrantedEvent.__name__:
-            data = await self._with_plan_name(data)
+            data = await self._with_plan_name(data, user.language)
         renderer = await self._renderer_factory.build()
         title, body = renderer.render(
             user.language,
@@ -270,14 +276,16 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         # no bot process listening: the text is the fallback
         return await self._bot_signals.payment_outcome(user.telegram_id, order.id, outcome) > 0
 
-    async def _with_plan_name(self, data: NotifyCustomerDto) -> NotifyCustomerDto:
-        # the event carries the plan id only; stored with the feed row for the bell
+    async def _with_plan_name(self, data: NotifyCustomerDto, locale: Locale) -> NotifyCustomerDto:
+        # the event carries the plan id only; stored with the feed row for the bell, in the
+        # language the customer had when it came
         if data.subscription_id is None:
             return data
         subscription = await self._find_subscription(data.subscription_id)
         if subscription is None:
             return data
-        return replace(data, args={**data.args, "plan_name": subscription.plan_snapshot.name})
+        name = subscription.plan_snapshot.display_name(locale)
+        return replace(data, args={**data.args, "plan_name": name})
 
     async def _queue(
         self,

@@ -13,6 +13,7 @@ from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     AddOnType,
     Currency,
+    Locale,
     PanelSyncDirection,
     PlanBadge,
     PlanType,
@@ -49,6 +50,11 @@ class PlanSnapshot:
     unlimited_from: Optional[datetime] = None
     unlimited_from_credit_paid: Optional[Decimal] = None
     unlimited_from_credit_days: Optional[int] = None
+    # the plan's translated names at checkout; `name` for a locale it has none for
+    names: dict[Locale, str] = field(default_factory=dict)
+
+    def display_name(self, locale: Locale) -> str:
+        return self.names.get(locale, self.name)
 
     def terms_differ(self, other: "PlanSnapshot") -> bool:
         """Whether the two sell different service: limits, traffic strategy or squads."""
@@ -100,6 +106,7 @@ class PlanSnapshot:
                 else None
             ),
             "unlimited_from_credit_days": self.unlimited_from_credit_days,
+            "names": {locale.value: name for locale, name in self.names.items()},
         }
 
     @classmethod
@@ -133,6 +140,7 @@ class PlanSnapshot:
                 else None
             ),
             unlimited_from_credit_days=data.get("unlimited_from_credit_days"),
+            names={Locale(locale): name for locale, name in (data.get("names") or {}).items()},
         )
 
     @classmethod
@@ -161,6 +169,7 @@ class PlanSnapshot:
             tag=plan.tag,
             credit_paid=price_paid,
             credit_days=duration_days,
+            names=plan.localized_names(),
         )
 
 

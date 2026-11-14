@@ -276,6 +276,28 @@ async def test_recipient_context_uses_live_subscription(
     assert context.plan_name == "Pro" and context.bonus_days == 4 and context.expire_at is not None
 
 
+async def test_recipient_context_names_the_plan_in_the_recipients_language(
+    session: AsyncSession,
+    user_repository: UserRepository,
+    broadcast_repository: BroadcastRepository,
+) -> None:
+    ru = await make_customer(user_repository, session, telegram_id=8302, language=Locale.RU)
+    de = await make_customer(user_repository, session, telegram_id=8303, language=Locale.DE)
+    for user_id in (ru, de):
+        await add_subscription(
+            session,
+            user_id,
+            plan_name="Pro",
+            plan_names={Locale.RU: "Про"},
+            expire_at=datetime_now() + timedelta(days=10),
+        )
+
+    contexts = await broadcast_repository.recipient_contexts([ru, de])
+
+    # no German name: the plan's own
+    assert (contexts[ru].plan_name, contexts[de].plan_name) == ("Про", "Pro")
+
+
 async def test_scheduling_queries(broadcast_repository: BroadcastRepository) -> None:
     now = datetime_now()
     due = await broadcast_repository.create(save_dto(), created_by=None)

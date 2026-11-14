@@ -134,7 +134,7 @@ async def list_own_transactions(
 ) -> OwnTransactionListResponse:
     orders, total = await use_case(actor, ListOwnTransactionsDto(page=page, page_size=page_size))
     return OwnTransactionListResponse(
-        items=[OwnTransactionResponse.from_dto(o) for o in orders],
+        items=[OwnTransactionResponse.from_dto(o, actor.language) for o in orders],
         total=total,
         page=page,
         page_size=page_size,
@@ -152,4 +152,4 @@ async def get_own_transaction(
     use_case: FromDishka[GetOwnTransactionUseCase],
     actor: UserDto = Depends(get_current_user),
 ) -> OwnTransactionResponse:
-    return OwnTransactionResponse.from_dto(await use_case(actor, transaction_id))
+    return OwnTransactionResponse.from_dto(await use_case(actor, transaction_id), actor.language)

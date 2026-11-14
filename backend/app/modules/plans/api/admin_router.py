@@ -17,6 +17,7 @@ from app.modules.plans.api.schemas import (
     PlanListResponse,
     PlanResponse,
     PlanShareUrlsResponse,
+    PlanTranslationRequest,
     PreviewPricingChangeRequest,
     PriceBookResponse,
     PricingDiffResponse,
@@ -39,6 +40,7 @@ from app.modules.plans.dto import (
     AdjustBasePricesDto,
     CreateAddOnDto,
     CreatePlanDto,
+    PlanTranslationDto,
     PricingChangePreviewDto,
     ReorderPlansDto,
     SetAddOnBasePriceDto,
@@ -92,6 +94,14 @@ _CLEARABLE_FIELDS: Final[frozenset[str]] = frozenset(
     {"description", "tag", "badge", "icon_emoji_id", "icon_emoji_fallback"}
 )
 
+
+def _translations(items: list[PlanTranslationRequest]) -> list[PlanTranslationDto]:
+    return [
+        PlanTranslationDto(locale=item.locale, name=item.name, description=item.description)
+        for item in items
+    ]
+
+
 router = APIRouter(prefix="/plans", tags=["plans"])
 addons_router = APIRouter(prefix="/addons", tags=["addons"])
 pricing_router = APIRouter(prefix="/pricing", tags=["pricing"])
@@ -136,6 +146,7 @@ async def create_plan(
             is_trial=payload.is_trial,
             allow_bonus_days=payload.allow_bonus_days,
             allow_promocodes=payload.allow_promocodes,
+            translations=_translations(payload.translations),
         ),
     )
     return PlanResponse.model_validate(plan, from_attributes=True)
@@ -181,6 +192,9 @@ async def update_plan(
             is_trial=payload.is_trial,
             allow_bonus_days=payload.allow_bonus_days,
             allow_promocodes=payload.allow_promocodes,
+            translations=(
+                _translations(payload.translations) if payload.translations is not None else None
+            ),
             cleared=frozenset(
                 name
                 for name in _CLEARABLE_FIELDS & payload.model_fields_set

@@ -1,10 +1,11 @@
+from dataclasses import replace
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.enums import Currency
+from app.core.enums import Currency, Locale
 from app.modules.subscriptions.dto import PlanSnapshot
 from tests.modules.subscriptions.factories import make_plan_snapshot
 
@@ -93,3 +94,19 @@ def test_credit_fields_round_trip_and_old_json_reads_as_none() -> None:
     old = PlanSnapshot.from_json(data)
     assert old.credit_paid is None
     assert old.credit_days is None
+
+
+def test_shows_the_name_translated_at_checkout() -> None:
+    snapshot = replace(make_plan_snapshot(), name="Basic", names={Locale.RU: "Базовый"})
+
+    restored = PlanSnapshot.from_json(snapshot.to_json())
+
+    assert restored.display_name(Locale.RU) == "Базовый"
+    assert restored.display_name(Locale.DE) == "Basic"
+
+
+def test_snapshot_taken_before_translations_shows_its_name() -> None:
+    data = make_plan_snapshot().to_json()
+    del data["names"]
+
+    assert PlanSnapshot.from_json(data).display_name(Locale.RU) == data["name"]

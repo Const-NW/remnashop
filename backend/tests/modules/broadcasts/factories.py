@@ -60,11 +60,14 @@ async def add_subscription(
     is_trial: bool = False,
     plan_id: int = 1,
     plan_name: str = "Basic",
+    plan_names: Optional[dict[Locale, str]] = None,
     expire_at: Optional[datetime] = None,
     first_connected_at: Optional[datetime] = None,
     created_at: Optional[datetime] = None,
 ) -> None:
-    snapshot = make_plan_snapshot(plan_id=plan_id, name=plan_name, is_trial=is_trial)
+    snapshot = make_plan_snapshot(
+        plan_id=plan_id, name=plan_name, is_trial=is_trial, names=plan_names or {}
+    )
     # an explicit None would bypass the server default
     extra: dict[str, Any] = {"created_at": created_at} if created_at is not None else {}
     session.add(

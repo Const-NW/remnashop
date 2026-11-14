@@ -45,7 +45,7 @@ async def success_getter(
             runner,
             "msg-payment-result-success",
             purchase_type=order.purchase_type.value,
-            plan_name=order.plan_snapshot.name,
+            plan_name=order.plan_snapshot.display_name(user.language),
         ),
         "has_subscription": order.fulfilled_subscription_id is not None,
         "subscription_text": label_with_icon(runner, "btn-payment-result.subscription"),

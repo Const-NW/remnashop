@@ -3510,6 +3510,8 @@
       "cabinetLinkLabel": "Ссылка на кабинет",
       "nameLabel": "Название",
       "descriptionLabel": "Описание",
+      "baseLocale": "Основной",
+      "translationHint": "Пусто — на этом языке покажется основное название и описание",
       "tagLabel": "Тег",
       "typeLabel": "Тип",
       "type": {

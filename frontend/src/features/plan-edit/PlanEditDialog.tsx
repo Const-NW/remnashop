@@ -30,6 +30,7 @@ import {
   type PlanIconValue,
   type PlanSquads,
   type PlanBadge,
+  type PlanTranslation,
   type PlanType,
   setPlanDurations,
   type TrafficLimitStrategy,
@@ -37,6 +38,7 @@ import {
   updatePlanAccess,
   updatePlanSquads,
 } from "@entities/plans/api";
+import { listActiveLocales } from "@entities/translations/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { PlanAccessFields } from "@features/plan-access/PlanAccessDialog";
 import { planAccessPayload, planAccessValue } from "@features/plan-access/access-value";
@@ -48,6 +50,7 @@ import { currencySymbol } from "@shared/lib/format";
 import { blockNonDecimalKeys, blockNonIntegerKeys, parseRequiredInt } from "@shared/lib/number-input";
 import { randomId } from "@shared/lib/random-string";
 import { toast } from "@shared/lib/toast";
+import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { Modal } from "@shared/ui/Modal";
 import { useModalClose } from "@shared/ui/modal-hooks";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
@@ -59,6 +62,7 @@ import { CopyInput, Input, TextArea } from "@shared/ui/glass/Input";
 import { Switch } from "@shared/ui/glass/Switch";
 import { IconButton } from "@shared/ui/IconButton";
 import { ChoiceChip } from "@shared/ui/ChoiceChip";
+import { PillTabs } from "@shared/ui/PillTabs";
 import { Pressable } from "@shared/ui/Pressable";
 
 const PLAN_BADGES: PlanBadge[] = ["POPULAR", "BEST_VALUE"];
@@ -71,6 +75,14 @@ const PLAN_TYPE_ICON: Record<PlanType, ComponentType<{ className?: string }>> = 
 };
 const STRATEGIES: TrafficLimitStrategy[] = ["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"];
 const DURATION_PRESETS = [7, 30, 60, 90, 180, 365];
+
+// the tab that edits the plan's own name, shown in any language without a translation
+const BASE_LOCALE = "";
+
+interface TranslationDraft {
+  name: string;
+  description: string;
+}
 
 interface DurationRow {
   id: string;
@@ -91,6 +103,13 @@ function durationsKey(rows: DurationRow[]): string {
 }
 
 const hintClassName = "text-xs text-muted-foreground";
+
+// a translation without a name is dropped: that language shows the plan's own name
+function translationsPayload(drafts: Record<string, TranslationDraft>): PlanTranslation[] {
+  return Object.entries(drafts)
+    .filter(([, draft]) => draft.name.trim())
+    .map(([locale, draft]) => ({ locale, name: draft.name.trim(), description: draft.description.trim() || null }));
+}
 
 export function PlanEditDialog({ plan, anchorCurrency, onClose, onSaved }: PlanEditDialogProps) {
   return (
@@ -124,6 +143,25 @@ function PlanEditDialogBody({
       : DEFAULT_PLAN_ICON,
   );
   const [description, setDescription] = useState(plan?.description ?? "");
+  const [translations, setTranslations] = useState<Record<string, TranslationDraft>>(() =>
+    Object.fromEntries(
+      (plan?.translations ?? []).map((item) => [item.locale, { name: item.name, description: item.description ?? "" }]),
+    ),
+  );
+  const [locale, setLocale] = useState(BASE_LOCALE);
+  // the shop's other languages; without LOCALES_VIEW ru and en
+  const [localesState] = useAsyncResource((signal) =>
+    listActiveLocales(signal).then(
+      (result) => result.active.filter((item) => item !== result.default),
+      () => ["ru", "en"],
+    ),
+  );
+  const otherLocales = [
+    ...new Set([...(localesState.kind === "ready" ? localesState.data : []), ...Object.keys(translations)]),
+  ];
+  const translation = translations[locale] ?? { name: "", description: "" };
+  const setTranslation = (patch: Partial<TranslationDraft>) =>
+    setTranslations((prev) => ({ ...prev, [locale]: { ...translation, ...patch } }));
   const [tag, setTag] = useState(plan?.tag ?? "");
   const [badge, setBadge] = useState<PlanBadge | "">(plan?.badge ?? "");
   const [type, setType] = useState<PlanType>(plan?.type ?? "BOTH");
@@ -149,7 +187,7 @@ function PlanEditDialogBody({
   const squadsChanged = JSON.stringify(squads) !== JSON.stringify(initialSquads);
   const fieldsKey = JSON.stringify([
     name, icon, description, tag, badge, type, strategy, trafficLimit, deviceLimit, isTrial, allowBonusDays,
-    allowPromocodes,
+    allowPromocodes, translationsPayload(translations),
   ]);
   const [initialFieldsKey] = useState(fieldsKey);
   // set here only while creating; an existing plan has its own access dialog
@@ -235,6 +273,7 @@ function PlanEditDialogBody({
           is_trial: isTrial,
           allow_bonus_days: allowBonusDays,
           allow_promocodes: allowPromocodes,
+          translations: translationsPayload(translations),
         };
         let created = await createPlan(payload);
         const steps: [() => Promise<Plan>, ParseKeys][] = [];
@@ -275,6 +314,7 @@ function PlanEditDialogBody({
             is_trial: isTrial,
             allow_bonus_days: allowBonusDays,
             allow_promocodes: allowPromocodes,
+            translations: translationsPayload(translations),
           });
         }
         if (durationsKey(durations) !== durationsKey(initialDurations)) {
@@ -329,28 +369,71 @@ function PlanEditDialogBody({
             </div>
           )}
 
-          <fieldset disabled={!canEditFields} className="contents">
           <div className={GLASS_DIALOG_CARD_CLASS}>
-            <Field label={t("plans.edit.nameLabel")} htmlFor="plan-name" required>
-              <Input
-                id="plan-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                maxLength={32}
-                end={<PlanIconPicker value={icon} onChange={setIcon} />}
+            {otherLocales.length > 0 && (
+              <PillTabs
+                items={[
+                  { key: BASE_LOCALE, label: t("plans.edit.baseLocale") },
+                  ...otherLocales.map((item) => ({ key: item, label: item.toUpperCase() })),
+                ]}
+                activeKey={locale}
+                onSelect={setLocale}
               />
-            </Field>
-            <Field label={t("plans.edit.descriptionLabel")} htmlFor="plan-description">
-              <TextArea
-                id="plan-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                maxLength={1024}
-                rows={2}
-              />
-            </Field>
+            )}
+            {/* the tabs stay switchable for a reader without PLANS_UPDATE */}
+            <fieldset disabled={!canEditFields} className="contents">
+            {locale === BASE_LOCALE ? (
+              <>
+                <Field label={t("plans.edit.nameLabel")} htmlFor="plan-name" required>
+                  <Input
+                    id="plan-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    maxLength={32}
+                    end={<PlanIconPicker value={icon} onChange={setIcon} />}
+                  />
+                </Field>
+                <Field label={t("plans.edit.descriptionLabel")} htmlFor="plan-description">
+                  <TextArea
+                    id="plan-description"
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    maxLength={1024}
+                    rows={2}
+                  />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field
+                  label={t("plans.edit.nameLabel")}
+                  htmlFor="plan-name-translation"
+                  hint={t("plans.edit.translationHint")}
+                >
+                  <Input
+                    id="plan-name-translation"
+                    value={translation.name}
+                    placeholder={name}
+                    onChange={(event) => setTranslation({ name: event.target.value })}
+                    maxLength={32}
+                  />
+                </Field>
+                <Field label={t("plans.edit.descriptionLabel")} htmlFor="plan-description-translation">
+                  <TextArea
+                    id="plan-description-translation"
+                    value={translation.description}
+                    placeholder={description}
+                    onChange={(event) => setTranslation({ description: event.target.value })}
+                    maxLength={1024}
+                    rows={2}
+                  />
+                </Field>
+              </>
+            )}
+            </fieldset>
           </div>
 
+          <fieldset disabled={!canEditFields} className="contents">
           <div className={GLASS_DIALOG_CARD_CLASS}>
             <Field label={t("plans.edit.typeLabel")}>
               <div className="grid auto-rows-fr grid-cols-2 gap-2 sm:grid-cols-4">

@@ -202,7 +202,7 @@ class OwnTransactionResponse(BaseModel):
     target_subscription_id: Optional[int]
 
     @classmethod
-    def from_dto(cls, order: TransactionDto) -> "OwnTransactionResponse":
+    def from_dto(cls, order: TransactionDto, locale: Locale) -> "OwnTransactionResponse":
         return cls(
             id=order.id,
             status=order.status,
@@ -215,7 +215,7 @@ class OwnTransactionResponse(BaseModel):
             currency=order.currency,
             purchase_type=order.purchase_type,
             gateway_type=order.gateway_type,
-            plan_name=order.plan_snapshot.name,
+            plan_name=order.plan_snapshot.display_name(locale),
             duration_days=order.duration_days,
             created_at=order.created_at,
             plan_id=order.plan_snapshot.plan_id,

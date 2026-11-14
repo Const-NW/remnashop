@@ -45,7 +45,7 @@ def _catalog(*ids: int) -> PlanCatalogDto:
 
 def _subscription(id: int, plan_id: int, *, unlimited: bool = False) -> Any:
     snapshot = MagicMock(plan_id=plan_id)
-    snapshot.name = f"Plan {plan_id}"
+    snapshot.display_name.return_value = f"Plan {plan_id}"
     expire_at = datetime(2099 if unlimited else 2026, 11, 1, tzinfo=timezone.utc)
     return MagicMock(id=id, plan_snapshot=snapshot, expire_at=expire_at, is_unlimited=unlimited)
 

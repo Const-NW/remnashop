@@ -44,6 +44,7 @@ from app.core.db.models.payment_waitlist import PaymentWaitlistEntry
 from app.core.db.models.plan import Plan
 from app.core.db.models.plan_duration import PlanDuration
 from app.core.db.models.plan_price_override import PlanPriceOverride
+from app.core.db.models.plan_translation import PlanTranslation
 from app.core.db.models.pricing_settings import PricingSettings
 from app.core.db.models.promocode import Promocode, PromocodeActivation
 from app.core.db.models.push_subscription import PushSubscription
@@ -107,6 +108,7 @@ __all__ = [
     "Plan",
     "PlanDuration",
     "PlanPriceOverride",
+    "PlanTranslation",
     "PricingSettings",
     "Promocode",
     "PromocodeActivation",

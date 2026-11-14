@@ -47,7 +47,7 @@ def _order(**overrides: Any) -> MagicMock:
     }
     values.update(overrides)
     order = MagicMock(**values)
-    order.plan_snapshot.name = "Pro"
+    order.plan_snapshot.display_name.return_value = "Pro"
     return order
 
 

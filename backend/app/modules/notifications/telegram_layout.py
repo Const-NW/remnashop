@@ -519,7 +519,7 @@ def plan_summary_block(
         (card.label("device-limit"), card.count_limit(subscription.effective_device_limit), False),
         (card.label("left"), card.left(subscription), False),
     ]
-    return "📦", subscription.plan_snapshot.name, rows
+    return "📦", subscription.plan_snapshot.display_name(locale), rows
 
 
 def build_telegram_card(

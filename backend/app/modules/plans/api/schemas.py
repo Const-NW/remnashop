@@ -3,13 +3,14 @@ from decimal import Decimal
 from typing import Annotated, Any, Final, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 from remnapy.enums import TrafficLimitStrategy
 
 from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
 from app.core.enums import (
     AddOnType,
     Currency,
+    Locale,
     PinnedPriceAction,
     PlanAvailability,
     PlanBadge,
@@ -55,6 +56,31 @@ class PlanShareUrlsResponse(BaseModel):
     webcabinet_url: Optional[str] = None
 
 
+class PlanTranslationRequest(BaseModel):
+    locale: Locale
+    name: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=PLAN_NAME_MAX_LENGTH),
+    ]
+    description: Optional[str] = Field(default=None, max_length=PLAN_DESCRIPTION_MAX_LENGTH)
+
+
+class PlanTranslationResponse(BaseModel):
+    locale: Locale
+    name: str
+    description: Optional[str] = None
+
+
+def _one_per_locale(
+    translations: Optional[list[PlanTranslationRequest]],
+) -> Optional[list[PlanTranslationRequest]]:
+    if translations is not None and len({item.locale for item in translations}) != len(
+        translations
+    ):
+        raise ValueError("One translation per locale")
+    return translations
+
+
 class PlanResponse(BaseModel):
     id: int
     public_code: str
@@ -82,6 +108,7 @@ class PlanResponse(BaseModel):
     discount_starts_at: Optional[datetime] = None
     discount_ends_at: Optional[datetime] = None
     durations: list[PlanDurationResponse]
+    translations: list[PlanTranslationResponse]
 
 
 class PlanIconRequest(BaseModel):
@@ -126,6 +153,9 @@ class CreatePlanRequest(PlanIconRequest):
     is_trial: bool = False
     allow_bonus_days: bool = True
     allow_promocodes: bool = True
+    translations: list[PlanTranslationRequest] = []
+
+    _unique_translations = field_validator("translations")(_one_per_locale)
 
 
 class UpdatePlanRequest(PlanIconRequest):
@@ -144,6 +174,9 @@ class UpdatePlanRequest(PlanIconRequest):
     is_trial: Optional[bool] = None
     allow_bonus_days: Optional[bool] = None
     allow_promocodes: Optional[bool] = None
+    translations: Optional[list[PlanTranslationRequest]] = None
+
+    _unique_translations = field_validator("translations")(_one_per_locale)
 
 
 class SetPlanDurationsRequest(BaseModel):
