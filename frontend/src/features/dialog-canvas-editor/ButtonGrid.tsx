@@ -1,19 +1,29 @@
 import {
   DndContext,
   DragOverlay,
+  MeasuringStrategy,
   PointerSensor,
   closestCenter,
   defaultDropAnimationSideEffects,
+  getFirstCollision,
+  pointerWithin,
+  rectIntersection,
+  useDndContext,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
   type DropAnimation,
+  type Modifier,
+  type UniqueIdentifier,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { useState } from "react";
+import { CSS, getEventCoordinates } from "@dnd-kit/utilities";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { buttonKey, iconIdTextKey, iconTextKey } from "@entities/dialogs/api";
@@ -31,17 +41,10 @@ interface ButtonGridProps {
   onReorder: (next: DialogButtonItem[]) => void;
 }
 
-function buttonRows(buttons: DialogButtonItem[]): DialogButtonItem[][] {
-  const byRow = new Map<number, DialogButtonItem[]>();
-  for (const button of buttons) {
-    const row = byRow.get(button.row) ?? [];
-    row.push(button);
-    byRow.set(button.row, row);
-  }
-  return [...byRow.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([, row]) => row.sort((a, b) => a.column - b.column));
-}
+/** row id → button ids in column order; `row-new` is the row a drop can open below the rest */
+type Rows = Record<string, string[]>;
+
+const NEW_ROW = "row-new";
 
 const DROP_ANIMATION: DropAnimation = {
   sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.3" } } }),
@@ -56,34 +59,51 @@ const STYLE_CLASSNAME: Record<string, string> = {
 
 const buttonId = buttonKey;
 
-function toContainers(buttons: DialogButtonItem[]): Record<string, DialogButtonItem[]> {
-  const rows = buttonRows(buttons);
-  const containers: Record<string, DialogButtonItem[]> = {};
-  rows.forEach((row, index) => {
-    containers[`row-${index}`] = row;
-  });
-  containers["row-new"] = [];
-  return containers;
-}
+// The lifted button shrinks to its text, so it's held by its middle, not where it was grabbed.
+const centerOnCursor: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
+  const pointer = activatorEvent ? getEventCoordinates(activatorEvent) : null;
+  if (!pointer || !draggingNodeRect) return transform;
+  return {
+    ...transform,
+    x: transform.x + pointer.x - draggingNodeRect.left - draggingNodeRect.width / 2,
+    y: transform.y + pointer.y - draggingNodeRect.top - draggingNodeRect.height / 2,
+  };
+};
 
-function findContainer(containers: Record<string, DialogButtonItem[]>, id: string): string | undefined {
-  if (id in containers) return id;
-  return Object.keys(containers).find((key) => containers[key].some((b) => buttonId(b) === id));
-}
-
-function renumber(containers: Record<string, DialogButtonItem[]>): DialogButtonItem[] {
-  const rowKeys = Object.keys(containers)
-    .filter((key) => key !== "row-new" && containers[key].length > 0)
-    .sort((a, b) => Number(a.split("-")[1]) - Number(b.split("-")[1]));
-  const flat: DialogButtonItem[] = [];
-  rowKeys.forEach((key, rowIndex) => {
-    containers[key].forEach((button, column) => {
-      flat.push({ ...button, row: rowIndex, column });
+function toRows(buttons: DialogButtonItem[]): Rows {
+  const byRow = new Map<number, DialogButtonItem[]>();
+  for (const button of buttons) {
+    const row = byRow.get(button.row) ?? [];
+    row.push(button);
+    byRow.set(button.row, row);
+  }
+  const rows: Rows = {};
+  [...byRow.entries()]
+    .sort(([a], [b]) => a - b)
+    .forEach(([, row], index) => {
+      rows[`row-${index}`] = row.sort((a, b) => a.column - b.column).map(buttonId);
     });
-  });
-  containers["row-new"].forEach((button, column) => {
-    flat.push({ ...button, row: rowKeys.length, column });
-  });
+  rows[NEW_ROW] = [];
+  return rows;
+}
+
+function findRow(rows: Rows, id: UniqueIdentifier): string | undefined {
+  const key = String(id);
+  if (key in rows) return key;
+  return Object.keys(rows).find((row) => rows[row].includes(key));
+}
+
+/** keys keep insertion order, so the new row stays last; emptied rows drop out */
+function renumber(rows: Rows, byId: Map<string, DialogButtonItem>): DialogButtonItem[] {
+  const flat: DialogButtonItem[] = [];
+  Object.values(rows)
+    .filter((ids) => ids.length > 0)
+    .forEach((ids, row) => {
+      ids.forEach((id, column) => {
+        const button = byId.get(id);
+        if (button) flat.push({ ...button, row, column });
+      });
+    });
   return flat;
 }
 
@@ -198,15 +218,11 @@ function Row({
   onSelect: (selection: Selection) => void;
   canEdit: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+  // the row itself is a target too, so a button can enter one emptied mid-drag
+  const { setNodeRef } = useDroppable({ id });
 
   return (
-    <div
-      ref={setNodeRef}
-      className={`flex min-h-10 gap-1.5 rounded-xl transition-colors ${
-        isOver ? "bg-primary/10 ring-1 ring-primary/40" : ""
-      }`}
-    >
+    <div ref={setNodeRef} className="flex min-h-10 gap-1.5 rounded-xl">
       <SortableContext items={buttons.map(buttonId)} strategy={horizontalListSortingStrategy}>
         {buttons.map((button) => (
           <CanvasButton
@@ -224,9 +240,60 @@ function Row({
   );
 }
 
-/** Where a dropped button opens a new row; mounted only during a drag. */
-function NewRowIndicator({ id }: { id: string }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
+const isInside = (rect: DOMRect, x: number, y: number) =>
+  x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+
+/** Fits its text in hand; over the rows, once off its own spot, takes the width of the slot it would land in. */
+function LiftedButton({
+  button,
+  textByKey,
+  grid,
+}: {
+  button: DialogButtonItem;
+  textByKey: Record<string, string>;
+  grid: RefObject<HTMLDivElement | null>;
+}) {
+  // activeNode is the faded placeholder, already sized by the row it would land in
+  const { activeNode, activatorEvent } = useDndContext();
+  const [slotWidth, setSlotWidth] = useState<number | null>(null);
+  const [isOverRows, setIsOverRows] = useState(false);
+
+  useEffect(() => {
+    if (!activeNode) return;
+    const observer = new ResizeObserver(() => setSlotWidth(activeNode.getBoundingClientRect().width));
+    observer.observe(activeNode);
+    return () => observer.disconnect();
+  }, [activeNode]);
+
+  useEffect(() => {
+    const home = activeNode?.getBoundingClientRect();
+    let hasLeftHome = false;
+    const onMove = (event: PointerEvent) => {
+      if (home && !isInside(home, event.clientX, event.clientY)) hasLeftHome = true;
+      const rows = grid.current?.getBoundingClientRect();
+      setIsOverRows(hasLeftHome && rows !== undefined && isInside(rows, event.clientX, event.clientY));
+    };
+    window.addEventListener("pointermove", onMove);
+    return () => window.removeEventListener("pointermove", onMove);
+    // home is where the drag began: measured once per activation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activatorEvent]);
+
+  return (
+    <div className="flex size-full cursor-grabbing items-center justify-center">
+      <span
+        style={{ width: isOverRows && slotWidth !== null ? slotWidth : "max-content" }}
+        className="flex scale-[1.03] transition-[width] duration-150 ease-out [interpolate-size:allow-keywords]"
+      >
+        <ButtonFace button={button} textByKey={textByKey} className="w-full shadow-lg shadow-black/40 ring-2 ring-primary/60" />
+      </span>
+    </div>
+  );
+}
+
+/** Where a dropped button opens a new row; mounted only during a drag, while that row is empty. */
+function NewRowIndicator() {
+  const { setNodeRef, isOver } = useDroppable({ id: NEW_ROW });
 
   return (
     <div ref={setNodeRef} className="flex h-5 items-center">
@@ -252,50 +319,93 @@ export function ButtonGrid({
   onReorder,
 }: ButtonGridProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-  const [dragged, setDragged] = useState<{ button: DialogButtonItem; width: number } | null>(null);
-  const containers = toContainers(buttons);
-  const rowKeys = Object.keys(containers)
-    .filter((key) => key !== "row-new")
-    .sort((a, b) => Number(a.split("-")[1]) - Number(b.split("-")[1]));
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  // the layout while a drag moves buttons between rows; null at rest, so props rule
+  const [dragRows, setDragRows] = useState<Rows | null>(null);
+  const rows = dragRows ?? toRows(buttons);
+  const byId = new Map(buttons.map((b) => [buttonId(b), b]));
+  const lastOverId = useRef<UniqueIdentifier | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const recentlyMovedToNewRow = useRef(false);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      recentlyMovedToNewRow.current = false;
+    });
+  }, [dragRows]);
+
+  // The pointer picks the row, the nearest button in it the slot; while a button has just
+  // changed rows its old target is held, or the shifting layout flips it straight back.
+  const collisionDetection: CollisionDetection = useCallback(
+    (args) => {
+      const pointerHits = pointerWithin(args);
+      let overId = getFirstCollision(pointerHits.length > 0 ? pointerHits : rectIntersection(args), "id");
+      if (overId != null) {
+        const rowIds = rows[String(overId)];
+        if (rowIds && rowIds.length > 0) {
+          overId =
+            closestCenter({
+              ...args,
+              droppableContainers: args.droppableContainers.filter((c) => rowIds.includes(String(c.id))),
+            })[0]?.id ?? overId;
+        }
+        lastOverId.current = overId;
+        return [{ id: overId }];
+      }
+      if (recentlyMovedToNewRow.current && draggedId) lastOverId.current = draggedId;
+      return lastOverId.current != null ? [{ id: lastOverId.current }] : [];
+    },
+    [rows, draggedId],
+  );
 
   const handleDragStart = (event: DragStartEvent) => {
-    const button = buttons.find((b) => buttonId(b) === String(event.active.id));
-    if (!button) return;
-    // The overlay is outside the row's flex layout, so it needs the width the
-    // button actually had, or it collapses to its text.
-    setDragged({ button, width: event.active.rect.current.initial?.width ?? 0 });
+    setDraggedId(String(event.active.id));
+    setDragRows(toRows(buttons));
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    setDragged(null);
-    const { active, over } = event;
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
     if (!over) return;
     const activeId = String(active.id);
-    const overId = String(over.id);
-    const fromContainer = findContainer(containers, activeId);
-    const toContainer = findContainer(containers, overId) ?? overId;
-    if (!fromContainer || !toContainer) return;
-    if (fromContainer === toContainer && activeId === overId) return;
+    const dropped = active.rect.current.translated;
+    const isAfter = dropped !== null && dropped.left + dropped.width / 2 > over.rect.left + over.rect.width / 2;
+    setDragRows((prev) => {
+      const current = prev ?? rows;
+      const fromRow = findRow(current, active.id);
+      const toRow = findRow(current, over.id);
+      if (!fromRow || !toRow || fromRow === toRow) return current;
+      const overIds = current[toRow];
+      const overIndex = overIds.indexOf(String(over.id));
+      const index = overIndex === -1 ? overIds.length : overIndex + (isAfter ? 1 : 0);
+      recentlyMovedToNewRow.current = true;
+      return {
+        ...current,
+        [fromRow]: current[fromRow].filter((id) => id !== activeId),
+        [toRow]: [...overIds.slice(0, index), activeId, ...overIds.slice(index)],
+      };
+    });
+  };
 
-    if (fromContainer === toContainer) {
-      const items = containers[fromContainer];
-      const activeIndex = items.findIndex((b) => buttonId(b) === activeId);
-      const overIndex = items.findIndex((b) => buttonId(b) === overId);
-      if (activeIndex === -1 || overIndex === -1) return;
-      onReorder(renumber({ ...containers, [fromContainer]: arrayMove(items, activeIndex, overIndex) }));
-      return;
-    }
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const row = findRow(rows, active.id);
+    const finalRows = rows;
+    setDraggedId(null);
+    setDragRows(null);
+    if (!over || !row) return;
+    const ids = finalRows[row];
+    const activeIndex = ids.indexOf(String(active.id));
+    const overIndex = ids.indexOf(String(over.id));
+    const next = overIndex !== -1 && overIndex !== activeIndex ? { ...finalRows, [row]: arrayMove(ids, activeIndex, overIndex) } : finalRows;
+    const reordered = renumber(next, byId);
+    const changed = reordered.some((b) => {
+      const before = byId.get(buttonId(b));
+      return before?.row !== b.row || before.column !== b.column;
+    });
+    if (changed) onReorder(reordered);
+  };
 
-    const from = [...containers[fromContainer]];
-    const activeIndex = from.findIndex((b) => buttonId(b) === activeId);
-    if (activeIndex === -1) return;
-    const [moved] = from.splice(activeIndex, 1);
-
-    const to = [...containers[toContainer]];
-    const overIndex = to.findIndex((b) => buttonId(b) === overId);
-    to.splice(overIndex === -1 ? to.length : overIndex, 0, moved);
-
-    onReorder(renumber({ ...containers, [fromContainer]: from, [toContainer]: to }));
+  const handleDragCancel = () => {
+    setDraggedId(null);
+    setDragRows(null);
   };
 
   if (buttons.length === 0 && !canEdit) {
@@ -306,38 +416,41 @@ export function ButtonGrid({
     );
   }
 
+  const rowButtons = (key: string) => rows[key].flatMap((id) => byId.get(id) ?? []);
+  const draggedButton = draggedId ? byId.get(draggedId) : undefined;
+
   return (
-    <div className="flex flex-col gap-1.5">
+    <div ref={gridRef} className="flex flex-col gap-1.5">
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={collisionDetection}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
-        onDragCancel={() => setDragged(null)}
+        onDragCancel={handleDragCancel}
       >
-        {rowKeys.map((key) => (
-          <Row
-            key={key}
-            id={key}
-            buttons={containers[key]}
-            textByKey={textByKey}
-            selection={selection}
-            onSelect={onSelect}
-            canEdit={canEdit}
-          />
-        ))}
-        {canEdit && dragged !== null && <NewRowIndicator id="row-new" />}
-        <DragOverlay dropAnimation={DROP_ANIMATION}>
-          {dragged && (
-            <div style={{ width: dragged.width }} className="scale-[1.03] cursor-grabbing">
-              <ButtonFace
-                button={dragged.button}
-                textByKey={textByKey}
-                className="w-full shadow-lg shadow-black/40 ring-2 ring-primary/60"
-              />
-            </div>
-          )}
-        </DragOverlay>
+        {Object.keys(rows)
+          .filter((key) => key !== NEW_ROW || rows[key].length > 0)
+          .map((key) => (
+            <Row
+              key={key}
+              id={key}
+              buttons={rowButtons(key)}
+              textByKey={textByKey}
+              selection={selection}
+              onSelect={onSelect}
+              canEdit={canEdit}
+            />
+          ))}
+        {canEdit && draggedId !== null && rows[NEW_ROW].length === 0 && <NewRowIndicator />}
+        {/* in body: the panel's backdrop-filter would make it the fixed overlay's containing block, offsetting it by the sidebar */}
+        {createPortal(
+          <DragOverlay dropAnimation={DROP_ANIMATION} modifiers={[centerOnCursor]}>
+            {draggedButton && <LiftedButton button={draggedButton} textByKey={textByKey} grid={gridRef} />}
+          </DragOverlay>,
+          document.body,
+        )}
       </DndContext>
     </div>
   );
