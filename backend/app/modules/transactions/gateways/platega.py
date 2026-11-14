@@ -5,7 +5,7 @@ import orjson
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import PlategaSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -46,14 +46,14 @@ class PlategaGateway(PaymentGateway[PlategaSettings]):
     def requires_customer_email(cls, settings: dict[str, str]) -> bool:
         return True
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payment_method = self.settings.payment_method
         payload: dict[str, object] = {
             "paymentDetails": {
                 "amount": amount_to_float(order.final_price),
                 "currency": order.currency.value,
             },
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "payload": order.idempotency_key,
             "return": self._return_url,
             "failedUrl": self._return_url,

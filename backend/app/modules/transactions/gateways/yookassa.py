@@ -6,7 +6,7 @@ import orjson
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import YooKassaSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -16,7 +16,6 @@ from app.modules.transactions.gateways.base import (
 )
 from app.modules.transactions.gateways.common import (
     PROVIDER_API_TIMEOUT_S,
-    order_period_text,
     parse_json,
     to_decimal,
 )
@@ -35,14 +34,12 @@ _PAYMENT_MODE: Final[str] = "full_payment"
 
 
 def _build_receipt(
-    order: TransactionDto, settings: YooKassaSettings
+    order: TransactionDto, text: PaymentTextDto, settings: YooKassaSettings
 ) -> Optional[dict[str, object]]:
     if not order.customer_email or settings.vat_code is None:
         return None
     item: dict[str, object] = {
-        "description": (
-            f"Subscription plan #{order.plan_id}, {order_period_text(order.duration_days)}"
-        ),
+        "description": text.description,
         "quantity": "1.00",
         "amount": {"value": f"{order.final_price:.2f}", "currency": order.currency.value},
         "vat_code": int(settings.vat_code),
@@ -81,15 +78,15 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
     def _auth(self) -> tuple[str, str]:
         return self.settings.shop_id, self.settings.api_key.get_secret_value()
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         body: dict[str, object] = {
             "amount": {"value": f"{order.final_price:.2f}", "currency": order.currency.value},
             "confirmation": {"type": "redirect", "return_url": self._return_url},
             "capture": True,
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "metadata": {"order_ref": order.idempotency_key},
         }
-        receipt = _build_receipt(order, self.settings)
+        receipt = _build_receipt(order, text, self.settings)
         if receipt is not None:
             body["receipt"] = receipt
 

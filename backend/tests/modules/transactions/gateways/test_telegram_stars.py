@@ -15,6 +15,7 @@ from tests.fakes.telegram_bot import FakeBotSession, refusal, use_fake_bot
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     make_order,
@@ -49,26 +50,17 @@ def test_stars_amount_rounds_up_to_whole_stars() -> None:
 async def test_create_payment_returns_the_invoice_link(monkeypatch: pytest.MonkeyPatch) -> None:
     session = use_fake_bot(monkeypatch, FakeBotSession({"createInvoiceLink": "https://t.me/$abc"}))
 
-    intent = await _gateway().create_payment(_order("50"))
+    intent = await _gateway().create_payment(_order("50"), PAYMENT_TEXT)
 
     assert intent.confirmation_url == "https://t.me/$abc"
     [call] = session.called("createInvoiceLink")
     assert (call["currency"], call["payload"]) == ("XTR", ORDER_REF)
+    assert (call["title"], call["description"]) == (
+        PAYMENT_TEXT.title,
+        PAYMENT_TEXT.localized_description,
+    )
     assert call["prices"] == [{"label": "XTR", "amount": 50}]
     assert session.proxy == "socks5://proxy:1080"
-
-
-async def test_a_test_payment_invoice_names_no_term(monkeypatch: pytest.MonkeyPatch) -> None:
-    # it buys nothing: its 0 days aren't "unlimited"
-    session = use_fake_bot(monkeypatch, FakeBotSession({"createInvoiceLink": "https://t.me/$t"}))
-    order = make_order(
-        currency=Currency.XTR, final_price=Decimal("1"), duration_days=0, is_test=True
-    )
-
-    await _gateway().create_payment(order)
-
-    [call] = session.called("createInvoiceLink")
-    assert call["description"] == order.plan_snapshot.name
 
 
 async def test_create_payment_raises_on_a_refusal(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -76,7 +68,7 @@ async def test_create_payment_raises_on_a_refusal(monkeypatch: pytest.MonkeyPatc
     use_fake_bot(monkeypatch, FakeBotSession({"createInvoiceLink": lambda params: refused}))
 
     with pytest.raises(PaymentGatewayError) as raised:
-        await _gateway().create_payment(_order("50"))
+        await _gateway().create_payment(_order("50"), PAYMENT_TEXT)
 
     assert _TOKEN not in str(raised.value)
 

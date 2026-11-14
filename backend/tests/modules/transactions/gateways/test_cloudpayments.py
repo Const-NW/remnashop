@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.cloudpayments import CloudPaymentsGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -62,7 +63,7 @@ async def test_create_payment_sends_the_order_and_returns_the_payment_page() -> 
         json_response({"Success": True, "Model": {"Id": "cp-9", "Url": "https://pay.cp/9"}})
     )
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     body = http.last_json()
     assert intent.confirmation_url == "https://pay.cp/9"
@@ -79,13 +80,13 @@ async def test_create_payment_sends_the_order_and_returns_the_payment_page() -> 
 async def test_create_payment_raises_when_the_api_refuses() -> None:
     http = HttpRecorder(json_response({"Success": False, "Message": "Invalid amount"}))
     with pytest.raises(PaymentGatewayError):
-        await _gateway(http=http.client).create_payment(make_order())
+        await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
 
 async def test_create_payment_requires_a_payment_page() -> None:
     http = HttpRecorder(json_response({"Success": True, "Model": {"Id": "cp-9"}}))
     with pytest.raises(PaymentGatewayError):
-        await _gateway(http=http.client).create_payment(make_order())
+        await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
 
 async def test_parse_webhook_verifies_the_raw_body_hmac() -> None:

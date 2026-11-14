@@ -6,7 +6,7 @@ import orjson
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import RollyPaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -44,12 +44,12 @@ class RollyPayGateway(PaymentGateway[RollyPaySettings]):
     def _headers(self) -> dict[str, str]:
         return {"X-API-Key": self.settings.api_key.get_secret_value(), "X-Nonce": uuid.uuid4().hex}
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "amount": f"{order.final_price:.2f}",
             "payment_currency": order.currency.value,
             "order_id": order.idempotency_key,
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "redirect_url": self._return_url,
             "success_redirect_url": self._return_url,
             "fail_redirect_url": self._return_url,

@@ -165,6 +165,15 @@ class QuoteCheckoutDto:
     change_subscription_id: Optional[int] = None
 
 
+@dataclass(frozen=True, kw_only=True)
+class PaymentTextDto:
+    # in Russian: the fiscal receipt and the Russian providers' payment pages
+    description: str
+    # Telegram Stars' invoice and Crypto Bot, in the customer's language
+    title: str
+    localized_description: str
+
+
 class CheckoutResultDto(BaseDto):
     order_id: int
     confirmation_url: Optional[str] = None

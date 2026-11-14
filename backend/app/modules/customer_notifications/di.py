@@ -6,6 +6,7 @@ from app.modules.customer_notifications.dispatch import (
     NotifyCustomerDispatch,
     SendCustomerTelegramDispatch,
 )
+from app.modules.customer_notifications.payment_texts import PaymentTextRenderer
 from app.modules.customer_notifications.repository import CustomerNotificationRepository
 from app.modules.customer_notifications.tasks import (
     notify_customer_task,
@@ -21,11 +22,12 @@ from app.modules.customer_notifications.usecases import (
     ShowPaymentCanceledUseCase,
 )
 from app.modules.customer_notifications.waitlist import PaymentsRestoredNotices
-from app.modules.transactions import PaymentsRestoredNotifier
+from app.modules.transactions import PaymentsRestoredNotifier, PaymentTexts
 
 
 class CustomerNotificationsProvider(Provider):
     customer_notification_repository = provide(CustomerNotificationRepository, scope=Scope.REQUEST)
+    payment_texts = provide(PaymentTextRenderer, provides=PaymentTexts, scope=Scope.REQUEST)
 
     use_cases = provide_all(
         ClearCustomerFeedUseCase,

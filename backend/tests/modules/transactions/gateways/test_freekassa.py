@@ -11,6 +11,7 @@ from app.modules.transactions.gateways.freekassa import FreeKassaGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -103,7 +104,7 @@ async def test_create_payment_never_signs_none(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(freekassa_module, "_resolve_server_ip", _fake_server_ip)
 
     intent = await _gateway(http=http.client).create_payment(
-        make_order(customer_email="buyer@example.com")
+        make_order(customer_email="buyer@example.com"), PAYMENT_TEXT
     )
 
     body = http.last_json()

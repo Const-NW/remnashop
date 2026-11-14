@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import AntilopaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -76,7 +76,7 @@ class AntilopayGateway(PaymentGateway[AntilopaySettings]):
         response.raise_for_status()
         return orjson.loads(response.content)
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         data = await self._post(
             "payment/create",
             {
@@ -84,9 +84,9 @@ class AntilopayGateway(PaymentGateway[AntilopaySettings]):
                 "amount": amount_to_float(order.final_price),
                 "order_id": order.idempotency_key,
                 "currency": order.currency.value.lower(),
-                "product_name": f"Order #{order.id}",
+                "product_name": text.description,
                 "product_type": "services",
-                "description": f"Order #{order.id}",
+                "description": text.description,
                 "customer": {"email": order.customer_email},
                 "success_url": self._return_url,
                 "fail_url": self._return_url,

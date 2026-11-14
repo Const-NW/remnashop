@@ -9,6 +9,7 @@ from app.modules.transactions.gateways.paypalych import PaypalychGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -55,7 +56,7 @@ async def test_create_payment_sends_ttl_and_bearer_token() -> None:
         json_response({"success": "true", "bill_id": "bill-1", "link_page_url": "https://p/1"}),
     )
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     body = http.last_json()
     assert intent.provider_payment_id == "bill-1"
@@ -68,7 +69,7 @@ async def test_create_payment_sends_ttl_and_bearer_token() -> None:
 async def test_create_payment_rejects_success_false() -> None:
     http = HttpRecorder(json_response({"success": "false", "message": "nope"}))
     with pytest.raises(PaymentGatewayError):
-        await _gateway(http=http.client).create_payment(make_order())
+        await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
 
 @pytest.mark.parametrize("as_form", [True, False])

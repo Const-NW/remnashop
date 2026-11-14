@@ -6,7 +6,7 @@ from pydantic import SecretStr
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import GatewaySettings, RioPaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -48,12 +48,12 @@ class RioPayGateway(PaymentGateway[_RioPayFamilySettings]):
     def _token(self) -> str:
         return self.settings.token.get_secret_value()
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload: dict[str, object] = {
             "amount": f"{order.final_price:.2f}",
             "currency": order.currency.value,
             "externalId": order.idempotency_key,
-            "purpose": f"Order #{order.id}",
+            "purpose": text.description,
             "successUrl": self._return_url,
             "failUrl": self._return_url,
             "callbackUrl": self._webhook_url,

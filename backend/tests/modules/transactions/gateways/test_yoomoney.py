@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.yoomoney import YooMoneyGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -68,7 +69,7 @@ async def test_create_payment_follows_the_quickpay_redirect() -> None:
 
     http = HttpRecorder(respond)
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     assert intent.confirmation_url == "https://yoomoney.ru/quickpay/pay/1"
     assert b"label=order-key-1" in http.requests[0].content

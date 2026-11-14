@@ -55,6 +55,7 @@ from app.modules.transactions.fulfillment import dispatch_fulfillment
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
 from app.modules.transactions.gateways.telegram_stars import with_bot_settings
+from app.modules.transactions.ports import PaymentTexts
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.unpaid_orders import give_back_purchase_discount
 from app.modules.transactions.waitlist_repository import WaitlistRepository
@@ -83,6 +84,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         config: AppConfig,
         event_publisher: EventPublisher,
         legal_recorder: LegalAcceptanceRecorder,
+        payment_texts: PaymentTexts,
     ) -> None:
         self._pricer = pricer
         self._user_repository = user_repository
@@ -99,6 +101,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         self._config = config
         self._event_publisher = event_publisher
         self._legal_recorder = legal_recorder
+        self._payment_texts = payment_texts
 
     async def _return_url(self, data: CreateCheckoutDto, order_id: int) -> Optional[str]:
         if data.channel is PurchaseChannel.BOT:
@@ -263,7 +266,8 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         return_url = await self._return_url(data, order.id)
         gateway = self._gateway_factory.build(data.gateway_type, gateway_settings, return_url)
         try:
-            intent = await gateway.create_payment(order)
+            text = await self._payment_texts.describe(order, actor.language)
+            intent = await gateway.create_payment(order, text)
         except Exception as error:
             # no payment exists at the provider, so the order and its spent discount go back
             async with self._uow:

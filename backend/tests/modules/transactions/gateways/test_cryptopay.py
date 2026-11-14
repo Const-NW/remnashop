@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.cryptopay import CryptoPayGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -63,12 +64,14 @@ async def test_create_payment_sets_expiry_and_stores_the_invoice() -> None:
         json_response({"ok": True, "result": {"invoice_id": 99, "bot_invoice_url": "https://t/1"}}),
     )
 
-    intent = await _gateway(http=http.client).create_payment(_order())
+    intent = await _gateway(http=http.client).create_payment(_order(), PAYMENT_TEXT)
 
     body = http.last_json()
     assert 0 < body["expires_in"] <= 1800
     assert body["payload"] == ORDER_REF
     assert http.last.headers["Crypto-Pay-API-Token"] == _TOKEN
+    # Crypto Bot is read in any language, not just Russian
+    assert body["description"] == PAYMENT_TEXT.localized_description
     assert intent.provider_payment_id == "99"
 
 

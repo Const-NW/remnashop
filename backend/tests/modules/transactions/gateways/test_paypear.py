@@ -9,6 +9,7 @@ from app.modules.transactions.gateways.paypear import PayPearGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -51,7 +52,7 @@ async def test_create_payment_sends_idempotency_key_expiry_and_basic_auth() -> N
     )
     order = make_order()
 
-    intent = await _gateway(http=http.client).create_payment(order)
+    intent = await _gateway(http=http.client).create_payment(order, PAYMENT_TEXT)
 
     body = http.last_json()
     expected_auth = "Basic " + base64.b64encode(b"33661:secret").decode()

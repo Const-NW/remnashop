@@ -14,7 +14,7 @@ from app.core.enums import (
     TransactionStatus,
 )
 from app.core.utils.time import datetime_now
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import PaymentHttpClient
 from tests.modules.subscriptions.factories import make_plan_snapshot
 
@@ -88,3 +88,10 @@ class HttpRecorder:
 
 def json_response(payload: Any, status_code: int = 200) -> Responder:
     return lambda request: httpx.Response(status_code, json=payload)
+
+
+PAYMENT_TEXT: Final[PaymentTextDto] = PaymentTextDto(
+    description="Подписка «Basic», 1 месяц",
+    title="Basic",
+    localized_description="Subscription “Basic”, 1 month",
+)

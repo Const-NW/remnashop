@@ -6,7 +6,7 @@ import orjson
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import SeverPaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -53,7 +53,7 @@ class SeverPayGateway(PaymentGateway[SeverPaySettings]):
             "sign": hmac_hex(self.settings.token.get_secret_value(), compact_json(ordered)),
         }
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = self._signed(
             {
                 "order_id": order.idempotency_key,

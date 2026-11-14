@@ -5,7 +5,7 @@ from xml.etree import ElementTree as ET
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import RobokassaSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -37,7 +37,7 @@ class RobokassaGateway(PaymentGateway[RobokassaSettings]):
     settings_model = RobokassaSettings
     currency = Currency.RUB
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         login = self.settings.merchant_login
         out_sum = f"{order.final_price:.2f}"
         inv_id = str(order.id)
@@ -57,7 +57,7 @@ class RobokassaGateway(PaymentGateway[RobokassaSettings]):
             "MerchantLogin": login,
             "OutSum": out_sum,
             "InvId": inv_id,
-            "Description": f"Order #{order.id}",
+            "Description": text.description,
             "SignatureValue": signature,
             "Culture": "ru",
             "Encoding": "utf-8",

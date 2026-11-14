@@ -10,7 +10,7 @@ import httpx
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import GatewaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 
 HTTP_TIMEOUT_S: Final[float] = 20.0
 # one pooled client for every provider call, owned by the DI container
@@ -118,7 +118,9 @@ class PaymentGateway(ABC, Generic[S]):
         return any(address in ipaddress.ip_network(net) for net in self.trusted_networks)
 
     @abstractmethod
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent: ...
+    async def create_payment(
+        self, order: TransactionDto, text: PaymentTextDto
+    ) -> PaymentIntent: ...
 
     @abstractmethod
     async def parse_webhook(self, request: WebhookRequest) -> Optional[WebhookSignal]:

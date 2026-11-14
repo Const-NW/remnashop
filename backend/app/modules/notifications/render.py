@@ -126,6 +126,9 @@ class NotificationRenderer:
             return str(title), str(body)
         return event_type, ""
 
+    def has_locale(self, locale: Locale) -> bool:
+        return locale in self._bundles
+
     def render_message(self, locale: Locale, key: str, args: dict[str, Union[str, int]]) -> str:
         for candidate in (locale, self._default_locale):
             bundle = self._bundles.get(candidate)

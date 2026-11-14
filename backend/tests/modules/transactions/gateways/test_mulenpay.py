@@ -9,6 +9,7 @@ from app.modules.transactions.gateways.urlpay import UrlPayGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -66,7 +67,7 @@ async def test_create_payment_signs_lowercase_currency_and_stores_the_id(
         json_response({"success": True, "paymentUrl": "https://pay/1", "id": 12345}, 201),
     )
 
-    intent = await _gateway(cls, http=http.client).create_payment(make_order())
+    intent = await _gateway(cls, http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     body = http.last_json()
     assert http.last.url.host == host
@@ -82,11 +83,13 @@ async def test_create_payment_sends_the_buyer_email_and_return_url() -> None:
     http = HttpRecorder(
         json_response({"success": True, "paymentUrl": "https://pay/1", "id": 1}, 201),
     )
-    await _gateway(http=http.client).create_payment(make_order(customer_email="buyer@example.com"))
+    await _gateway(http=http.client).create_payment(
+        make_order(customer_email="buyer@example.com"), PAYMENT_TEXT
+    )
     assert http.last_json()["client"] == "buyer@example.com"
     assert http.last_json()["website_url"] == RETURN_URL
 
-    await _gateway(http=http.client).create_payment(make_order())
+    await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
     assert "client" not in http.last_json()
 
 
@@ -94,7 +97,7 @@ async def test_create_payment_uses_the_configured_vat_code() -> None:
     http = HttpRecorder(
         json_response({"success": True, "paymentUrl": "https://pay/1", "id": 1}, 201),
     )
-    await _gateway(vat_code="6", http=http.client).create_payment(make_order())
+    await _gateway(vat_code="6", http=http.client).create_payment(make_order(), PAYMENT_TEXT)
     assert http.last_json()["items"][0]["vat_code"] == 6
 
 

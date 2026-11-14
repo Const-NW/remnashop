@@ -7,6 +7,7 @@ from app.modules.transactions.gateways.paymaster import PayMasterGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -41,7 +42,7 @@ async def test_create_payment_sends_order_no_expiry_and_idempotency_key() -> Non
     )
     order = make_order()
 
-    intent = await _gateway(http=http.client).create_payment(order)
+    intent = await _gateway(http=http.client).create_payment(order, PAYMENT_TEXT)
 
     body = http.last_json()
     assert intent.provider_payment_id == "9755"
@@ -55,7 +56,7 @@ async def test_create_payment_sends_order_no_expiry_and_idempotency_key() -> Non
 async def test_create_payment_requires_a_payment_id() -> None:
     http = HttpRecorder(json_response({"url": "https://pay"}))
     with pytest.raises(PaymentGatewayError):
-        await _gateway(http=http.client).create_payment(make_order())
+        await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
 
 async def test_parse_webhook_claims_paid_only_when_settled() -> None:

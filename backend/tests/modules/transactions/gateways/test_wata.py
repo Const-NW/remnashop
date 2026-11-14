@@ -17,6 +17,7 @@ from app.modules.transactions.gateways.wata import WataGateway, clear_public_key
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -92,7 +93,7 @@ def _signed(kind: str = "Payment", status: str = "Paid") -> tuple[bytes, dict[st
 async def test_create_payment_sets_an_expiry_past_the_provider_minimum() -> None:
     http = _install(_transaction())
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     body = http.last_json()
     expiry = datetime.fromisoformat(body["expirationDateTime"].replace("Z", "+00:00"))
