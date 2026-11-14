@@ -42,7 +42,7 @@ from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import ListActivePlansUseCase
 from app.modules.transactions.checkout_pricing import CheckoutPricer
-from app.modules.transactions.dto import CreateCheckoutDto, TransactionDto
+from app.modules.transactions.dto import CreateCheckoutDto, PaymentTextDto, TransactionDto
 from app.modules.transactions.gateways.base import PaymentIntent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.repository import TransactionRepository
@@ -53,13 +53,14 @@ from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.modules.subscriptions.factories import make_eligibility
 
 OWNER = UserDto(name="owner", role=Role.OWNER)
 
 
 class _FakeGateway:
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         return PaymentIntent(
             confirmation_url="https://yookassa.ru/pay/fake", provider_payment_id="yk-fake-id"
         )
@@ -182,6 +183,7 @@ async def test_rate_change_moves_catalog_but_not_existing_order(
             LegalRepository(plan_repository.session),
             TranslationRepository(plan_repository.session),
         ),
+        FixedPaymentTexts(),
     )
     result = await create_checkout(
         user,

@@ -5,7 +5,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import PaypalychSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -44,14 +44,14 @@ class PaypalychGateway(PaymentGateway[PaypalychSettings]):
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.settings.api_token.get_secret_value()}"}
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "amount": f"{order.final_price:.2f}",
             "shop_id": self.settings.shop_id,
             "currency_in": order.currency.value,
             "type": "normal",
             "order_id": order.idempotency_key,
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "ttl": link_lifetime(order, unit="seconds"),
         }
         response = await self._http.post(

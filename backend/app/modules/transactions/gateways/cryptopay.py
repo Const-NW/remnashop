@@ -7,7 +7,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import CryptoPaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -37,12 +37,13 @@ class CryptoPayGateway(PaymentGateway[CryptoPaySettings]):
     def _headers(self) -> dict[str, str]:
         return {"Crypto-Pay-API-Token": self.settings.api_key.get_secret_value()}
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "currency_type": "fiat",
             "fiat": order.currency.value,
             "amount": f"{order.final_price:.2f}",
-            "description": f"Order #{order.id}",
+            # shown in @CryptoBot, which customers of any language use
+            "description": text.localized_description,
             "payload": order.idempotency_key,
             "paid_btn_name": "openBot",
             "paid_btn_url": self._return_url,

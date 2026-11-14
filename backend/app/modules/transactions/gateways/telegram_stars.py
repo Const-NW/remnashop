@@ -7,14 +7,14 @@ from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.core.telegram_api import BOT_API_ERRORS, bot_api_error_text, bot_client
 from app.modules.gateways import TelegramStarsSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     PaymentGateway,
     PaymentIntent,
     ProviderPayment,
     WebhookSignal,
 )
-from app.modules.transactions.gateways.common import PROVIDER_API_TIMEOUT_S, order_period_text
+from app.modules.transactions.gateways.common import PROVIDER_API_TIMEOUT_S
 
 BOT_TOKEN_SETTING: Final[str] = "bot_token"
 BOT_PROXY_SETTING: Final[str] = "bot_proxy"
@@ -67,15 +67,11 @@ class TelegramStarsGateway(PaymentGateway[StarsRuntimeSettings]):
             if _ALREADY_REFUNDED not in str(error):
                 raise
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
-        name = order.plan_snapshot.name
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         link = await self._call(
             "createInvoiceLink",
-            title=name[:_TITLE_MAX],
-            # a test payment buys no term
-            description=name
-            if order.is_test
-            else f"{name}, {order_period_text(order.duration_days)}",
+            title=text.title[:_TITLE_MAX],
+            description=text.localized_description,
             payload=order.idempotency_key,
             currency=Currency.XTR.value,
             prices=[{"label": Currency.XTR.value, "amount": stars_amount(order)}],

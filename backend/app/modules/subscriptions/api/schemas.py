@@ -10,6 +10,7 @@ from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
 from app.core.enums import (
     AddOnType,
     Currency,
+    Locale,
     PanelSyncDirection,
     PlanBadge,
     PlanType,
@@ -195,13 +196,18 @@ class OwnSubscriptionResponse(BaseModel):
 
     @classmethod
     def from_dto(
-        cls, subscription: SubscriptionDto, *, secret: str, used_traffic: Optional[int] = None
+        cls,
+        subscription: SubscriptionDto,
+        *,
+        secret: str,
+        locale: Locale,
+        used_traffic: Optional[int] = None,
     ) -> "OwnSubscriptionResponse":
         return cls.model_validate(
             {
                 **subscription.model_dump(),
                 "is_unlimited": subscription.is_unlimited,
-                "plan_name": subscription.plan_snapshot.name,
+                "plan_name": subscription.plan_snapshot.display_name(locale),
                 "plan_id": subscription.plan_snapshot.plan_id,
                 "plan_traffic_limit": subscription.plan_snapshot.traffic_limit,
                 "plan_device_limit": subscription.plan_snapshot.device_limit,

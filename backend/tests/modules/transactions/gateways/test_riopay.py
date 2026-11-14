@@ -13,6 +13,7 @@ from app.modules.transactions.gateways.valutix import ValutixGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -61,7 +62,7 @@ async def test_create_payment_sends_service_callback_and_fail_urls(
     http = HttpRecorder(json_response({"id": "o-1", "paymentLink": "https://p/1"}, 201))
 
     intent = await _gateway(cls, token_setting, service_id="3", http=http.client).create_payment(
-        make_order()
+        make_order(), PAYMENT_TEXT
     )
 
     body = http.last_json()
@@ -78,14 +79,14 @@ async def test_create_payment_sends_service_callback_and_fail_urls(
 
 async def test_create_payment_accepts_200_without_a_service_id() -> None:
     http = HttpRecorder(json_response({"id": "o-1", "paymentLink": "https://p/1"}))
-    await _gateway(http=http.client).create_payment(make_order())
+    await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
     assert "serviceId" not in http.last_json()
 
 
 async def test_create_payment_raises_on_an_api_error() -> None:
     http = HttpRecorder(lambda request: httpx.Response(422, json={"message": "bad"}))
     with pytest.raises(PaymentGatewayError):
-        await _gateway(http=http.client).create_payment(make_order())
+        await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
 
 @pytest.mark.parametrize(("cls", "token_setting", "host"), _GATEWAYS)

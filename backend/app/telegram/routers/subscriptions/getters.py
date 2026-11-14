@@ -83,7 +83,7 @@ async def subscriptions_list_getter(
                 status="UNLIMITED"
                 if s.status is SubscriptionStatus.ACTIVE and s.is_unlimited
                 else s.status.value,
-                plan_name=s.plan_snapshot.name,
+                plan_name=s.plan_snapshot.display_name(user.language),
                 expire_at=format_expiry(runner, s.expire_at),
             ),
         }
@@ -129,7 +129,7 @@ async def subscription_card_getter(
         data["window_text"] = render_window_text(
             runner,
             "msg-subscription-card",
-            plan_name=subscription.plan_snapshot.name,
+            plan_name=subscription.plan_snapshot.display_name(user.language),
             status=subscription.status.value,
             is_trial=int(subscription.is_trial),
             expire_at=format_expiry(runner, subscription.expire_at),

@@ -7,6 +7,7 @@ from app.modules.transactions.dto import (
     PayerSummaryDto,
     PaymentAttemptDto,
     PaymentMethodDto,
+    PaymentTextDto,
     PriceQuote,
     QuoteCheckoutDto,
     StarsPaymentDto,
@@ -20,7 +21,11 @@ from app.modules.transactions.events import (
     TransactionPartiallyRefundedEvent,
     TransactionRefundedEvent,
 )
-from app.modules.transactions.ports import PaymentsRestoredNotifier, PromocodeLiveness
+from app.modules.transactions.ports import (
+    PaymentsRestoredNotifier,
+    PaymentTexts,
+    PromocodeLiveness,
+)
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.stats_repository import TransactionStatsRepository
 from app.modules.transactions.usecases import (
@@ -47,6 +52,8 @@ __all__ = [
     "PayerSummaryDto",
     "PaymentAttemptDto",
     "PaymentMethodDto",
+    "PaymentTextDto",
+    "PaymentTexts",
     "PaymentsRestoredNotifier",
     "PriceQuote",
     "PromocodeLiveness",

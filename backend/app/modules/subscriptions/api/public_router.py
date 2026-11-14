@@ -71,7 +71,9 @@ async def list_own_subscriptions(
 ) -> OwnSubscriptionListResponse:
     secret = config.jwt_secret.get_secret_value()
     items = [
-        OwnSubscriptionResponse.from_dto(r.subscription, secret=secret, used_traffic=r.used_traffic)
+        OwnSubscriptionResponse.from_dto(
+            r.subscription, secret=secret, locale=actor.language, used_traffic=r.used_traffic
+        )
         for r in await use_case(actor)
     ]
     return OwnSubscriptionListResponse(items=items, total=len(items))
@@ -89,7 +91,7 @@ async def get_own_trial(
     return TrialResponse(
         is_available=trial.is_trial_available,
         plan_id=trial.plan.id,
-        plan_name=trial.plan.name,
+        plan_name=trial.plan.display_name(actor.language),
         duration_days=trial.plan.sellable_durations()[0].days,
         is_free=trial.is_free,
         price=trial.price,
@@ -113,7 +115,9 @@ async def activate_own_trial(
 ) -> OwnSubscriptionResponse:
     data = ActivateTrialDto(mini_app=body is not None and body.mini_app)
     return OwnSubscriptionResponse.from_dto(
-        await activate(actor, data), secret=config.jwt_secret.get_secret_value()
+        await activate(actor, data),
+        secret=config.jwt_secret.get_secret_value(),
+        locale=actor.language,
     )
 
 

@@ -505,3 +505,24 @@ ntf-customer-referral-attached = Пользователь { $name } присое
     }
     .title = Вы пригласили друга!
     .emoji = 🎉
+
+# the payment page and the fiscal receipt name the order with this
+payment-description = Подписка «{ $plan }», { $period }
+payment-period = { $unit ->
+    [unlimited] навсегда
+    [year] { $value ->
+        [one] { $value } год
+        [few] { $value } года
+       *[other] { $value } лет
+    }
+    [month] { $value ->
+        [one] { $value } месяц
+        [few] { $value } месяца
+       *[other] { $value } месяцев
+    }
+   *[day] { $value ->
+        [one] { $value } день
+        [few] { $value } дня
+       *[other] { $value } дней
+    }
+}

@@ -410,7 +410,10 @@ async def link_choice_getter(
                 "label": label_with_icon(
                     runner,
                     "btn-purchase.link-renew",
-                    subscription=f"{s.plan_snapshot.name} — {format_expiry(runner, s.expire_at)}",
+                    subscription=(
+                        f"{s.plan_snapshot.display_name(user.language)} — "
+                        f"{format_expiry(runner, s.expire_at)}"
+                    ),
                 ),
             }
             for s in owned

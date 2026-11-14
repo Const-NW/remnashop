@@ -5,7 +5,7 @@ import orjson
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import CloudPaymentsSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -38,11 +38,11 @@ class CloudPaymentsGateway(PaymentGateway[CloudPaymentsSettings]):
     def _auth(self) -> tuple[str, str]:
         return self.settings.public_id, self.settings.api_secret.get_secret_value()
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "Amount": amount_to_float(order.final_price),
             "Currency": order.currency.value,
-            "Description": f"Order #{order.id}",
+            "Description": text.description,
             "AccountId": str(order.user_id),
             "InvoiceId": order.idempotency_key,
             "SuccessRedirectUrl": self._return_url,

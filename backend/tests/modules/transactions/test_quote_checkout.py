@@ -44,6 +44,7 @@ from app.modules.translations import TranslationRepository
 from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
+from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.modules.subscriptions.factories import make_eligibility
 from tests.modules.transactions.test_usecases import (
     _checkout_dto,
@@ -112,6 +113,7 @@ def checkout_use_case(
         config,
         event_publisher,
         LegalAcceptanceRecorder(legal_repository, translation_repository),
+        FixedPaymentTexts(),
     )
 
 

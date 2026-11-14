@@ -7,6 +7,7 @@ from app.core.enums import Currency, Locale, PlanAvailability, PlanType, Role, S
 from app.core.utils.time import datetime_now
 from app.modules.plans.dto import (
     CreatePlanDto,
+    PlanTranslationDto,
     SetPlanDurationDto,
     SetPlanDurationsDto,
     UpdatePlanAccessDto,
@@ -21,6 +22,7 @@ from app.modules.referrals import ReferralRepository
 from app.modules.subscriptions import SubscriptionRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto, ListActivePlansDto
 from app.modules.subscriptions.usecases import ListActivePlansUseCase
+from app.modules.translations import TranslationRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
@@ -510,3 +512,40 @@ async def test_catalog_drops_an_ended_promotion(
     assert plan.discount_percent == 0
     assert plan.discount_ends_at is None
     assert all(p.discounted_price is None for d in plan.durations for p in d.prices)
+
+
+async def test_catalog_shows_the_plan_in_the_users_language(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    referral_repository: ReferralRepository,
+    uow: UnitOfWork,
+) -> None:
+    await TranslationRepository(plan_repository.session).add_active_locale(Locale.RU)
+    created = await plan_repository.create(
+        CreatePlanDto(
+            public_code="basic",
+            name="Basic",
+            description="For everyone",
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=3,
+            translations=[
+                PlanTranslationDto(locale=Locale.RU, name="Базовый", description="Для всех")
+            ],
+        )
+    )
+    await _add_minimal_squad(plan_repository, created.id)
+    await _add_minimal_duration(plan_repository, created.id)
+    await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_active=True))
+    use_case = ListActivePlansUseCase(
+        plan_repository,
+        PricingRepository(plan_repository.session),
+        make_eligibility(plan_repository.session),
+        uow,
+    )
+
+    ru = (await use_case(REGULAR_USER.model_copy(update={"language": Locale.RU}))).plans[0]
+    en = (await use_case(REGULAR_USER)).plans[0]
+
+    assert (ru.name, ru.description) == ("Базовый", "Для всех")
+    assert (en.name, en.description) == ("Basic", "For everyone")

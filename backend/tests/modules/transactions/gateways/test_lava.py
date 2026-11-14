@@ -11,6 +11,7 @@ from app.modules.transactions.gateways.lava import LavaGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -53,7 +54,7 @@ async def test_create_payment_signs_the_exact_body_and_sends_expire() -> None:
         ),
     )
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     payload = json.loads(http.last.content)
     assert http.last.headers["Signature"] == _sign("secret", http.last.content)

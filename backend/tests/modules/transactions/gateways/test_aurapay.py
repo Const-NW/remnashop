@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.base import PaymentHttpClient
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -53,7 +54,7 @@ async def test_create_payment_sends_lifetime_in_minutes() -> None:
         json_response({"id": "inv-1", "payment_data": {"url": "https://aura/1"}}),
     )
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     body = http.last_json()
     assert 1 <= body["lifetime"] <= 30

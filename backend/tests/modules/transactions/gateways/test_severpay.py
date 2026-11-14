@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.severpay import SeverPayGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -82,7 +83,7 @@ async def test_create_payment_signs_sorted_body_with_lifetime() -> None:
         json_response({"status": True, "msg": "", "data": {"id": 123, "url": "https://sp/1"}}),
     )
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     payload = http.last_json()
     assert payload["lifetime"] == 30

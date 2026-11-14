@@ -6,7 +6,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import YooMoneySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -35,7 +35,7 @@ class YooMoneyGateway(PaymentGateway[YooMoneySettings]):
     # a payment is found only by the operation id its notification carries
     supports_status_check = False
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "receiver": self.settings.wallet_id,
             "quickpay-form": "button",

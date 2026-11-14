@@ -7,6 +7,7 @@ from app.modules.transactions.gateways.platega import PlategaGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -42,7 +43,7 @@ async def test_create_payment_stores_the_transaction_id() -> None:
     http = HttpRecorder(
         json_response({"transactionId": "tx-1", "redirect": "https://pay/1", "status": "PENDING"}),
     )
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
     assert intent.provider_payment_id == "tx-1"
     assert intent.confirmation_url == "https://pay/1"
 
@@ -51,7 +52,9 @@ async def test_create_payment_sends_the_payer_id_as_metadata() -> None:
     http = HttpRecorder(
         json_response({"transactionId": "tx-1", "redirect": "https://pay/1"}),
     )
-    await _gateway(http=http.client).create_payment(make_order(customer_email="buyer@example.com"))
+    await _gateway(http=http.client).create_payment(
+        make_order(customer_email="buyer@example.com"), PAYMENT_TEXT
+    )
     assert http.last_json()["metadata"] == {"userId": "7", "user_email": "buyer@example.com"}
     assert http.last_json()["payload"] == ORDER_REF
 

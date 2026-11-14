@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.base import PaymentHttpClient
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -113,7 +114,7 @@ async def test_create_payment_posts_a_signed_body_to_api_v1() -> None:
         json_response({"code": 0, "payment_id": "APAY1", "payment_url": "https://gate/1"}),
     )
 
-    intent = await _gateway(http=http.client).create_payment(make_order())
+    intent = await _gateway(http=http.client).create_payment(make_order(), PAYMENT_TEXT)
 
     assert http.last.url.path == "/api/v1/payment/create"
     assert http.last.headers["X-Apay-Secret-Id"] == "sid"

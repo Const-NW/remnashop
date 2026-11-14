@@ -6,7 +6,7 @@ import orjson
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import CryptomusSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     PaymentGateway,
     PaymentIntent,
@@ -55,7 +55,7 @@ class CryptomusGateway(PaymentGateway[CryptomusSettings]):
         }
         return body, headers
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         body, headers = self._signed(
             {
                 "amount": f"{order.final_price:.2f}",

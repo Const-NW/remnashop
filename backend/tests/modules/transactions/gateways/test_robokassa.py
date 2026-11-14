@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.robokassa import RobokassaGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -61,7 +62,7 @@ def _xml_response(result: int = 0, state: int = 100, order_ref: str = ORDER_REF)
 async def test_create_payment_uses_the_order_id_and_expiry() -> None:
     order = make_order()
 
-    intent = await _gateway().create_payment(order)
+    intent = await _gateway().create_payment(order, PAYMENT_TEXT)
 
     assert intent.confirmation_url is not None
     params = {k: v[0] for k, v in parse_qs(urlsplit(intent.confirmation_url).query).items()}

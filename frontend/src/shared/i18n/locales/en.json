@@ -3408,6 +3408,8 @@
       "cabinetLinkLabel": "Cabinet link",
       "nameLabel": "Name",
       "descriptionLabel": "Description",
+      "baseLocale": "Default",
+      "translationHint": "Left empty, this language shows the default name and description",
       "tagLabel": "Tag",
       "typeLabel": "Type",
       "type": {

@@ -6,13 +6,14 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import Currency, PlanAvailability, PlanBadge, PlanType
+from app.core.enums import Currency, Locale, PlanAvailability, PlanBadge, PlanType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.plans.api.schemas import CreatePlanRequest, PlanIconRequest
 from app.modules.plans.dto import (
     CreatePlanDto,
     PlanDto,
+    PlanTranslationDto,
     ReorderPlansDto,
     SetPlanDurationBasePriceDto,
     SetPlanDurationDto,
@@ -23,6 +24,7 @@ from app.modules.plans.dto import (
     UpdatePlanSquadsDto,
 )
 from app.modules.plans.repository import PlanRepository
+from app.modules.translations import TranslationRepository
 
 
 def _create_dto(public_code: str = "basic", name: str = "Basic") -> CreatePlanDto:
@@ -655,3 +657,105 @@ async def test_set_durations_keeps_pinned_prices_of_kept_durations(
         (Currency.RUB, Decimal("299"))
     ]
     assert by_days[90].overrides == []
+
+
+async def _activate(plan_repository: PlanRepository, *locales: Locale) -> None:
+    translations = TranslationRepository(plan_repository.session)
+    for locale in locales:
+        await translations.add_active_locale(locale)
+
+
+async def test_translations_are_saved_and_replaced(plan_repository: PlanRepository) -> None:
+    await _activate(plan_repository, Locale.RU, Locale.DE)
+    created = await plan_repository.create(
+        replace(
+            _create_dto(),
+            translations=[
+                PlanTranslationDto(locale=Locale.RU, name="Базовый", description="Для всех"),
+            ],
+        )
+    )
+
+    renamed = await plan_repository.update(
+        UpdatePlanDto(
+            plan_id=created.id,
+            translations=[PlanTranslationDto(locale=Locale.RU, name="Базовый 2")],
+        )
+    )
+    updated = await plan_repository.update(
+        UpdatePlanDto(
+            plan_id=created.id,
+            translations=[PlanTranslationDto(locale=Locale.DE, name="Basis")],
+        )
+    )
+    untouched = await plan_repository.update(UpdatePlanDto(plan_id=created.id, tag="VIP"))
+
+    assert created.display_name(Locale.RU) == "Базовый"
+    assert created.display_description(Locale.RU) == "Для всех"
+    assert [(t.locale, t.name) for t in renamed.translations] == [(Locale.RU, "Базовый 2")]
+    assert [(t.locale, t.name) for t in updated.translations] == [(Locale.DE, "Basis")]
+    assert untouched.translations == updated.translations
+    # a locale with no translation shows the plan's own name
+    assert updated.display_name(Locale.RU) == "Basic"
+
+
+async def test_a_switched_off_locales_translation_is_hidden_and_kept(
+    plan_repository: PlanRepository,
+) -> None:
+    await _activate(plan_repository, Locale.RU)
+    created = await plan_repository.create(
+        replace(
+            _create_dto(),
+            translations=[
+                PlanTranslationDto(locale=Locale.RU, name="Базовый"),
+                PlanTranslationDto(locale=Locale.DE, name="Basis"),
+            ],
+        )
+    )
+
+    # the dashboard sends only the shop's locales
+    await plan_repository.update(
+        UpdatePlanDto(
+            plan_id=created.id,
+            translations=[PlanTranslationDto(locale=Locale.RU, name="Базовый 2")],
+        )
+    )
+    await _activate(plan_repository, Locale.DE)
+    back = await plan_repository.get_by_id(created.id)
+
+    assert created.display_name(Locale.DE) == "Basic"
+    assert [(t.locale, t.name) for t in back.translations] == [
+        (Locale.DE, "Basis"),
+        (Locale.RU, "Базовый 2"),
+    ]
+
+
+def test_a_translation_without_a_description_shows_the_plans_own() -> None:
+    plan = PlanDto(
+        public_code="basic",
+        name="Basic",
+        description="For everyone",
+        type=PlanType.BOTH,
+        traffic_limit=1,
+        device_limit=1,
+        translations=[PlanTranslationDto(locale=Locale.RU, name="Базовый")],
+    )
+
+    assert plan.display_name(Locale.RU) == "Базовый"
+    assert plan.display_description(Locale.RU) == "For everyone"
+
+
+def test_create_request_rejects_two_translations_for_one_locale() -> None:
+    with pytest.raises(PydanticValidationError):
+        CreatePlanRequest.model_validate(
+            {
+                "name": "Basic",
+                "type": PlanType.BOTH,
+                "traffic_limit": 1,
+                "device_limit": 1,
+                "translations": [
+                    {"locale": "ru", "name": "Базовый"},
+                    {"locale": "ru", "name": "Базовый 2"},
+                ],
+            }
+        )

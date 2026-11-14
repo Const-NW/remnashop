@@ -5,7 +5,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import PayMasterSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -36,11 +36,11 @@ class PayMasterGateway(PaymentGateway[PayMasterSettings]):
             "Accept": "application/json",
         }
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "merchantId": self.settings.merchant_id,
             "invoice": {
-                "description": f"Order #{order.id}",
+                "description": text.description,
                 "orderNo": order.idempotency_key,
                 "expires": format_utc(order.expires_at),
             },

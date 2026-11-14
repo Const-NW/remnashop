@@ -14,6 +14,7 @@ from app.modules.transactions.gateways.heleket import HeleketGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
+    PAYMENT_TEXT,
     RETURN_URL,
     WEBHOOK_URL,
     HttpRecorder,
@@ -64,7 +65,7 @@ async def test_create_payment_signs_the_body_and_stores_the_uuid(
         json_response({"state": 0, "result": {"uuid": "u-1", "url": "https://pay/1"}}),
     )
 
-    intent = await _gateway(cls, http=http.client).create_payment(_order())
+    intent = await _gateway(cls, http=http.client).create_payment(_order(), PAYMENT_TEXT)
 
     assert http.last.url.host == host
     assert http.last.headers["sign"] == _md5_sign(http.last.content)

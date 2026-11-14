@@ -545,6 +545,35 @@ async def test_a_grant_names_its_plan(fx: _Fixture) -> None:
     assert row.args == {"duration_days": 30, "plan_name": "Про"}
 
 
+async def test_a_grant_names_its_plan_in_the_customers_language(fx: _Fixture) -> None:
+    user = await fx.create(name="g2", telegram_id=8094, language=Locale.RU)
+    async with fx.uow:
+        granted = await SubscriptionRepository(fx.orders.session).create(
+            CreateSubscriptionDto(
+                user_id=user.id,
+                remnawave_user_id=880_094,
+                status=SubscriptionStatus.ACTIVE,
+                traffic_limit=0,
+                device_limit=0,
+                expire_at=datetime_now(),
+                url="https://example.test/sub",
+                plan_snapshot=replace(
+                    make_plan_snapshot(plan_id=1), name="Pro", names={Locale.RU: "Про"}
+                ),
+            )
+        )
+
+    await fx.notify(
+        user,
+        "SubscriptionGrantedEvent",
+        subscription_id=granted.id,
+        args={"duration_days": 30},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    assert row.args["plan_name"] == "Про"
+
+
 async def test_hours_are_rendered_as_a_span_but_stored_as_hours(fx: _Fixture) -> None:
     user = await fx.create(name="h", telegram_id=8092)
 

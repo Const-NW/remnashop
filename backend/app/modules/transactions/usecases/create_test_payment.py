@@ -28,6 +28,7 @@ from app.modules.transactions.dto import CreateTransactionDto, TestPaymentDto
 from app.modules.transactions.events import GatewayTestPaymentCreatedEvent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
+from app.modules.transactions.ports import PaymentTexts
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users import UserDto
 
@@ -49,6 +50,7 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
         uow: UnitOfWork,
         gateway_factory: PaymentGatewayFactory,
         event_publisher: EventPublisher,
+        payment_texts: PaymentTexts,
     ) -> None:
         self._gateway_repository = gateway_repository
         self._transaction_repository = transaction_repository
@@ -57,6 +59,7 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
         self._uow = uow
         self._gateway_factory = gateway_factory
         self._event_publisher = event_publisher
+        self._payment_texts = payment_texts
 
     async def _execute(self, actor: UserDto, data: PaymentGatewayType) -> TestPaymentDto:
         gateway_class = GATEWAY_REGISTRY.get(data)
@@ -120,7 +123,8 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
             )
 
         try:
-            intent = await self._gateway_factory.build(data, settings).create_payment(order)
+            text = await self._payment_texts.describe(order, actor.language)
+            intent = await self._gateway_factory.build(data, settings).create_payment(order, text)
         except PaymentGatewayError:
             logger.exception(f"Test payment failed on gateway '{data.value}'")
             raise

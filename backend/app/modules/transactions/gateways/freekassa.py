@@ -9,7 +9,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import FreeKassaSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -69,7 +69,7 @@ class FreeKassaGateway(PaymentGateway[FreeKassaSettings]):
         signature = hmac_hex(self.settings.api_key.get_secret_value(), joined.encode("utf-8"))
         return {**params, "signature": signature}
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         data = self._signed(
             {
                 "shopId": int(self.settings.shop_id),

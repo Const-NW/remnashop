@@ -7,7 +7,7 @@ from pydantic import SecretStr
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import GatewaySettings, MulenPaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -48,7 +48,7 @@ class MulenPayGateway(PaymentGateway[_MulenPayFamilySettings]):
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.settings.api_key.get_secret_value()}"}
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         currency = order.currency.value.lower()
         amount = f"{order.final_price:.2f}"
         shop_id = int(self.settings.shop_id)
@@ -58,12 +58,12 @@ class MulenPayGateway(PaymentGateway[_MulenPayFamilySettings]):
             "amount": amount,
             "uuid": order.idempotency_key,
             "shopId": shop_id,
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "sign": self._sign(currency, amount, shop_id),
             "website_url": self._return_url,
             "items": [
                 {
-                    "description": f"Order #{order.id}",
+                    "description": text.description,
                     "quantity": 1,
                     "price": float(amount),
                     "vat_code": int(vat_code) if vat_code else _DEFAULT_VAT_CODE,

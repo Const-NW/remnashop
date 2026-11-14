@@ -79,7 +79,7 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.usecases.purchase_subscription import STALE_CLAIM_AFTER
 from app.modules.transactions.api.schemas import CreateCheckoutRequest
 from app.modules.transactions.checkout_pricing import CheckoutPricer
-from app.modules.transactions.dto import CreateCheckoutDto, TransactionDto
+from app.modules.transactions.dto import CreateCheckoutDto, PaymentTextDto, TransactionDto
 from app.modules.transactions.gateways.base import PaymentIntent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY
@@ -91,6 +91,7 @@ from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
+from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.telegram_bot import FakeBotSession, use_fake_bot
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
 from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
@@ -103,7 +104,7 @@ class _FakeGateway:
         self.confirmation_url = confirmation_url
         self.create_payment_calls: list[TransactionDto] = []
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         self.create_payment_calls.append(order)
         # a later payment gets its own id, as the provider's would
         calls = len(self.create_payment_calls)
@@ -186,6 +187,7 @@ def create_checkout_use_case(
         config,
         event_publisher,
         LegalAcceptanceRecorder(legal_repository, translation_repository),
+        FixedPaymentTexts(),
     )
 
 
@@ -423,6 +425,7 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
             config,
             RecordingEventPublisher(),
             LegalAcceptanceRecorder(LegalRepository(session), TranslationRepository(session)),
+            FixedPaymentTexts(),
         )
         try:
             await use_case(
@@ -1066,6 +1069,7 @@ async def test_test_payment_persists_a_pending_test_order_hidden_from_the_order_
         uow,
         _FakeFactory(fake_gateway),
         RecordingEventPublisher(),
+        FixedPaymentTexts(),
     )
 
     result = await use_case(owner, PaymentGatewayType.YOOKASSA)
@@ -1103,6 +1107,7 @@ async def test_test_payment_stands_in_an_email_when_the_gateway_needs_a_receipt(
         uow,
         _FakeFactory(fake_gateway),
         RecordingEventPublisher(),
+        FixedPaymentTexts(),
     )
 
     await use_case(owner, PaymentGatewayType.YOOKASSA)
@@ -1128,6 +1133,7 @@ async def test_test_payment_rejects_an_unconfigured_gateway(
         uow,
         _FakeFactory(fake_gateway),
         RecordingEventPublisher(),
+        FixedPaymentTexts(),
     )
 
     with pytest.raises(ValidationError):
@@ -1293,12 +1299,12 @@ async def test_a_personal_promocode_discount_is_not_flagged_as_a_purchase_promoc
 
 
 class _FailingGateway(_FakeGateway):
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         raise RuntimeError("provider down")
 
 
 class _ChattyGateway(_FakeGateway):
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         raise PaymentGatewayError('API error: {"merchant_id": 4242, "msg": "bad sign"}')
 
 

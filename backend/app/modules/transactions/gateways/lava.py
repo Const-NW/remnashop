@@ -5,7 +5,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import LavaSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     PaymentGateway,
     PaymentIntent,
@@ -42,7 +42,7 @@ class LavaGateway(PaymentGateway[LavaSettings]):
         }
         return body, headers
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         body, headers = self._signed(
             {
                 "sum": amount_to_float(order.final_price),

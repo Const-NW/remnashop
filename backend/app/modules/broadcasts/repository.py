@@ -715,6 +715,7 @@ class BroadcastRepository:
             select(
                 Subscription.user_id,
                 Subscription.plan_snapshot["name"].as_string().label("plan_name"),
+                Subscription.plan_snapshot["names"].label("plan_names"),
                 Subscription.expire_at,
             )
             .where(
@@ -726,7 +727,7 @@ class BroadcastRepository:
             .subquery()
         )
         rows = await self.session.execute(
-            select(User, live.c.plan_name, live.c.expire_at)
+            select(User, live.c.plan_name, live.c.plan_names, live.c.expire_at)
             .outerjoin(live, live.c.user_id == User.id)
             .where(in_ids(User.id, user_ids))
         )
@@ -738,10 +739,11 @@ class BroadcastRepository:
                 language=user.language,
                 bonus_days=user.bonus_days,
                 points=int(user.points),
-                plan_name=plan_name,
+                # names: the plan's translations, absent on a snapshot taken before them
+                plan_name=(plan_names or {}).get(user.language.value, plan_name),
                 expire_at=expire_at,
             )
-            for user, plan_name, expire_at in rows.tuples()
+            for user, plan_name, plan_names, expire_at in rows.tuples()
         }
 
     async def is_recipient(self, broadcast_id: int, user_id: int) -> bool:

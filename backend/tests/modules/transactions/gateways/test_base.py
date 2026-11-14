@@ -6,7 +6,7 @@ import pytest
 
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     PaymentGateway,
     PaymentIntent,
@@ -34,7 +34,7 @@ class _Gateway(PaymentGateway):
         super().__init__(settings={}, webhook_url=WEBHOOK_URL, return_url=RETURN_URL, http=NO_HTTP)
         self._payment = payment
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         raise NotImplementedError
 
     async def parse_webhook(self, request: WebhookRequest) -> Optional[WebhookSignal]:

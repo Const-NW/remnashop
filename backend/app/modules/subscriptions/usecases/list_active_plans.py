@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Optional
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Currency, PlanAvailability
+from app.core.enums import Currency, Locale, PlanAvailability
 from app.core.exceptions import ValidationError
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -22,12 +22,14 @@ from app.modules.subscriptions.eligibility import PurchaseEligibility
 from app.modules.users import UserDto
 
 
-def _to_catalog_plan(plan: PlanDto, rates: CurrencyRateTable, now: datetime) -> CatalogPlanDto:
+def _to_catalog_plan(
+    plan: PlanDto, rates: CurrencyRateTable, now: datetime, locale: Locale
+) -> CatalogPlanDto:
     discount = plan.active_discount(now)
     return CatalogPlanDto(
         id=plan.id,
-        name=plan.name,
-        description=plan.description,
+        name=plan.display_name(locale),
+        description=plan.display_description(locale),
         badge=plan.badge,
         type=plan.type,
         traffic_limit_strategy=plan.traffic_limit_strategy,
@@ -121,7 +123,7 @@ class ListActivePlansUseCase(UseCase[ListActivePlansDto, PlanCatalogDto, UserDto
         now = datetime_now()
         return PlanCatalogDto(
             plans=[
-                _to_catalog_plan(plan, rates, now)
+                _to_catalog_plan(plan, rates, now, actor.language)
                 for plan in purchasable
                 if plan.sellable_durations()
             ],

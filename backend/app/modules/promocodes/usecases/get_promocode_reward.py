@@ -39,6 +39,6 @@ class GetPromocodeRewardUseCase(UseCase[ValidatePromocodeDto, PromocodeRewardDto
                 return PromocodeRewardDto(
                     reward_type=promo.reward_type,
                     amount=promo.reward_duration_days,
-                    plan_name=plan.name,
+                    plan_name=plan.display_name(actor.language),
                 )
             return PromocodeRewardDto(reward_type=promo.reward_type, amount=promo.reward)

@@ -493,3 +493,21 @@ ntf-customer-referral-attached = { $name } joined through your invite link.{ $re
     }
     .title = You invited a friend!
     .emoji = 🎉
+
+# the payment page and the fiscal receipt name the order with this
+payment-description = Subscription “{ $plan }”, { $period }
+payment-period = { $unit ->
+    [unlimited] forever
+    [year] { $value ->
+        [one] { $value } year
+       *[other] { $value } years
+    }
+    [month] { $value ->
+        [one] { $value } month
+       *[other] { $value } months
+    }
+   *[day] { $value ->
+        [one] { $value } day
+       *[other] { $value } days
+    }
+}

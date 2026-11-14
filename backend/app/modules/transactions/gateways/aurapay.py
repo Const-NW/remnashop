@@ -5,7 +5,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import AuraPaySettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -40,11 +40,11 @@ class AuraPayGateway(PaymentGateway[AuraPaySettings]):
             "X-ShopId": self.settings.shop_id,
         }
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "amount": amount_to_float(order.final_price),
             "order_id": order.idempotency_key,
-            "comment": f"Order #{order.id}",
+            "comment": text.description,
             "success_url": self._return_url,
             "fail_url": self._return_url,
             "callback_url": self._webhook_url,

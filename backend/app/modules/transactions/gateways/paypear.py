@@ -5,7 +5,7 @@ import orjson
 from app.core.enums import Currency
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import PayPearSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -34,12 +34,12 @@ class PayPearGateway(PaymentGateway[PayPearSettings]):
     def _auth(self) -> tuple[str, str]:
         return self.settings.shop_id, self.settings.secret_key.get_secret_value()
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "amount": {"value": f"{order.final_price:.2f}", "currency": order.currency.value},
             "order_id": order.idempotency_key,
             "payment_method_data": {"type": _DEFAULT_PAYMENT_METHOD},
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "confirmation": {"type": "redirect", "return_url": self._return_url},
             "webhook_url": self._webhook_url,
             "expires_at": format_utc(order.expires_at),

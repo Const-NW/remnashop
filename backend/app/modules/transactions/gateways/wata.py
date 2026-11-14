@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from app.core.enums import Currency, TransactionStatus
 from app.core.exceptions import PaymentGatewayError
 from app.modules.gateways import WataSettings
-from app.modules.transactions.dto import TransactionDto, WebhookRequest
+from app.modules.transactions.dto import PaymentTextDto, TransactionDto, WebhookRequest
 from app.modules.transactions.gateways.base import (
     NOT_PAID,
     PaymentGateway,
@@ -63,12 +63,12 @@ class WataGateway(PaymentGateway[WataSettings]):
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.settings.api_key.get_secret_value()}"}
 
-    async def create_payment(self, order: TransactionDto) -> PaymentIntent:
+    async def create_payment(self, order: TransactionDto, text: PaymentTextDto) -> PaymentIntent:
         payload = {
             "type": "OneTime",
             "amount": amount_to_float(order.final_price),
             "currency": order.currency.value,
-            "description": f"Order #{order.id}",
+            "description": text.description,
             "orderId": order.idempotency_key,
             "successRedirectUrl": self._return_url,
             "failRedirectUrl": self._return_url,
