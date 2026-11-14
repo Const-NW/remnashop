@@ -97,8 +97,11 @@ def _plan_details(runner: TranslatorRunner, plan: CatalogPlanDto, period: str = 
             runner,
             "frg-purchase-plan",
             plan_name=_catalog_plan_title(plan),
-            # its own blank line after it, gone with it when there is none
-            description=f"{plan.description}\n" if plan.description else "",
+            # its own blank line after it, gone with it when there is none; plain
+            # text, trusted only so its premium-emoji markup renders
+            description=TrustedHtml(f"{html.escape(plan.description)}\n")
+            if plan.description
+            else "",
             traffic_limit=plan.traffic_limit,
             device_limit=plan.device_limit,
             period=period,

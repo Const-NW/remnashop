@@ -14,6 +14,7 @@ from app.core.exceptions import ValidationError
 from app.modules.subscriptions import PlanCatalogDto, SubscriptionDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
 from app.telegram.routers.purchase.getters import (
+    _plan_details,
     _plan_title,
     confirm_getter,
     duration_getter,
@@ -292,3 +293,12 @@ def test_plan_title_renders_the_icon_before_an_escaped_name() -> None:
     assert _plan_title("A<B", "123", "📦") == '<tg-emoji emoji-id="123">📦</tg-emoji> A&lt;B'
     assert _plan_title("A<B", None, "⭐") == "⭐ A&lt;B"
     assert _plan_title("A<B", None, None) == "A&lt;B"
+
+
+def test_plan_description_renders_premium_emoji_and_escapes_html() -> None:
+    plan = replace(_plan(id=1), description="[\U0001f525](emoji:42) <b>fast</b>")
+    runner = MagicMock(get=lambda key, **kwargs: kwargs["description"])
+
+    assert _plan_details(runner, plan) == (
+        '<tg-emoji emoji-id="42">\U0001f525</tg-emoji> &lt;b&gt;fast&lt;/b&gt;\n'
+    )

@@ -43,6 +43,7 @@ import { listActiveLocales } from "@entities/translations/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { PlanAccessFields } from "@features/plan-access/PlanAccessDialog";
 import { planAccessPayload, planAccessValue } from "@features/plan-access/access-value";
+import { PlanDescriptionField } from "@features/plan-edit/PlanDescriptionField";
 import { PlanIconPicker } from "@features/plan-edit/PlanIconPicker";
 import { PlanShareLinks } from "@features/plan-edit/PlanShareLinks";
 import { PlanSquadsField } from "@features/plan-edit/PlanSquadsField";
@@ -59,7 +60,7 @@ import { Button } from "@shared/ui/Button";
 import { GLASS_DIALOG_BODY_CLASS, GLASS_DIALOG_CARD_CLASS, GLASS_DIALOG_FOOTER_CLASS } from "@shared/ui/classes";
 import { DialogHeader } from "@shared/ui/glass/DialogHeader";
 import { Field } from "@shared/ui/glass/Field";
-import { CopyInput, Input, TextArea } from "@shared/ui/glass/Input";
+import { CopyInput, Input } from "@shared/ui/glass/Input";
 import { Switch } from "@shared/ui/glass/Switch";
 import { IconButton } from "@shared/ui/IconButton";
 import { ChoiceChip } from "@shared/ui/ChoiceChip";
@@ -415,14 +416,8 @@ function PlanEditDialogBody({
                     end={<PlanIconPicker value={icon} onChange={setIcon} />}
                   />
                 </Field>
-                <Field label={t("plans.edit.descriptionLabel")} htmlFor="plan-description">
-                  <TextArea
-                    id="plan-description"
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                    maxLength={1024}
-                    rows={2}
-                  />
+                <Field label={t("plans.edit.descriptionLabel")}>
+                  <PlanDescriptionField value={description} onChange={setDescription} disabled={!canEditFields} />
                 </Field>
               </>
             ) : (
@@ -440,14 +435,12 @@ function PlanEditDialogBody({
                     maxLength={32}
                   />
                 </Field>
-                <Field label={t("plans.edit.descriptionLabel")} htmlFor="plan-description-translation">
-                  <TextArea
-                    id="plan-description-translation"
+                <Field label={t("plans.edit.descriptionLabel")}>
+                  <PlanDescriptionField
                     value={translation.description}
                     placeholder={description}
-                    onChange={(event) => setTranslation({ description: event.target.value })}
-                    maxLength={1024}
-                    rows={2}
+                    onChange={(value) => setTranslation({ description: value })}
+                    disabled={!canEditFields}
                   />
                 </Field>
               </>
