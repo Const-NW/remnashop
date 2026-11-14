@@ -8,6 +8,7 @@ from fluentogram import TranslatorHub
 from app.core.config import AppConfig
 from app.core.constants import USER_KEY
 from app.modules.banners import GetBannerForDisplayUseCase
+from app.modules.settings import GetCabinetAuthSettingsUseCase
 from app.modules.subscriptions import GetAvailableTrialUseCase, ListOwnActiveSubscriptionsUseCase
 from app.modules.users import UserDto
 from app.telegram.banners import get_banner_media
@@ -29,6 +30,7 @@ async def custom_window_getter(
     get_banner: FromDishka[GetBannerForDisplayUseCase],
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
     get_available_trial: FromDishka[GetAvailableTrialUseCase],
+    get_cabinet_auth_settings: FromDishka[GetCabinetAuthSettingsUseCase],
     i18n: FromDishka[TranslatorHub],
     dialog_config_cache: FromDishka[DialogConfigCache],
     **kwargs: Any,
@@ -57,6 +59,7 @@ async def custom_window_getter(
         user,
         await list_own_active_subscriptions(user),
         get_available_trial,
+        get_cabinet_auth_settings,
         cabinet_url=config.cabinet.url,
     )
     data["banner"] = banner
