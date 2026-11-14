@@ -50,7 +50,8 @@ def render_email_html(
     *, brand: str, color: Optional[str], has_logo: bool, body_html: str, footer_html: str = ""
 ) -> str:
     logo = (
-        '<img src="cid:logo" alt="" height="40" style="display:block;margin:0 auto 16px">'
+        '<img src="cid:logo" alt="" width="64" height="64" '
+        'style="display:block;margin:0 auto 16px">'
         if has_logo
         else ""
     )
