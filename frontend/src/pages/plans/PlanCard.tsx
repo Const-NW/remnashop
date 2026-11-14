@@ -7,7 +7,6 @@ import { useTranslation } from "react-i18next";
 import type { Plan, PlanAvailability } from "@entities/plans/api";
 import { planDiscountStatus } from "@entities/plans/discount";
 import { PlanIcon } from "@entities/plans/PlanIcon";
-import { formatDuration } from "@shared/lib/duration";
 import { formatBytes, formatMoney } from "@shared/lib/format";
 import { ActionMenu, type ActionMenuItem } from "@shared/ui/ActionMenu";
 import { Badge } from "@shared/ui/Badge";
@@ -16,7 +15,7 @@ import { IconButton } from "@shared/ui/IconButton";
 import { KPI_VALUE_CLASS } from "@shared/ui/classes";
 
 const RESTRICTED_AVAILABILITIES: ReadonlySet<PlanAvailability> = new Set(["INVITED", "ALLOWED", "LINK"]);
-const CARD_HEIGHT_CLASSNAME = "aspect-[1.4]";
+const CARD_HEIGHT_CLASSNAME = "aspect-[1.6]";
 
 export function PlanCard({
   plan,
@@ -51,14 +50,14 @@ export function PlanCard({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={`relative grid min-w-0 ${sortable ? "cursor-grab select-none [-webkit-touch-callout:none] active:cursor-grabbing" : ""} ${CARD_HEIGHT_CLASSNAME} rounded-3xl ${plan.badge ? "ring-1 ring-primary/30" : ""} ${isDragging ? "z-10 shadow-2xl shadow-black/50" : ""}`}
+      className={`relative grid min-w-0 ${sortable ? "cursor-grab select-none [-webkit-touch-callout:none] active:cursor-grabbing" : ""} ${CARD_HEIGHT_CLASSNAME} rounded-3xl ${isDragging ? "z-10 shadow-2xl shadow-black/50" : ""}`}
     >
       <div
         className={`glass-panel flex min-w-0 flex-col overflow-hidden rounded-3xl ${
           plan.is_active ? "text-foreground" : "text-muted-foreground"
         }`}
       >
-        <div className="flex flex-1 flex-col gap-4 px-6 pt-4 pb-6">
+        <div className={`flex flex-1 flex-col gap-4 px-6 pt-4 ${isExpanded ? "pb-3" : "pb-6"}`}>
           <div className="flex items-center gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-semibold">
               <PlanIcon icon={plan} size={16} fallback={<DefaultIcon className="size-4 shrink-0" />} />
@@ -78,7 +77,7 @@ export function PlanCard({
           </div>
 
           {isExpanded ? (
-            <div className="mt-auto grid grid-cols-2 gap-2">
+            <div className="-mx-3 mt-auto grid grid-cols-2 gap-2">
               <DetailTile label={t("plans.codeLabel")} mono>
                 {plan.public_code}
               </DetailTile>
@@ -119,8 +118,8 @@ export function PlanCard({
                   )}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {durations.length > 0
-                    ? durations.map((d) => formatDuration(d.days, t)).join(" · ")
+                  {durations.length > 1
+                    ? durations.map((d) => (d.days === 0 ? "∞" : d.days)).join(" / ")
                     : "\u00a0"}
                 </div>
               </div>

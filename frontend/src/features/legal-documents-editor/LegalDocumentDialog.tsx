@@ -65,13 +65,14 @@ function LegalDocumentDialogBody({ document, locales, canUpdate, canSet, canRemo
   // edits of every language and channel of this document, until saved
   const [drafts, setDrafts] = useState<Record<string, TextDraft>>({});
   const [busy, setBusy] = useState(false);
+  const [isAskingReaccept, setIsAskingReaccept] = useState(false);
   const [contentRef, contentHeight] = useMeasuredHeight();
 
   const channel: LegalChannel | null = tab === "common" ? null : tab;
   const slot = textSlot(document, locale, channel);
   const key = draftKey(document.kind, locale, channel);
   const draft = drafts[key];
-  const value = draft ?? { ...slot.baseline, reaccept: false };
+  const value = draft ?? slot.baseline;
 
   const pending = locales.flatMap((code) =>
     CHANNELS.flatMap((target) => {
@@ -98,7 +99,7 @@ function LegalDocumentDialogBody({ document, locales, canUpdate, canSet, canRemo
       return rest;
     });
 
-  const save = async () => {
+  const save = async (reaccept: boolean) => {
     setBusy(true);
     try {
       const turnedOn =
@@ -120,7 +121,7 @@ function LegalDocumentDialogBody({ document, locales, canUpdate, canSet, canRemo
         await setLegalText(document.kind, code, target, {
           title: item.title,
           body: item.body,
-          requires_reacceptance: itemSlot.canReaccept && item.reaccept,
+          requires_reacceptance: itemSlot.canReaccept && reaccept,
         });
         dropDraft(draftKey(document.kind, code, target));
       }
@@ -211,10 +212,8 @@ function LegalDocumentDialogBody({ document, locales, canUpdate, canSet, canRemo
             <LegalTextEditor
               value={value}
               onChange={(next) => setDrafts((prev) => ({ ...prev, [key]: next }))}
-              canReaccept={slot.canReaccept && isChanged(draft, slot.baseline)}
               lastReacceptanceAt={slot.own?.last_reacceptance_at ?? null}
               canSet={canSet}
-              busy={busy}
             />
           </div>
         </motion.div>
@@ -241,7 +240,7 @@ function LegalDocumentDialogBody({ document, locales, canUpdate, canSet, canRemo
               onClick={() =>
                 setDrafts((prev) => ({
                   ...prev,
-                  [key]: { title: template.title, body: template.body, reaccept: value.reaccept },
+                  [key]: { title: template.title, body: template.body },
                 }))
               }
             >
@@ -253,12 +252,26 @@ function LegalDocumentDialogBody({ document, locales, canUpdate, canSet, canRemo
               variant="glassAccent"
               disabled={(pending.length === 0 && !visibilityChanged) || pending.some(({ item }) => !isValid(item))}
               isLoading={busy}
-              onClick={() => void save()}
+              onClick={() =>
+                // asked here, not by a switch in the form: below the editor it went unnoticed
+                pending.some(({ itemSlot }) => itemSlot.canReaccept) ? setIsAskingReaccept(true) : void save(false)
+              }
             >
               {t("common.save")}
             </Button>
           )}
         </div>
+      )}
+      {isAskingReaccept && (
+        <Modal onClose={() => setIsAskingReaccept(false)} size="md">
+          <ReacceptQuestion
+            icon={KIND_ICONS[document.kind]}
+            onAnswer={(reaccept) => {
+              setIsAskingReaccept(false);
+              void save(reaccept);
+            }}
+          />
+        </Modal>
       )}
     </>
   );
@@ -267,4 +280,23 @@ function LegalDocumentDialogBody({ document, locales, canUpdate, canSet, canRemo
 // shown only once some text exists for the channel, its own or the common one
 function hasTextFor(document: LegalDocument, channel: LegalChannel): boolean {
   return document.texts.some((item) => item.channel === null || item.channel === channel);
+}
+
+// the header's close, Esc and the backdrop only close the question; each button saves
+function ReacceptQuestion({ icon, onAnswer }: { icon: typeof KIND_ICONS.OFFER; onAnswer: (reaccept: boolean) => void }) {
+  const { t } = useTranslation();
+  return (
+    <>
+      <DialogHeader icon={icon} title={t("settings.legal.reacceptConfirm.title")} />
+      <p className="p-4 text-sm leading-relaxed text-foreground/80">{t("settings.legal.reacceptHint")}</p>
+      <div className={`${GLASS_DIALOG_FOOTER_CLASS} shrink-0 justify-end`}>
+        <Button variant="glass" onClick={() => onAnswer(false)}>
+          {t("settings.legal.reacceptConfirm.skip")}
+        </Button>
+        <Button variant="glassAccent" onClick={() => onAnswer(true)}>
+          {t("settings.legal.reacceptConfirm.ask")}
+        </Button>
+      </div>
+    </>
+  );
 }

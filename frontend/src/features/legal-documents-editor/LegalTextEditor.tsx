@@ -5,13 +5,11 @@ import { useTranslation } from "react-i18next";
 
 import { TEXT_LIMIT, TITLE_LIMIT, textLength, type TextDraft } from "@features/legal-documents-editor/legal-drafts";
 import { formatDate } from "@shared/lib/relative-time";
-import { FieldHint } from "@shared/ui/FieldHint";
 import { TEXT_TOOLBAR_CLASS, TEXT_TOOLBAR_DIVIDER_CLASS } from "@shared/ui/classes";
 import { Field } from "@shared/ui/glass/Field";
 import { UrlPopoverButton } from "@features/dialog-canvas-editor/UrlPopoverButton";
 import { Input } from "@shared/ui/glass/Input";
 import { IconButton } from "@shared/ui/IconButton";
-import { Switch } from "@shared/ui/glass/Switch";
 
 interface MarkdownFormat {
   key: string;
@@ -35,20 +33,15 @@ const URL_RE = /^https?:\/\/\S+$/;
 interface Props {
   value: TextDraft;
   onChange: (value: TextDraft) => void;
-  /** an edit of a text customers already accepted */
-  canReaccept: boolean;
   lastReacceptanceAt: string | null;
   canSet: boolean;
-  busy: boolean;
 }
 
 export function LegalTextEditor({
   value,
   onChange,
-  canReaccept,
   lastReacceptanceAt,
   canSet,
-  busy,
 }: Props) {
   const { t, i18n } = useTranslation();
   const { title, body } = value;
@@ -140,15 +133,6 @@ export function LegalTextEditor({
           </span>
         </div>
       </Field>
-      {canSet && canReaccept && (
-        <div className="flex items-center gap-3">
-          <p className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-medium text-foreground">
-            {t("settings.legal.reaccept")}
-            <FieldHint text={t("settings.legal.reacceptHint")} />
-          </p>
-          <Switch checked={value.reaccept} onChange={(reaccept) => onChange({ ...value, reaccept })} disabled={busy} />
-        </div>
-      )}
       {lastReacceptanceAt && (
         <span className="text-xs text-muted-foreground">
           {t("settings.legal.lastReaccept", { date: formatDate(lastReacceptanceAt, i18n.language) })}

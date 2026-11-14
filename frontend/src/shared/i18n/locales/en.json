@@ -1971,7 +1971,11 @@
       "titleLabel": "Title",
       "bodyLabel": "Text",
       "bodyHint": "Markdown is supported. The title and text together are limited to {{limit}} characters.",
-      "reaccept": "Ask customers to accept again",
+      "reacceptConfirm": {
+        "title": "Ask to accept the new version?",
+        "skip": "Save without asking",
+        "ask": "Ask to accept"
+      },
       "reacceptHint": "Every customer will see the new version on their next bot action or cabinet visit.",
       "lastReaccept": "Last acceptance request: {{date}}",
       "hidden": "Not shown",
@@ -3409,6 +3413,7 @@
       "nameLabel": "Name",
       "descriptionLabel": "Description",
       "baseLocale": "Default",
+      "baseLocaleMark": "default",
       "translationHint": "Left empty, this language shows the default name and description",
       "tagLabel": "Tag",
       "typeLabel": "Type",
@@ -3443,7 +3448,7 @@
       "sections": {
         "durations": "Durations"
       },
-      "publicCodeHint": "Generated automatically. For a link-only plan it is the access code — share it only with those who should buy the plan.",
+      "publicCodeHint": "Generated automatically. A link-only plan can be bought only by someone with a link carrying this code. For other plans it is just a quick link to the plan.",
       "tagHint": "Remnawave user tag: capital Latin letters, digits and “_”",
       "iconNoPacks": "No emoji packs yet. Import one in the bot settings.",
       "iconClear": "Remove icon",
@@ -3459,8 +3464,7 @@
       "trafficSuffix": "GB",
       "deviceSuffix": "pcs",
       "daysSuffix": "d",
-      "addPresetLabel": "Add:",
-      "customDuration": "Custom",
+      "addDuration": "Add duration",
       "isTrialHint": "Offered as a trial period",
       "isTrialUnavailableHint": "Not available: the plan is open to existing users only",
       "allowBonusDaysLabel": "Bonus days",
@@ -3484,7 +3488,6 @@
       "saved": "Access updated.",
       "error": "Failed to update access.",
       "availabilitySection": "Access",
-      "restricted": "Restricted",
       "availabilityHint": {
         "ALL": "Any user",
         "NEW": "Never bought a paid subscription",

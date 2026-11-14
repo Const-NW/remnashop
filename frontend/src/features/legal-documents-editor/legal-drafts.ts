@@ -18,7 +18,6 @@ const REACCEPTABLE: readonly LegalKind[] = ["USER_AGREEMENT", "PRIVACY_POLICY"];
 export interface TextDraft {
   title: string;
   body: string;
-  reaccept: boolean;
 }
 
 export function draftKey(kind: LegalKind, locale: string, channel: LegalChannel | null): string {

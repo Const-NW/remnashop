@@ -36,7 +36,7 @@ export function DialogHeader({
 }) {
   const close = useModalClose();
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-white/[0.08] p-4">
+    <div data-dialog-header className="flex shrink-0 items-center gap-3 border-b border-white/[0.08] p-4">
       {(icon || glyph) && <IconCircle icon={icon} glyph={glyph} header danger={danger} warning={warning} />}
       <div className="min-w-0 flex-1">
         <h2 className="flex min-w-0 gap-1 text-base font-semibold tracking-tight text-foreground">
