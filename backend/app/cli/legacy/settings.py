@@ -55,7 +55,10 @@ def transform_settings(row: Mapping[str, Any], report: MigrationReport) -> Setti
         access={
             "id": SINGLETON_ID,
             "mode": AccessMode(access["mode"]),
-            "payments_enabled": access["purchases_allowed"],
+            # 0018_restructure wrote purchases_allowed, the 0.7+ app saves payments_allowed
+            "payments_enabled": access.get(
+                "payments_allowed", access.get("purchases_allowed", True)
+            ),
             "registration_enabled": access["registration_allowed"],
         },
         bot_requirements={

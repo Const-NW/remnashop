@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Any
 
+import pytest
+
 from app.cli.legacy.report import MigrationReport
 from app.cli.legacy.settings import transform_settings
 from app.core.db.singleton import SINGLETON_ID
@@ -40,6 +42,20 @@ def test_access_settings() -> None:
     assert access["mode"] is AccessMode.INVITED
     assert access["payments_enabled"] is True
     assert access["registration_enabled"] is False
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        {"payments_allowed": False},
+        {"payments_allowed": False, "purchases_allowed": True},
+        {"purchases_allowed": False},
+    ],
+)
+def test_access_payments_key_from_any_legacy_version(keys: dict[str, bool]) -> None:
+    access = {"mode": "PUBLIC", "registration_allowed": True, **keys}
+    settings = transform_settings(_row(access=access), MigrationReport())
+    assert settings.access["payments_enabled"] is False
 
 
 def test_requirements_to_bot_requirements() -> None:
