@@ -235,6 +235,7 @@ def purchase_subscription_use_case(
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
     )
 
 

@@ -39,6 +39,8 @@ class PriceQuote:
     plan_discount_percent: int = 0
     # what the unlimited subscription being changed was paid, off base_price
     change_credit: Decimal = ZERO_AMOUNT
+    # days a change to a fixed-term plan adds for the unused part of the old one
+    change_credit_days: int = 0
 
 
 @dataclass(frozen=True, kw_only=True)

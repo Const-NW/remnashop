@@ -96,6 +96,7 @@ async def quote_checkout(
     return CheckoutQuoteResponse(
         base_price=quote.base_price,
         change_credit=quote.change_credit,
+        change_credit_days=quote.change_credit_days,
         plan_discount_percent=quote.plan_discount_percent,
         discount_percent=quote.discount_percent,
         discount_source=quote.discount_source,

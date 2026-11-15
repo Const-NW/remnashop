@@ -219,6 +219,8 @@ export interface ShopSettings {
   support_url: string | null;
   // sent to every payment gateway instead of the customer's email; null = ask the customer
   payment_email: string | null;
+  // off: a plan change is paid in full, the old term's unused part is dropped
+  plan_change_credit_enabled: boolean;
 }
 
 // a PATCH: only the fields sent change (the support card saves its two on their own)

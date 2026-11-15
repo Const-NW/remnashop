@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from remnapy import RemnawaveSDK
 from remnapy.enums import TrafficLimitStrategy
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
@@ -24,6 +25,8 @@ from app.modules.plans.dto import (
 )
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
+from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.subscriptions.domain import calculate_proration_credit
 from app.modules.subscriptions.dto import (
     PurchaseSubscriptionDto,
@@ -80,6 +83,7 @@ def _use_case(
         idempotency_repository,
         UserRepository(session),
         AppConfig.get(),
+        SettingsRepository(session),
     )
 
 
@@ -706,3 +710,77 @@ async def test_a_webhook_landing_first_does_not_lose_the_term_an_unlimited_renew
     assert renewed.is_unlimited
     assert renewed.plan_snapshot.unlimited_from == month.expire_at
     assert renewed.plan_snapshot.unlimited_from_credit_paid == Decimal("500")
+
+
+async def _disable_change_credit(session: AsyncSession) -> None:
+    await SettingsRepository(session).update_shop_settings(
+        UpdateShopSettingsDto(
+            plan_change_credit_enabled=False,
+            fields_set=frozenset({"plan_change_credit_enabled"}),
+        )
+    )
+
+
+async def test_a_change_with_credit_off_adds_no_days(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    idempotency_repository: PurchaseIdempotencyRepository,
+) -> None:
+    buyer = await user_repository.create(CreateUserDto(name="nocredit", telegram_id=91020))
+    old_plan = await _plan(plan_repository, "nocredit-old")
+    new_plan = await _plan(plan_repository, "nocredit-new")
+    use_case = _use_case(
+        subscription_repository, remnawave_sdk, uow, event_publisher, idempotency_repository
+    )
+    old = await _buy(use_case, buyer, old_plan, days=30, paid="500")
+    await _disable_change_credit(subscription_repository.session)
+
+    changed = await _buy(
+        use_case,
+        buyer,
+        new_plan,
+        days=30,
+        paid="500",
+        purchase_type=PurchaseType.CHANGE,
+        target_subscription_id=old.id,
+    )
+
+    assert changed.expire_at - datetime_now() < timedelta(days=30, minutes=1)
+    assert changed.plan_snapshot.credit_paid == Decimal("500")
+    assert changed.plan_snapshot.credit_days == 30
+
+
+async def test_an_unlimited_change_without_an_order_keeps_its_credit_with_credit_off(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    idempotency_repository: PurchaseIdempotencyRepository,
+) -> None:
+    buyer = await user_repository.create(CreateUserDto(name="nocarry", telegram_id=91021))
+    standard = await _plan(plan_repository, "nocarry-standard")
+    premium = await _plan(plan_repository, "nocarry-premium")
+    use_case = _use_case(
+        subscription_repository, remnawave_sdk, uow, event_publisher, idempotency_repository
+    )
+    forever = await _buy(use_case, buyer, standard, days=0, paid="3000")
+    await _disable_change_credit(subscription_repository.session)
+
+    changed = await _buy(
+        use_case,
+        buyer,
+        premium,
+        days=0,
+        paid="5000",
+        purchase_type=PurchaseType.CHANGE,
+        target_subscription_id=forever.id,
+    )
+
+    # no order priced it (an admin change), so what was paid stays on the books
+    assert changed.plan_snapshot.credit_paid == Decimal("8000")

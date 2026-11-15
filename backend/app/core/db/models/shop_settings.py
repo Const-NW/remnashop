@@ -34,5 +34,8 @@ class ShopSettings(BaseSql, TimestampMixin):
     support_telegram: Mapped[Optional[str]] = mapped_column(String(40))
     support_url: Mapped[Optional[str]] = mapped_column(String(512))
 
+    # off: a plan change is always paid in full, the old term's unused part is dropped
+    plan_change_credit_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
+
     # sent to every gateway instead of the customer's own email; set, nobody is asked for one
     payment_email: Mapped[Optional[str]] = mapped_column(String(320))

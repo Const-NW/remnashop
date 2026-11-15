@@ -1,4 +1,4 @@
-import { Layers, Link2, MonitorSmartphone, Share2, ShoppingBag, Smartphone } from "lucide-react";
+import { ArrowLeftRight, Layers, Link2, MonitorSmartphone, Share2, ShoppingBag, Smartphone } from "lucide-react";
 import { useEffect, useState, type ComponentType, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +36,7 @@ export function ShopSettingsForm() {
   const [linkResetCooldownHours, setLinkResetCooldownHours] = useState("0");
   const [referralResetEnabled, setReferralResetEnabled] = useState(true);
   const [referralResetCooldownHours, setReferralResetCooldownHours] = useState("0");
+  const [planChangeCreditEnabled, setPlanChangeCreditEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export function ShopSettingsForm() {
     setLinkResetCooldownHours(String(state.data.link_reset_cooldown_hours));
     setReferralResetEnabled(state.data.referral_reset_enabled);
     setReferralResetCooldownHours(String(state.data.referral_reset_cooldown_hours));
+    setPlanChangeCreditEnabled(state.data.plan_change_credit_enabled);
   }, [state]);
 
   const validation = useFieldValidation<FieldName>();
@@ -113,6 +115,7 @@ export function ShopSettingsForm() {
         link_reset_cooldown_hours: parsedLinkCooldown,
         referral_reset_enabled: referralResetEnabled,
         referral_reset_cooldown_hours: parsedReferralCooldown,
+        plan_change_credit_enabled: planChangeCreditEnabled,
       });
       setData(settings);
       validation.reset();
@@ -135,7 +138,8 @@ export function ShopSettingsForm() {
       linkResetEnabled !== saved.link_reset_enabled ||
       linkResetCooldownHours !== String(saved.link_reset_cooldown_hours) ||
       referralResetEnabled !== saved.referral_reset_enabled ||
-      referralResetCooldownHours !== String(saved.referral_reset_cooldown_hours));
+      referralResetCooldownHours !== String(saved.referral_reset_cooldown_hours) ||
+      planChangeCreditEnabled !== saved.plan_change_credit_enabled);
 
   const unlimited = t("settings.shop.unlimitedPlaceholder");
   return (
@@ -154,6 +158,7 @@ export function ShopSettingsForm() {
               <Row
                 icon={Layers}
                 label={t("settings.shop.maxActiveSubscriptionsLabel")}
+                hint={t("settings.shop.maxActiveSubscriptionsHint")}
                 description={shown("max") && <span className="text-error">{shown("max")}</span>}
               >
                 {/* 2px: the reset rows end 16px in (switch), this one 14px */}
@@ -176,6 +181,7 @@ export function ShopSettingsForm() {
               <ResetRow
                 icon={Smartphone}
                 label={t("settings.shop.deviceSingleResetLabel")}
+                hint={t("settings.shop.deviceSingleResetHint")}
                 width={unlimited}
                 error={shown("deviceSingle")}
                 inputProps={watch("deviceSingle")}
@@ -187,6 +193,7 @@ export function ShopSettingsForm() {
               <ResetRow
                 icon={MonitorSmartphone}
                 label={t("settings.shop.deviceAllResetLabel")}
+                hint={t("settings.shop.deviceAllResetHint")}
                 width={unlimited}
                 error={shown("deviceAll")}
                 inputProps={watch("deviceAll")}
@@ -198,6 +205,7 @@ export function ShopSettingsForm() {
               <ResetRow
                 icon={Link2}
                 label={t("settings.shop.linkResetLabel")}
+                hint={t("settings.shop.linkResetHint")}
                 width={unlimited}
                 error={shown("link")}
                 inputProps={watch("link")}
@@ -209,6 +217,7 @@ export function ShopSettingsForm() {
               <ResetRow
                 icon={Share2}
                 label={t("settings.shop.referralResetLabel")}
+                hint={t("settings.shop.referralResetHint")}
                 width={unlimited}
                 error={shown("referral")}
                 inputProps={watch("referral")}
@@ -217,6 +226,13 @@ export function ShopSettingsForm() {
                 cooldownHours={referralResetCooldownHours}
                 onCooldownChange={setReferralResetCooldownHours}
               />
+              <Row
+                icon={ArrowLeftRight}
+                label={t("settings.shop.planChangeCreditLabel")}
+                hint={t("settings.shop.planChangeCreditHint")}
+              >
+                <Switch checked={planChangeCreditEnabled} onChange={setPlanChangeCreditEnabled} />
+              </Row>
             </SectionRows>
           </fieldset>
         )}
@@ -228,6 +244,7 @@ export function ShopSettingsForm() {
 interface ResetRowProps {
   icon: ComponentType<{ className?: string }>;
   label: string;
+  hint: string;
   /** the text the limit field above is sized to: hours + switch take its width */
   width: string;
   enabled: boolean;
@@ -242,6 +259,7 @@ interface ResetRowProps {
 function ResetRow({
   icon,
   label,
+  hint,
   width,
   enabled,
   onEnabledChange,
@@ -252,7 +270,7 @@ function ResetRow({
 }: ResetRowProps) {
   const { t } = useTranslation();
   return (
-    <Row icon={icon} label={label} description={error && <span className="text-error">{error}</span>}>
+    <Row icon={icon} label={label} hint={hint} description={error && <span className="text-error">{error}</span>}>
       <TextWidth text={width}>
         <Input
           size="sm"

@@ -2,6 +2,7 @@ from typing import cast
 
 from dishka import Provider, Scope, alias, provide, provide_all
 
+from app.modules.subscriptions.change_credit import ChangeCreditCalculator
 from app.modules.subscriptions.dispatch import (
     GrantAddOnDispatch,
     PanelSyncDispatch,
@@ -81,6 +82,7 @@ class SubscriptionsProvider(Provider):
         PurchaseIdempotencyRepository,
         SubscriptionLifecycleService,
         PurchaseEligibility,
+        ChangeCreditCalculator,
         PanelSquadCatalog,
         PanelSubscriptionRevoker,
         PurchaseRollbackService,

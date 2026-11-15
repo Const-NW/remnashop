@@ -1,5 +1,4 @@
 from dataclasses import replace
-from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock
@@ -21,7 +20,6 @@ from app.telegram.routers.purchase.getters import (
     method_getter,
     plan_getter,
 )
-from tests.modules.subscriptions.factories import make_subscription_dto
 from tests.telegram.routers.purchase.test_handlers import _plan
 
 
@@ -231,45 +229,40 @@ async def test_confirm_shows_the_chosen_method_price() -> None:
     assert data["back_text"].text.endswith(" btn-purchase.back-method")
 
 
-async def test_confirm_of_a_change_warns_about_the_replacement() -> None:
-    data = await _confirm(
-        {
-            **_PRICED,
-            "purchase_type": "CHANGE",
-            "plan_name": "Plan 10",
-            "currency": "RUB",
-            "gateway_type": "YOOKASSA",
-            "method_skipped": True,
-        }
-    )
+_CHANGE: dict = {
+    **_PRICED,
+    "purchase_type": "CHANGE",
+    "plan_name": "Plan 10",
+    "currency": "RUB",
+    "gateway_type": "YOOKASSA",
+    "method_skipped": True,
+}
 
-    assert "frg-purchase-type-notice{'purchase_type': 'CHANGE'}" in data["window_text"]
+
+async def test_confirm_of_a_change_shows_the_days_it_credits() -> None:
+    data = await _confirm({**_CHANGE, "change_credit_days": 109})
+
+    text = data["window_text"]
+    assert "frg-purchase-change-credit-days-notice" in text
+    assert "109" in text
     assert data["back_text"].text.endswith(" btn-purchase.back-duration")
 
 
 @pytest.mark.parametrize(
-    ("target_year", "days", "kind"),
-    [(2099, 0, "credit"), (2027, 0, "no_carry"), (2099, 30, "no_carry")],
+    ("quoted", "kind"),
+    [
+        ({"change_credit": True, "change_credit_days": 0}, "credit"),
+        ({"change_credit": False, "change_credit_days": 0}, "no_carry"),
+        ({}, "no_carry"),
+    ],
 )
-async def test_confirm_of_an_unlimited_change_says_what_carries_over(
-    target_year: int, days: int, kind: str
+async def test_confirm_of_a_change_without_credit_days_says_what_carries_over(
+    quoted: dict, kind: str
 ) -> None:
-    target = make_subscription_dto(id=5, expire_at=datetime(target_year, 1, 1, tzinfo=timezone.utc))
-
-    data = await _confirm(
-        {
-            **_PRICED,
-            "purchase_type": "CHANGE",
-            "duration_days": days,
-            "plan_name": "Plan 10",
-            "currency": "RUB",
-            "gateway_type": "YOOKASSA",
-            SELECTED_SUBSCRIPTION_KEY: 5,
-        },
-        owned=[target],
-    )
+    data = await _confirm({**_CHANGE, **quoted})
 
     assert f"frg-purchase-change-unlimited-notice{{'kind': '{kind}'}}" in data["window_text"]
+    assert "frg-purchase-change-credit-days-notice" not in data["window_text"]
     assert "frg-purchase-type-notice" not in data["window_text"]
 
 

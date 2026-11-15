@@ -15,7 +15,8 @@ from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
 from app.modules.pricing import PricingRepository
-from app.modules.subscriptions.domain import SupersededError, calculate_proration_credit
+from app.modules.subscriptions.change_credit import ChangeCreditCalculator
+from app.modules.subscriptions.domain import SupersededError
 from app.modules.subscriptions.dto import PlanSnapshot, PurchaseSubscriptionDto, SubscriptionDto
 from app.modules.subscriptions.eligibility import get_owned_target
 from app.modules.subscriptions.events import SubscriptionChangedEvent
@@ -49,6 +50,7 @@ class ChangePurchase:
         uow: UnitOfWork,
         event_publisher: EventPublisher,
         pricing_repository: PricingRepository,
+        change_credit_calculator: ChangeCreditCalculator,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._idempotency = idempotency_repository
@@ -56,6 +58,7 @@ class ChangePurchase:
         self._uow = uow
         self._event_publisher = event_publisher
         self._pricing_repository = pricing_repository
+        self._change_credit_calculator = change_credit_calculator
 
     async def run(self, actor: Actor, data: PurchaseSubscriptionDto) -> SubscriptionDto:
         if data.target_subscription_id is None:
@@ -208,7 +211,14 @@ class ChangePurchase:
             plan = replace(plan, credit_paid=plan.price_paid + carried, credit_days=0)
         else:
             now = datetime_now()
-            credit, credit_days = await self._credit(old, data, now)
+            # depends on `old` alone, so the panel gets the final expire_at on the first call
+            credit, credit_days = await self._change_credit_calculator.credit(
+                old,
+                currency=data.currency,
+                list_price=data.base_price if data.base_price is not None else data.price_paid,
+                duration_days=data.duration_days,
+                now=now,
+            )
             final_expire_at = now + timedelta(days=data.duration_days + credit_days)
             # the new term carries the credit, so a later CHANGE may credit it back
             plan = replace(
@@ -217,31 +227,6 @@ class ChangePurchase:
                 credit_days=plan.duration_days + credit_days,
             )
         return plan, final_expire_at, credit_days
-
-    async def _credit(
-        self, old: SubscriptionDto, data: PurchaseSubscriptionDto, now: datetime
-    ) -> tuple[Decimal, int]:
-        # depends on `old` alone, so the panel gets the final expire_at on the
-        # first call
-        panel_user = await self._remnawave_sdk.users.get_user_by_id(old.remnawave_user_id)
-        credit = calculate_proration_credit(
-            credit_paid=old.plan_snapshot.effective_credit_paid,
-            credit_days=old.plan_snapshot.effective_credit_days,
-            expire_at=old.expire_at,
-            is_trial=old.is_trial,
-            now=now,
-            traffic_limit=old.effective_traffic_limit,
-            traffic_limit_strategy=old.traffic_limit_strategy,
-            used_traffic_bytes=int(panel_user.used_traffic_bytes),
-        )
-        credit = await self._convert(credit, old.plan_snapshot.currency, data.currency)
-        # divided by the list price (data.base_price): at the discounted rate a
-        # 90%-off checkout would buy 10x the credit days
-        proration_denominator = data.base_price if data.base_price is not None else data.price_paid
-        daily_rate_new = proration_denominator / Decimal(data.duration_days)
-        if daily_rate_new <= 0:
-            return ZERO_AMOUNT, 0
-        return credit, int(credit / daily_rate_new)
 
     async def _convert(self, amount: Decimal, source: Currency, target: Currency) -> Decimal:
         if source is target:

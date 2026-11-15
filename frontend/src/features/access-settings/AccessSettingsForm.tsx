@@ -110,10 +110,10 @@ export function AccessSettingsForm() {
         {state.kind === "error" && <ErrorState text={t("common.loadError")} />}
         {state.kind === "ready" && (
           <SectionRows>
-            <Row icon={UserPlus} label={t("settings.access.registrationLabel")}>
+            <Row icon={UserPlus} label={t("settings.access.registrationLabel")} hint={t("settings.access.registrationHint")}>
               <Switch checked={registrationEnabled} onChange={setRegistrationEnabled} disabled={!canManage} />
             </Row>
-            <Row icon={CreditCard} label={t("settings.access.paymentsLabel")}>
+            <Row icon={CreditCard} label={t("settings.access.paymentsLabel")} hint={t("settings.access.paymentsHint")}>
               {!paymentsEnabled && permissions.includes("PAYMENT_WAITLIST_VIEW") && <WaitlistTag />}
               <Switch checked={paymentsEnabled} onChange={setPaymentsEnabled} disabled={!canManage} />
             </Row>

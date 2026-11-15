@@ -1,8 +1,10 @@
 from dataclasses import replace
+from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from remnapy import RemnawaveSDK
 
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
@@ -33,8 +35,9 @@ from app.modules.plans.repository import PlanRepository
 from app.modules.pricing import PricingRepository
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.settings import GetAccessSettingsUseCase
+from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
-from app.modules.subscriptions import SubscriptionRepository
+from app.modules.subscriptions import ChangeCreditCalculator, SubscriptionRepository
 from app.modules.transactions.checkout_pricing import CheckoutPricer
 from app.modules.transactions.dto import QuoteCheckoutDto
 from app.modules.transactions.repository import TransactionRepository
@@ -45,6 +48,7 @@ from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.payment_texts import FixedPaymentTexts
+from tests.fakes.remnawave import FakeUserStore, _user_payload
 from tests.modules.subscriptions.factories import make_eligibility
 from tests.modules.transactions.test_usecases import (
     _checkout_dto,
@@ -73,12 +77,26 @@ def pricer(
         uow,
         promocode_repository,
         SubscriptionRepository(plan_repository.session),
+        SettingsRepository(plan_repository.session),
     )
 
 
 @pytest.fixture
-def quote_use_case(pricer: CheckoutPricer, uow: UnitOfWork) -> QuoteCheckoutUseCase:
-    return QuoteCheckoutUseCase(pricer, uow)
+def quote_use_case(
+    pricer: CheckoutPricer,
+    uow: UnitOfWork,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+) -> QuoteCheckoutUseCase:
+    session = plan_repository.session
+    return QuoteCheckoutUseCase(
+        pricer,
+        uow,
+        SubscriptionRepository(session),
+        ChangeCreditCalculator(
+            remnawave_sdk, uow, PricingRepository(session), SettingsRepository(session)
+        ),
+    )
 
 
 @pytest.fixture
@@ -294,3 +312,75 @@ async def test_quote_of_a_change_between_unlimited_plans_shows_the_credit(
 
     assert quote.change_credit == Decimal("500.00")
     assert quote.final_price == Decimal("4500")
+
+
+async def test_quote_of_an_unlimited_change_with_credit_off_is_the_full_price(
+    quote_use_case: QuoteCheckoutUseCase,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_302, plan_id=plan.id
+    )
+    await _make_unlimited(subscription_repository, subscription_id)
+    premium = await _unlimited_plan(plan_repository, "quote-premium-nocredit", "5000")
+    await SettingsRepository(plan_repository.session).update_shop_settings(
+        UpdateShopSettingsDto(
+            plan_change_credit_enabled=False,
+            fields_set=frozenset({"plan_change_credit_enabled"}),
+        )
+    )
+
+    quote = await quote_use_case(
+        actor,
+        QuoteCheckoutDto(
+            plan_id=premium.id,
+            duration_days=0,
+            currency=Currency.RUB,
+            change_subscription_id=subscription_id,
+        ),
+    )
+
+    assert quote.change_credit == Decimal("0")
+    assert quote.final_price == Decimal("5000")
+
+
+@pytest.mark.parametrize(("credit_enabled", "expected"), [(True, (29, 30)), (False, (0,))])
+async def test_quote_of_a_fixed_term_change_shows_the_credit_days(
+    quote_use_case: QuoteCheckoutUseCase,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    remnawave_store: FakeUserStore,
+    credit_enabled: bool,
+    expected: tuple[int, ...],
+) -> None:
+    # 500 paid for 30 days, about 30 left: the same 500/30 plan gives about 30 days
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_303, plan_id=plan.id
+    )
+    remnawave_store[820_303] = _user_payload(
+        user_id=820_303, username="quote-days", expire_at=datetime_now() + timedelta(days=30)
+    )
+    await SettingsRepository(plan_repository.session).update_shop_settings(
+        UpdateShopSettingsDto(
+            plan_change_credit_enabled=credit_enabled,
+            fields_set=frozenset({"plan_change_credit_enabled"}),
+        )
+    )
+
+    quote = await quote_use_case(
+        actor,
+        QuoteCheckoutDto(
+            plan_id=plan.id,
+            duration_days=30,
+            currency=Currency.RUB,
+            change_subscription_id=subscription_id,
+        ),
+    )
+
+    assert quote.change_credit_days in expected
+    assert quote.final_price == Decimal("500.00")

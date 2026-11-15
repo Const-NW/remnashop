@@ -20,6 +20,7 @@ from app.core.utils.time import datetime_now
 from app.modules.plans.dto import CreatePlanDto, PlanDto, SetPlanDurationDto, SetPlanDurationsDto
 from app.modules.plans.repository import PlanRepository
 from app.modules.pricing.repository import PricingRepository
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     PurchaseRollbackDto,
@@ -60,6 +61,7 @@ def purchase(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
     )
 
 

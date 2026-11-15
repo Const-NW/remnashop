@@ -466,6 +466,7 @@ def _activate_use_case(
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
     )
     return ActivatePromocodeUseCase(
         promocode_repository,
@@ -1030,6 +1031,7 @@ async def test_activate_duration_reward_extends_subscription_expiry(
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
     )
     subscription = await purchase_use_case(
         actor,
@@ -1105,6 +1107,7 @@ async def test_activate_traffic_reward_dispatches_the_addon_grant(
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
     )
     subscription = await purchase_use_case(
         actor,
