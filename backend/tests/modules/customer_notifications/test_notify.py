@@ -46,12 +46,16 @@ from tests.modules.subscriptions.factories import make_plan_snapshot
 
 _FTL = """\
 ntf-customer-open-cabinet = Open cabinet
-ntf-customer-button-renew = Renew
-ntf-customer-button-buy = Buy
-ntf-customer-button-close = Close
-ntf-customer-button-connect = Connect
-ntf-customer-button-support = Support
-ntf-customer-button-revoke-sessions = End sessions
+btn-customer-notification =
+    .renew = Renew
+    .renew-icon = 🔄
+    .renew-icon-id = 5339428493992162714
+    .buy = [🚫](emoji:42) Buy
+    .close = Close
+    .connect = Connect
+    .support = Support
+    .support-icon = 📩
+    .revoke-sessions = End sessions
 ntf-customer-cabinet-new-device-sign-in = Signed in from { $ip }.
     .title = New sign-in
 ntf-customer-subscription-changed = Plan changed.
@@ -484,7 +488,11 @@ async def test_expiring_subscription_gets_a_renew_button(fx: _Fixture) -> None:
 
     (message,) = fx.telegram.messages
     assert message["buttons"] == [
-        {"text": "Renew", "callback_data": "cn:renew:77"},
+        {
+            "text": "Renew",
+            "callback_data": "cn:renew:77",
+            "icon_custom_emoji_id": "5339428493992162714",
+        },
         {"text": "Close", "callback_data": "cn:close"},
     ]
 
@@ -509,7 +517,11 @@ async def test_expiring_trial_gets_a_buy_button(fx: _Fixture) -> None:
     await fx.notify(user, "SubscriptionExpiringEvent", subscription_id=trial.id)
 
     (message,) = fx.telegram.messages
-    assert message["buttons"][0] == {"text": "Buy", "callback_data": "cn:buy"}
+    assert message["buttons"][0] == {
+        "text": "Buy",
+        "callback_data": "cn:buy",
+        "icon_custom_emoji_id": "42",
+    }
     assert (
         message["text"] == "<b>🔔 Expiring</b>\n\n<blockquote>Expires soon. Buy one.</blockquote>"
     )
@@ -769,7 +781,7 @@ async def test_a_customer_who_never_connected_gets_connect_and_support(fx: _Fixt
     (message,) = fx.telegram.messages
     assert message["buttons"] == [
         {"text": "Connect", "url": "https://example.test/sub"},
-        {"text": "Support", "url": "https://t.me/help_desk"},
+        {"text": "📩 Support", "url": "https://t.me/help_desk"},
         {"text": "Close", "callback_data": "cn:close"},
     ]
 
@@ -800,6 +812,6 @@ async def test_a_new_sign_in_offers_to_end_every_session(fx: _Fixture) -> None:
     (message,) = fx.telegram.messages
     assert message["buttons"] == [
         {"text": "End sessions", "callback_data": "cn:revoke-sessions"},
-        {"text": "Support", "url": "https://help.test"},
+        {"text": "📩 Support", "url": "https://help.test"},
         {"text": "Close", "callback_data": "cn:close"},
     ]

@@ -50,7 +50,7 @@ async def on_invite_query(
                 ),
                 reply_markup=InlineKeyboardMarkup(
                     inline_keyboard=[
-                        [label_with_icon(runner, "inline-invite.start").inline_button(url=url)]
+                        [label_with_icon(runner, "btn-inline-invite.start").inline_button(url=url)]
                     ]
                 ),
             )

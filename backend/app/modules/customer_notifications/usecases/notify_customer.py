@@ -12,6 +12,8 @@ from app.core.constants import (
     CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
     CUSTOMER_NOTIFICATION_RENEW_PREFIX,
     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
+    ICON_ID_KEY_SUFFIX,
+    ICON_KEY_SUFFIX,
     REDIS_KEY_PREFIX,
     TTL_1D,
     TTL_7D,
@@ -27,6 +29,7 @@ from app.core.enums import (
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import BotSignals
 from app.core.usecase import UseCase
+from app.core.utils.telegram_text import compose_button_text
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.dispatch import SendCustomerTelegramDispatch
 from app.modules.customer_notifications.dto import NotifyCustomerDto
@@ -371,12 +374,16 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             # a trial isn't renewed: a purchase replaces it and keeps its link
             if subscription is not None and subscription.is_trial:
                 buttons.append(
-                    ("ntf-customer-button-buy", "callback_data", CUSTOMER_NOTIFICATION_BUY_CALLBACK)
+                    (
+                        "btn-customer-notification.buy",
+                        "callback_data",
+                        CUSTOMER_NOTIFICATION_BUY_CALLBACK,
+                    )
                 )
             else:
                 buttons.append(
                     (
-                        "ntf-customer-button-renew",
+                        "btn-customer-notification.renew",
                         "callback_data",
                         f"{CUSTOMER_NOTIFICATION_RENEW_PREFIX}{data.subscription_id}",
                     )
@@ -384,26 +391,29 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         if data.event_type in _REVOKE_SESSIONS:
             buttons.append(
                 (
-                    "ntf-customer-button-revoke-sessions",
+                    "btn-customer-notification.revoke-sessions",
                     "callback_data",
                     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
                 )
             )
         if data.event_type in _CONNECT and subscription is not None and subscription.url:
-            buttons.append(("ntf-customer-button-connect", "url", subscription.url))
+            buttons.append(("btn-customer-notification.connect", "url", subscription.url))
         if data.event_type in _SUPPORT:
             async with self._uow:
                 support = (await self._settings_repository.get_shop_settings()).support_link
             if support:
-                buttons.append(("ntf-customer-button-support", "url", support))
+                buttons.append(("btn-customer-notification.support", "url", support))
         buttons.append(
-            ("ntf-customer-button-close", "callback_data", CUSTOMER_NOTIFICATION_CLOSE_CALLBACK)
+            (
+                "btn-customer-notification.close",
+                "callback_data",
+                CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
+            )
         )
-        # Telegram refuses the whole message over one empty label
         return [
-            {"text": text, kind: value}
+            button
             for key, kind, value in buttons
-            if (text := renderer.text(user.language, key))
+            if (button := _telegram_button(renderer, user.language, key, kind, value))
         ]
 
     async def _find_subscription(self, subscription_id: int) -> Optional[SubscriptionDto]:
@@ -412,3 +422,22 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                 return await self._subscription_repository.get_by_id(subscription_id)
             except NotFoundError:
                 return None
+
+
+def _telegram_button(
+    renderer: NotificationRenderer, locale: Locale, key: str, kind: str, value: str
+) -> Optional[dict[str, str]]:
+    icon = renderer.text(locale, f"{key}{ICON_KEY_SUFFIX}")
+    icon_id = renderer.text(locale, f"{key}{ICON_ID_KEY_SUFFIX}")
+    text, icon_custom_emoji_id = compose_button_text(
+        renderer.text(locale, key) or "",
+        (icon or "").strip() or None,
+        (icon_id or "").strip() or None,
+    )
+    # Telegram refuses the whole message over one empty label
+    if not text:
+        return None
+    button = {"text": text, kind: value}
+    if icon_custom_emoji_id:
+        button["icon_custom_emoji_id"] = icon_custom_emoji_id
+    return button

@@ -634,5 +634,7 @@ inline-invite =
         { $bot_name } — поможет тебе с этим!
 
         ↘️ ЖМИ КНОПКУ И ПОПРОБУЙ БЕСПЛАТНО!
+
+btn-inline-invite =
     .start = Присоединиться
     .start-icon = 🚀
