@@ -63,6 +63,7 @@ def test_versions_specifier(spec: str, version: str, expected: bool) -> None:
 
 def test_unparseable_panel_version_hides_only_versioned_items() -> None:
     assert parse_panel_version("dev") is None
+    assert parse_panel_version("1.0.0-dev") is None
     assert not _visible(_dto(versions=">=1.0.0"), version="dev")
     assert _visible(_dto(), version="dev")
 

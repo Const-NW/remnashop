@@ -12,9 +12,10 @@ STALE_AFTER: Final[timedelta] = timedelta(hours=24)
 
 def parse_panel_version(raw: str) -> Optional[Version]:
     try:
-        return Version(raw)
+        version = Version(raw)
     except InvalidVersion:
         return None
+    return None if version.is_devrelease else version
 
 
 def is_visible(

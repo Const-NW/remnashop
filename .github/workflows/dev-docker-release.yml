@@ -25,6 +25,7 @@ jobs:
       telegram_image_tag: ${{ steps.vars.outputs.telegram_image_tag }}
       short_sha: ${{ steps.vars.outputs.short_sha }}
       build_time: ${{ steps.vars.outputs.build_time }}
+      build_tag: ${{ steps.vars.outputs.build_tag }}
 
     steps:
       - name: 🧾 Checkout Repository
@@ -37,6 +38,7 @@ jobs:
         run: |
           SHORT_SHA=$(git rev-parse --short HEAD)
           BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          VERSION=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' backend/app/__version__.py)
           IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY}"
 
           {
@@ -50,6 +52,7 @@ jobs:
             echo "EOF"
             echo "short_sha=${SHORT_SHA}"
             echo "build_time=${BUILD_TIME}"
+            echo "build_tag=${VERSION}-dev"
           } >> $GITHUB_OUTPUT
 
           echo "✅ SHA: ${SHORT_SHA}"
@@ -67,7 +70,7 @@ jobs:
         BUILD_TIME=${{ needs.vars.outputs.build_time }}
         BUILD_BRANCH=${{ github.ref_name }}
         BUILD_COMMIT=${{ needs.vars.outputs.short_sha }}
-        BUILD_TAG=dev
+        BUILD_TAG=${{ needs.vars.outputs.build_tag }}
 
   telegram:
     needs: vars
@@ -82,7 +85,7 @@ jobs:
         BUILD_TIME=${{ needs.vars.outputs.build_time }}
         BUILD_BRANCH=${{ github.ref_name }}
         BUILD_COMMIT=${{ needs.vars.outputs.short_sha }}
-        BUILD_TAG=dev
+        BUILD_TAG=${{ needs.vars.outputs.build_tag }}
         UV_EXTRA=telegram
 
   release:

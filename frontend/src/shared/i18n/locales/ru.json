@@ -2548,6 +2548,10 @@
     "branch": "Ветка",
     "commit": "Коммит",
     "commitDate": "Дата коммита",
+    "newCommits_one": "{{count}} новый коммит",
+    "newCommits_few": "{{count}} новых коммита",
+    "newCommits_many": "{{count}} новых коммитов",
+    "newCommits_other": "{{count}} новых коммита",
     "githubButton": "GitHub",
     "telegramButton": "Telegram"
   },
