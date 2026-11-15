@@ -1,7 +1,5 @@
-import { hexToRgbNormalized, hueRotationCoefficients } from "@shared/lib/color";
+import { hexToRgbNormalized } from "@shared/lib/color";
 
-// Opaque canvas (alpha: false), so opacity is a brightness multiplier, not a blend.
-export const SHADER_GRADIENT_OPACITY = 0.5;
 // a moment of the animation whose colours spread well across a still frame
 const STILL_TIME = 4;
 
@@ -22,12 +20,10 @@ precision highp float;
 uniform float uTime;
 uniform float uTimeSin;
 uniform float uScrollProgress;
-uniform float uOpacity;
-uniform vec3 uColourPalette[4];
+uniform vec3 uStops[4];
 uniform float uUvScale;
 uniform float uUvDistortionIterations;
 uniform float uUvDistortionIntensity;
-uniform mat3 uHueRotationMatrix;
 
 in vec2 vUv;
 out vec4 fragColor;
@@ -108,10 +104,6 @@ float snoise(vec3 v) {
   return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
 }
 
-vec3 cosineGradientColour(in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d) {
-  return clamp(a + b * cos(6.28318 * (c * t + d)), 0.0, 1.0);
-}
-
 void main() {
   vec2 uv = vUv;
   uv.x += uScrollProgress;
@@ -123,9 +115,12 @@ void main() {
   }
 
   float colourInput = snoise(vec3(uv, uTimeSin)) * 0.5 + 0.5;
-  vec3 colour = cosineGradientColour(colourInput, uColourPalette[0], uColourPalette[1], uColourPalette[2], uColourPalette[3]);
-  colour = uHueRotationMatrix * colour;
-  fragColor = vec4(colour * 1.4 * uOpacity, uOpacity);
+  // the four stops spread evenly over the noise, eased between neighbours
+  float s = smoothstep(0.0, 1.0, colourInput) * 3.0;
+  vec3 colour = mix(uStops[0], uStops[1], clamp(s, 0.0, 1.0));
+  colour = mix(colour, uStops[2], clamp(s - 1.0, 0.0, 1.0));
+  colour = mix(colour, uStops[3], clamp(s - 2.0, 0.0, 1.0));
+  fragColor = vec4(colour, 1.0);
 }
 `;
 
@@ -155,14 +150,12 @@ export function compileShaderGradient(gl: WebGL2RenderingContext): WebGLProgram 
 export function renderShaderGradientImage({
   width,
   height,
-  palette,
-  hueRadians,
+  stops,
 }: {
   width: number;
   height: number;
-  /** four hex colours, the gradient's cosine-palette terms */
-  palette: string[];
-  hueRadians: number;
+  /** resolveShaderStops' four colors */
+  stops: string[];
 }): string | null {
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -178,12 +171,10 @@ export function renderShaderGradientImage({
   set("uTime", (l) => gl.uniform1f(l, STILL_TIME));
   set("uTimeSin", (l) => gl.uniform1f(l, Math.sin(STILL_TIME)));
   set("uScrollProgress", (l) => gl.uniform1f(l, 0));
-  set("uOpacity", (l) => gl.uniform1f(l, SHADER_GRADIENT_OPACITY));
-  set("uColourPalette", (l) => gl.uniform3fv(l, Float32Array.from(palette.flatMap((hex) => hexToRgbNormalized(hex)))));
+  set("uStops", (l) => gl.uniform3fv(l, Float32Array.from(stops.flatMap((hex) => hexToRgbNormalized(hex)))));
   set("uUvScale", (l) => gl.uniform1f(l, 1));
   set("uUvDistortionIterations", (l) => gl.uniform1f(l, 3));
   set("uUvDistortionIntensity", (l) => gl.uniform1f(l, 0.15));
-  set("uHueRotationMatrix", (l) => gl.uniformMatrix3fv(l, true, Float32Array.from(hueRotationCoefficients(hueRadians))));
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   const url = canvas.toDataURL("image/png");
   gl.deleteProgram(program);

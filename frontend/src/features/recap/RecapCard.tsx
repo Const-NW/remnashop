@@ -6,14 +6,14 @@ import { BrandMark } from "@entities/appearance/BrandMark";
 import {
   useBrandName,
   useEffectiveAccentColor,
+  useEffectiveShaderColors,
   useEffectiveShaderEnabled,
-  useEffectiveShaderPalette,
 } from "@entities/appearance/use-appearance";
 import type { Recap } from "@entities/overview/api";
-import { DEFAULT_ACCENT_COLOR, DEFAULT_SHADER_PALETTE_HEX, hexToHueDegrees } from "@shared/lib/color";
 import { formatMoney } from "@shared/lib/format";
 import { parseIsoDate } from "@shared/lib/iso-date";
 import { renderShaderGradientImage } from "@shared/lib/shader-gradient";
+import { resolveShaderStops } from "@shared/lib/shader-palette";
 import { EYEBROW_CLASS } from "@shared/ui/classes";
 
 export type RecapBlock = "totals" | "month" | "infra";
@@ -35,22 +35,19 @@ const GLOW_STYLE = {
 };
 const LINE_CLASS = "h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent";
 
-// the same palette and accent hue as the live background
+// the same colors as the live background
 function useShaderFrame(): string | null {
   const enabled = useEffectiveShaderEnabled();
   const accent = useEffectiveAccentColor();
-  const palette = useEffectiveShaderPalette() ?? DEFAULT_SHADER_PALETTE_HEX;
-  const paletteKey = palette.join(",");
+  const colors = useEffectiveShaderColors();
   return useMemo(() => {
     if (!enabled) return null;
-    const hueDegrees = accent ? hexToHueDegrees(accent) - hexToHueDegrees(DEFAULT_ACCENT_COLOR) : 0;
     return renderShaderGradientImage({
       width: SHADER_WIDTH,
       height: SHADER_HEIGHT,
-      palette: paletteKey.split(","),
-      hueRadians: (hueDegrees * Math.PI) / 180,
+      stops: resolveShaderStops(accent, colors),
     });
-  }, [enabled, accent, paletteKey]);
+  }, [enabled, accent, colors]);
 }
 
 function Stat({ value, label, accent = false }: { value: string; label: string; accent?: boolean }) {

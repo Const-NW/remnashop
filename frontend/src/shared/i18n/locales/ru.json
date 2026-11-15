@@ -1548,12 +1548,12 @@
       "accentColorLabel": "Акцентный цвет",
       "presetsLabel": "Готовые пресеты",
       "shaderEnabledLabel": "Фоновый шейдер",
-      "shaderPalette": {
-        "base": "База",
-        "amplitude": "Амплитуда",
-        "frequency": "Частота",
-        "phase": "Фаза"
-      },
+      "shaderOwnBaseLabel": "Свой цвет фона",
+      "shaderBase": "Основной цвет",
+      "shaderBaseFromAccent": "Основной цвет · от акцента",
+      "shaderBaseFromDashboard": "Основной цвет · как в панели",
+      "shaderToneAuto": "Тон {{number}} · авто",
+      "shaderTonePinned": "Тон {{number}} · вручную",
       "logoLabel": "Логотип",
       "faviconLabel": "Фавикон",
       "logoHint": "SVG, PNG, JPG или WebP · квадрат 128–1024 px · до 1 МБ",

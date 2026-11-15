@@ -16,9 +16,10 @@ class AppearanceSettings(BaseSql, TimestampMixin):
 
     brand_name: Mapped[Optional[str]] = mapped_column(String(64))
     primary_color: Mapped[Optional[str]] = mapped_column(String(7))
-    # 4 hex colors [base, amplitude, frequency, phase]: the shader's
-    # cosine-gradient palette, read and written as one unit
-    shader_palette: Mapped[Optional[list[str]]] = mapped_column(JSONB)
+    # the background's base color; None: derived from the accent
+    shader_base: Mapped[Optional[str]] = mapped_column(String(7))
+    # 3 tones pinned by hand, None items derived from the base; set as one unit
+    shader_tones: Mapped[Optional[list[Optional[str]]]] = mapped_column(JSONB)
     shader_enabled: Mapped[bool] = mapped_column(Boolean(), default=True, server_default="true")
 
     logo_content_type: Mapped[Optional[str]] = mapped_column(String(32))

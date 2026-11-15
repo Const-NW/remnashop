@@ -1000,14 +1000,16 @@ async def test_owner_can_update_appearance_settings(
             target=AppearanceTarget.DASHBOARD,
             brand_name="Acme VPN",
             primary_color="#22d3ee",
-            shader_palette=["#111111", "#222222", "#333333", "#444444"],
+            shader_base="#111111",
+            shader_tones=["#222222", None, "#444444"],
             shader_enabled=False,
         ),
     )
 
     assert settings.brand_name == "Acme VPN"
     assert settings.primary_color == "#22d3ee"
-    assert settings.shader_palette == ["#111111", "#222222", "#333333", "#444444"]
+    assert settings.shader_base == "#111111"
+    assert settings.shader_tones == ["#222222", None, "#444444"]
     assert settings.shader_enabled is False
 
 
@@ -1058,7 +1060,8 @@ async def test_owner_can_reset_appearance_settings(
             target=AppearanceTarget.DASHBOARD,
             brand_name="Acme VPN",
             primary_color="#22d3ee",
-            shader_palette=["#111111", "#222222", "#333333", "#444444"],
+            shader_base="#111111",
+            shader_tones=["#222222", None, "#444444"],
             shader_enabled=False,
         ),
     )
@@ -1066,7 +1069,8 @@ async def test_owner_can_reset_appearance_settings(
 
     assert settings.brand_name is None
     assert settings.primary_color is None
-    assert settings.shader_palette is None
+    assert settings.shader_base is None
+    assert settings.shader_tones is None
     assert settings.shader_enabled is True
 
 

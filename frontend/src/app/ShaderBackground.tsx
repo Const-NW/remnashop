@@ -1,12 +1,13 @@
 import { useEffect, useRef } from "react";
 
-import { buildHueRotationMatrix, DEFAULT_TIME_SCALE, PALETTE, type ShaderUniforms } from "@app/shader-state";
+import { DEFAULT_TIME_SCALE, type ShaderUniforms } from "@app/shader-state";
 import { compileShaderGradient } from "@shared/lib/shader-gradient";
-import { DEFAULT_ACCENT_COLOR, DEFAULT_SHADER_PALETTE_HEX, hexToHueDegrees, hexToRgbNormalized } from "@shared/lib/color";
+import { hexToRgbNormalized } from "@shared/lib/color";
+import { resolveShaderStops } from "@shared/lib/shader-palette";
 import {
   useEffectiveAccentColor,
+  useEffectiveShaderColors,
   useEffectiveShaderEnabled,
-  useEffectiveShaderPalette,
 } from "@entities/appearance/use-appearance";
 
 const MIN_FRAME_INTERVAL_MS = 1000 / 30;
@@ -26,7 +27,7 @@ export function ShaderBackground() {
   // read by the render loop: skips drawing without recreating the WebGL context
   const enabledRef = useRef(true);
   const accentColor = useEffectiveAccentColor();
-  const shaderPalette = useEffectiveShaderPalette();
+  const shaderColors = useEffectiveShaderColors();
   const shaderEnabled = useEffectiveShaderEnabled();
 
   useEffect(() => {
@@ -59,12 +60,10 @@ export function ShaderBackground() {
       uTime: { value: 0 },
       uTimeSin: { value: 0 },
       uScrollProgress: { value: 0 },
-      uOpacity: { value: PALETTE.opacity },
-      uColourPalette: { value: Float32Array.from(PALETTE.colours) },
+      uStops: { value: new Float32Array(12) },
       uUvScale: { value: 1 },
       uUvDistortionIterations: { value: 3 },
       uUvDistortionIntensity: { value: 0.15 },
-      uHueRotationMatrix: { value: buildHueRotationMatrix(0) },
     };
 
     let program: WebGLProgram | null = null;
@@ -89,12 +88,10 @@ export function ShaderBackground() {
       context.uniform1f(locations.uTime, uniforms.uTime.value);
       context.uniform1f(locations.uTimeSin, uniforms.uTimeSin.value);
       context.uniform1f(locations.uScrollProgress, uniforms.uScrollProgress.value);
-      context.uniform1f(locations.uOpacity, uniforms.uOpacity.value);
-      context.uniform3fv(locations.uColourPalette, uniforms.uColourPalette.value);
+      context.uniform3fv(locations.uStops, uniforms.uStops.value);
       context.uniform1f(locations.uUvScale, uniforms.uUvScale.value);
       context.uniform1f(locations.uUvDistortionIterations, uniforms.uUvDistortionIterations.value);
       context.uniform1f(locations.uUvDistortionIntensity, uniforms.uUvDistortionIntensity.value);
-      context.uniformMatrix3fv(locations.uHueRotationMatrix, true, uniforms.uHueRotationMatrix.value);
       context.drawArrays(context.TRIANGLES, 0, 3);
     }
     renderFrame();
@@ -163,8 +160,7 @@ export function ShaderBackground() {
       elapsed += (dt / 1000) * DEFAULT_TIME_SCALE * eased;
 
       uniforms.uTime.value = elapsed;
-      // Same reason the hue matrix is precomputed in shader-state.ts: one value
-      // per frame, not per fragment.
+      // one value per frame, not per fragment
       uniforms.uTimeSin.value = Math.sin(uniforms.uTime.value);
       if (enabledRef.current) renderFrame();
       if (idle && motion === 0) stop();
@@ -224,23 +220,16 @@ export function ShaderBackground() {
     };
   }, []);
 
-  // saved accent or a live preview; updates the running shader's uniforms in place
+  // saved values or a live preview; updates the running shader's uniforms in place.
+  // Declared after the setup effect, so the first run finds the uniforms already there.
   useEffect(() => {
     const uniforms = uniformsRef.current;
     if (!uniforms) return;
-
-    const hueDelta = accentColor ? hexToHueDegrees(accentColor) - hexToHueDegrees(DEFAULT_ACCENT_COLOR) : 0;
-    uniforms.uHueRotationMatrix.value.set(buildHueRotationMatrix((hueDelta * Math.PI) / 180));
-  }, [accentColor]);
-
-  // the accent's hue rotation still applies on top of a custom palette
-  useEffect(() => {
-    const uniforms = uniformsRef.current;
-    if (!uniforms) return;
-
-    const hexes = shaderPalette ?? DEFAULT_SHADER_PALETTE_HEX;
-    hexes.forEach((hex, i) => uniforms.uColourPalette.value.set(hexToRgbNormalized(hex), i * 3));
-  }, [shaderPalette]);
+    resolveShaderStops(accentColor, shaderColors).forEach((hex, i) =>
+      uniforms.uStops.value.set(hexToRgbNormalized(hex), i * 3),
+    );
+    loopRef.current?.resume();
+  }, [accentColor, shaderColors]);
 
   useEffect(() => {
     enabledRef.current = shaderEnabled;

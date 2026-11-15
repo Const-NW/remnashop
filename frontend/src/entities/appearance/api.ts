@@ -9,7 +9,8 @@ export const DEFAULT_FAVICON_HREF = "/favicon.svg";
 export interface AppearanceSettings {
   brand_name: string | null;
   primary_color: string | null;
-  shader_palette: string[] | null;
+  shader_base: string | null;
+  shader_tones: (string | null)[] | null;
   shader_enabled: boolean;
   has_logo: boolean;
   has_favicon: boolean;
@@ -18,7 +19,9 @@ export interface AppearanceSettings {
 export interface UpdateAppearancePayload {
   brand_name?: string;
   primary_color?: string;
-  shader_palette?: string[];
+  // "" goes back to following the accent
+  shader_base?: string;
+  shader_tones?: (string | null)[];
   shader_enabled?: boolean;
 }
 

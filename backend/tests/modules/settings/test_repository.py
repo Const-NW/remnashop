@@ -310,7 +310,8 @@ async def test_get_appearance_settings_returns_defaults_when_missing(
 
     assert settings.brand_name is None
     assert settings.primary_color is None
-    assert settings.shader_palette is None
+    assert settings.shader_base is None
+    assert settings.shader_tones is None
     assert settings.shader_enabled is True
     assert settings.has_logo is False
     assert settings.has_favicon is False
@@ -326,15 +327,37 @@ async def test_update_appearance_settings_persists_partial_updates(
         UpdateAppearanceSettingsDto(
             target=AppearanceTarget.DASHBOARD,
             primary_color="#ff0000",
-            shader_palette=["#111111", "#222222", "#333333", "#444444"],
+            shader_base="#111111",
+            shader_tones=["#222222", None, "#444444"],
             shader_enabled=False,
         )
     )
 
     assert settings.brand_name == "Acme VPN"
     assert settings.primary_color == "#ff0000"
-    assert settings.shader_palette == ["#111111", "#222222", "#333333", "#444444"]
+    assert settings.shader_base == "#111111"
+    assert settings.shader_tones == ["#222222", None, "#444444"]
     assert settings.shader_enabled is False
+
+
+async def test_update_appearance_settings_clears_shader_base_and_unpinned_tones(
+    settings_repository: SettingsRepository,
+) -> None:
+    await settings_repository.update_appearance_settings(
+        UpdateAppearanceSettingsDto(
+            target=AppearanceTarget.DASHBOARD,
+            shader_base="#111111",
+            shader_tones=["#222222", None, None],
+        )
+    )
+    settings = await settings_repository.update_appearance_settings(
+        UpdateAppearanceSettingsDto(
+            target=AppearanceTarget.DASHBOARD, shader_base="", shader_tones=[None, None, None]
+        )
+    )
+
+    assert settings.shader_base is None
+    assert settings.shader_tones is None
 
 
 async def test_reset_appearance_settings_clears_all_fields(
@@ -345,7 +368,8 @@ async def test_reset_appearance_settings_clears_all_fields(
             target=AppearanceTarget.DASHBOARD,
             brand_name="Acme VPN",
             primary_color="#ff0000",
-            shader_palette=["#111111", "#222222", "#333333", "#444444"],
+            shader_base="#111111",
+            shader_tones=["#222222", None, "#444444"],
             shader_enabled=False,
         )
     )
@@ -353,7 +377,8 @@ async def test_reset_appearance_settings_clears_all_fields(
 
     assert settings.brand_name is None
     assert settings.primary_color is None
-    assert settings.shader_palette is None
+    assert settings.shader_base is None
+    assert settings.shader_tones is None
     assert settings.shader_enabled is True
 
 
