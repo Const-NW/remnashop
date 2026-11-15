@@ -13,6 +13,7 @@ import httpx
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.models.broadcast import Broadcast
 from app.core.db.models.subscription import Subscription
 from app.core.db.models.transaction import Transaction
 from app.core.db.models.user import User
@@ -88,6 +89,16 @@ async def add_subscription(
         )
     )
     await session.flush()
+
+
+async def set_broadcast(session: AsyncSession, broadcast_id: int, **values: Any) -> None:
+    """Puts a broadcast row into a state a test starts from."""
+    await session.execute(
+        update(Broadcast)
+        .where(Broadcast.id == broadcast_id)
+        .values(**values, updated_at=datetime_now())
+        .execution_options(synchronize_session="fetch")
+    )
 
 
 async def add_paid_transaction(session: AsyncSession, user_id: int) -> None:

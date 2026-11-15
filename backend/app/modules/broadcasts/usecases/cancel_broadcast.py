@@ -32,12 +32,7 @@ class CancelBroadcastUseCase(UseCase[int, BroadcastDto]):
         async with self._uow:
             broadcast = await self._broadcast_repository.get_by_id_for_update(data)
             if broadcast.status is BroadcastStatus.SCHEDULED:
-                await self._broadcast_repository.update_fields(
-                    data,
-                    status=BroadcastStatus.CANCELED,
-                    scheduled_at=None,
-                    completed_at=datetime_now(),
-                )
+                await self._broadcast_repository.cancel_scheduled(data, datetime_now())
                 await self._broadcast_repository.cancel_pending(data)
                 await self._broadcast_repository.refresh_counts(data)
             elif broadcast.status is BroadcastStatus.SENDING:

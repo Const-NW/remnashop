@@ -60,9 +60,7 @@ class SendBroadcastUseCase(UseCase[SendBroadcastDto, BroadcastDto]):
                 await self._check_bot(broadcast)
             if broadcast.sends_email:
                 await self._check_email(broadcast)
-            await self._broadcast_repository.update_fields(
-                broadcast.id, status=BroadcastStatus.SCHEDULED, scheduled_at=scheduled_at
-            )
+            await self._broadcast_repository.schedule(broadcast.id, scheduled_at)
             await self._event_publisher.publish(
                 BroadcastScheduledEvent(
                     actor=actor, broadcast_id=broadcast.id, scheduled_at=scheduled_at.isoformat()

@@ -256,6 +256,15 @@ class SetBroadcastMediaDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class BroadcastMediaDto:
+    media_type: BroadcastMediaType
+    content_type: str
+    extension: str
+    version: int
+    size_bytes: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class SendBroadcastDto:
     broadcast_id: int
     scheduled_at: Optional[datetime] = None

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Final, Optional
 
 from aiogram.enums import ButtonStyle, ParseMode
 from aiogram_dialog import Dialog, DialogManager, StartMode, Window
@@ -51,7 +51,7 @@ class _ItemIcon(BaseStyle):
 
 
 # the purchase steps carry the banner of the subscriptions window they start from
-_BANNER_WINDOW = "subscriptions.list"
+_BANNER_WINDOW: Final[str] = "subscriptions.list"
 
 plan = Window(
     DynamicMedia("banner", when="banner"),

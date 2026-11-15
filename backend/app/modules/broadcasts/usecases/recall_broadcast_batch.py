@@ -96,13 +96,11 @@ class RecallBroadcastBatchUseCase(UseCase[int, None]):
 
         async with self._uow:
             if channel_deleted:
-                await self._broadcast_repository.update_fields(data, channel_message_id=None)
+                await self._broadcast_repository.clear_channel_message(data)
             await self._broadcast_repository.refresh_counts(data)
             if not last_page and authorized:
                 # the repeat window counts from the chain's last batch, not from the click
-                await self._broadcast_repository.update_fields(
-                    data, recall_requested_at=datetime_now()
-                )
+                await self._broadcast_repository.request_recall(data, datetime_now())
                 await self._uow.after_commit(partial(self._recall_dispatch.kiq, broadcast_id=data))
         if not authorized:
             logger.warning(f"Broadcast '{data}' recall stopped: the bot token was rejected")

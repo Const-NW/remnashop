@@ -23,8 +23,6 @@ async def lock_editable(repository: BroadcastRepository, broadcast_id: int) -> B
 
 
 async def cancel_sending(repository: BroadcastRepository, broadcast_id: int) -> None:
-    await repository.update_fields(
-        broadcast_id, status=BroadcastStatus.CANCELED, completed_at=datetime_now()
-    )
+    await repository.finish(broadcast_id, BroadcastStatus.CANCELED, datetime_now())
     await repository.cancel_pending(broadcast_id)
     await repository.refresh_counts(broadcast_id)

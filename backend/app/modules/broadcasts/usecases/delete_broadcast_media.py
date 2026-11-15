@@ -3,7 +3,6 @@ from loguru import logger
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BroadcastStatus
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -35,16 +34,7 @@ class DeleteBroadcastMediaUseCase(UseCase[int, BroadcastDto]):
             current = await lock_editable(self._broadcast_repository, data)
             if current.sends_telegram:
                 validate_texts(current.contents, current.default_locale, has_media=False)
-            await self._broadcast_repository.update_fields(
-                current.id,
-                media_type=None,
-                media_content_type=None,
-                media_extension=None,
-                media_size_bytes=None,
-                media_file_id=None,
-                status=BroadcastStatus.DRAFT,
-                scheduled_at=None,
-            )
+            await self._broadcast_repository.set_media(current.id, None)
             updated = await self._broadcast_repository.get_by_id(current.id)
             await self._event_publisher.publish(
                 BroadcastChangedEvent(actor=actor, action="delete_media", broadcast_id=current.id)

@@ -50,7 +50,7 @@ from app.modules.settings.repository import SettingsRepository
 from app.modules.translations.repository import TranslationRepository
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
-from tests.modules.broadcasts.factories import make_customer
+from tests.modules.broadcasts.factories import make_customer, set_broadcast
 from tests.modules.broadcasts.test_worker_usecases import (
     RecordingPublisher,
     _recipients,
@@ -417,7 +417,7 @@ async def test_canceled_stops_chain(
 ) -> None:
     ids = await _users(session, user_repository, 160, 1)
     broadcast = await _email_broadcast(broadcast_repository, ids)
-    await broadcast_repository.update_fields(broadcast.id, status=BroadcastStatus.CANCELED)
+    await set_broadcast(broadcast_repository.session, broadcast.id, status=BroadcastStatus.CANCELED)
     sender = FakeBatchSender()
 
     await make_deliver(sender).system(broadcast.id)
@@ -462,7 +462,8 @@ async def test_inline_images_attached(
     path = email_image_path(media_config.media_dir, broadcast.id, image.id, "png")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"png")
-    await broadcast_repository.update_fields(
+    await set_broadcast(
+        broadcast_repository.session,
         broadcast.id,
         email_contents={
             Locale.EN.value: {"subject": "News", "html": f'<p><img src="bc-image:{image.id}"></p>'}
@@ -634,7 +635,9 @@ async def test_no_rekick_when_canceled_during_sleep(
     real_sleep = asyncio.sleep
 
     async def sleep_and_cancel(delay: float) -> None:
-        await broadcast_repository.update_fields(broadcast.id, status=BroadcastStatus.CANCELED)
+        await set_broadcast(
+            broadcast_repository.session, broadcast.id, status=BroadcastStatus.CANCELED
+        )
         await real_sleep(0)
 
     monkeypatch.setattr(asyncio, "sleep", sleep_and_cancel)

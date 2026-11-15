@@ -3,13 +3,12 @@ from loguru import logger
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BroadcastStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
-from app.modules.broadcasts.dto import BroadcastDto, SetBroadcastMediaDto
+from app.modules.broadcasts.dto import BroadcastDto, BroadcastMediaDto, SetBroadcastMediaDto
 from app.modules.broadcasts.events import BroadcastChangedEvent
 from app.modules.broadcasts.lifecycle import lock_editable
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -54,16 +53,15 @@ class SetBroadcastMediaUseCase(UseCase[SetBroadcastMediaDto, BroadcastDto]):
                 )
             validate_text_lengths(current.contents, has_media=True)
             version = current.media_version + 1
-            await self._broadcast_repository.update_fields(
+            await self._broadcast_repository.set_media(
                 current.id,
-                media_type=media_type,
-                media_content_type=data.content_type,
-                media_extension=extension,
-                media_version=version,
-                media_size_bytes=data.size,
-                media_file_id=None,
-                status=BroadcastStatus.DRAFT,
-                scheduled_at=None,
+                BroadcastMediaDto(
+                    media_type=media_type,
+                    content_type=data.content_type,
+                    extension=extension,
+                    version=version,
+                    size_bytes=data.size,
+                ),
             )
             updated = await self._broadcast_repository.get_by_id(current.id)
             await self._event_publisher.publish(

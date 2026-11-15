@@ -71,7 +71,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
                 and await promocode_is_usable(self._promocode_repository, broadcast.promocode_id)
                 is None
             ):
-                await self._broadcast_repository.update_fields(data, promocode_id=None)
+                await self._broadcast_repository.clear_promocode(data)
                 dropped = True
             total = broadcast.total_count
             if broadcast.started_at is None:
@@ -83,12 +83,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
                     broadcast.email_fallback,
                     now,
                 )
-            await self._broadcast_repository.update_fields(
-                data,
-                status=BroadcastStatus.SENDING,
-                total_count=total,
-                started_at=broadcast.started_at or now,
-            )
+            await self._broadcast_repository.mark_sending(data, total, broadcast.started_at or now)
             await self._event_publisher.publish(
                 BroadcastStartedEvent(broadcast_id=data, total=total, promocode_dropped=dropped)
             )
@@ -141,11 +136,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
         if result.outcome is not SendOutcome.SENT:
             logger.warning(f"Broadcast '{broadcast_id}' channel post refused: {result.error}")
             return
-        values: dict[str, object] = {
-            "channel_chat_id": channel_id,
-            "channel_message_id": result.message_id,
-        }
-        if result.file_id:
-            values["media_file_id"] = result.file_id
         async with self._uow:
-            await self._broadcast_repository.update_fields(broadcast_id, **values)
+            await self._broadcast_repository.set_channel_post(
+                broadcast_id, channel_id, result.message_id, result.file_id
+            )

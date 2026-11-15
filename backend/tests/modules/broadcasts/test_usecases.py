@@ -65,7 +65,12 @@ from app.modules.settings.repository import SettingsRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
-from tests.modules.broadcasts.factories import MockTelegram, make_customer, ok_response
+from tests.modules.broadcasts.factories import (
+    MockTelegram,
+    make_customer,
+    ok_response,
+    set_broadcast,
+)
 from tests.modules.broadcasts.test_repository import save_dto
 
 _MB = 1024 * 1024
@@ -134,7 +139,7 @@ async def _make(
         fields: dict[str, object] = {"status": status}
         if status is BroadcastStatus.SCHEDULED:
             fields["scheduled_at"] = datetime_now()
-        await repository.update_fields(created.id, **fields)
+        await set_broadcast(repository.session, created.id, **fields)
     return await repository.get_by_id(created.id)
 
 
@@ -773,7 +778,7 @@ async def test_retry_resets_failed_only(
     admin: UserDto,
 ) -> None:
     done = await _make(broadcast_repository, BroadcastStatus.COMPLETED)
-    await broadcast_repository.update_fields(done.id, completed_at=datetime_now())
+    await set_broadcast(broadcast_repository.session, done.id, completed_at=datetime_now())
     await _recipients(
         session,
         broadcast_repository,
@@ -819,8 +824,8 @@ async def test_recall_after_48h_refused(
     admin: UserDto,
 ) -> None:
     done = await _make(broadcast_repository, BroadcastStatus.COMPLETED)
-    await broadcast_repository.update_fields(
-        done.id, started_at=datetime_now() - timedelta(hours=49)
+    await set_broadcast(
+        broadcast_repository.session, done.id, started_at=datetime_now() - timedelta(hours=49)
     )
     with pytest.raises(ValidationError) as caught:
         await recall_use_case(admin, done.id)
@@ -837,7 +842,7 @@ async def test_recall_cancels_sending_and_kicks(
     admin: UserDto,
 ) -> None:
     sending = await _make(broadcast_repository, BroadcastStatus.SENDING)
-    await broadcast_repository.update_fields(sending.id, started_at=datetime_now())
+    await set_broadcast(broadcast_repository.session, sending.id, started_at=datetime_now())
     await _recipients(
         session,
         broadcast_repository,
@@ -1013,7 +1018,8 @@ async def test_test_send_missing_media_is_reported(
         uow,
     )
     draft = await _make(broadcast_repository)
-    await broadcast_repository.update_fields(
+    await set_broadcast(
+        broadcast_repository.session,
         draft.id,
         media_type=BroadcastMediaType.PHOTO,
         media_extension="jpg",
@@ -1054,7 +1060,7 @@ async def test_broadcast_promocode_for_customer(
     await _add_recipient(broadcast_repository, broadcast, customer)
 
     assert await use_case(customer, broadcast.id) is None
-    await broadcast_repository.update_fields(broadcast.id, started_at=datetime_now())
+    await set_broadcast(broadcast_repository.session, broadcast.id, started_at=datetime_now())
     assert await use_case(customer, broadcast.id) == "SALE"
     assert await use_case(customer, plain.id) is None
     assert await use_case(customer, broadcast.id + 1000) is None
@@ -1077,12 +1083,12 @@ async def test_broadcast_promocode_needs_recipient_or_channel_post(
     )
     broadcast = await broadcast_repository.create(save_dto(promocode_id=promo.id), created_by=None)
     await _add_recipient(broadcast_repository, broadcast, recipient)
-    await broadcast_repository.update_fields(broadcast.id, started_at=datetime_now())
+    await set_broadcast(broadcast_repository.session, broadcast.id, started_at=datetime_now())
 
     assert await use_case(recipient, broadcast.id) == "PRIVATE"
     assert await use_case(stranger, broadcast.id) is None
 
-    await broadcast_repository.update_fields(broadcast.id, channel_message_id=77)
+    await set_broadcast(broadcast_repository.session, broadcast.id, channel_message_id=77)
     assert await use_case(stranger, broadcast.id) == "PRIVATE"
 
 
@@ -1099,7 +1105,7 @@ async def test_broadcast_promocode_is_none_when_deactivated(
     )
     broadcast = await broadcast_repository.create(save_dto(promocode_id=promo.id), created_by=None)
     await _add_recipient(broadcast_repository, broadcast, customer)
-    await broadcast_repository.update_fields(broadcast.id, started_at=datetime_now())
+    await set_broadcast(broadcast_repository.session, broadcast.id, started_at=datetime_now())
     assert await use_case(customer, broadcast.id) == "OFF"
 
     await promocode_repository.update(UpdatePromocodeDto(promocode_id=promo.id, is_active=False))
@@ -1123,7 +1129,7 @@ async def test_create_with_token_actor_leaves_creator_empty(
 
 async def _retried(repository: BroadcastRepository) -> BroadcastDto:
     retried = await _make(repository, BroadcastStatus.SCHEDULED)
-    await repository.update_fields(retried.id, started_at=datetime_now())
+    await set_broadcast(repository.session, retried.id, started_at=datetime_now())
     return retried
 
 
@@ -1182,7 +1188,7 @@ async def test_retry_after_recall_request_refused(
     admin: UserDto,
 ) -> None:
     done = await _make(broadcast_repository, BroadcastStatus.COMPLETED)
-    await broadcast_repository.update_fields(done.id, recall_requested_at=datetime_now())
+    await set_broadcast(broadcast_repository.session, done.id, recall_requested_at=datetime_now())
     await _recipients(
         session,
         broadcast_repository,
@@ -1204,7 +1210,7 @@ async def test_second_recall_refused(
     admin: UserDto,
 ) -> None:
     done = await _make(broadcast_repository, BroadcastStatus.COMPLETED)
-    await broadcast_repository.update_fields(done.id, started_at=datetime_now())
+    await set_broadcast(broadcast_repository.session, done.id, started_at=datetime_now())
     await recall_use_case(admin, done.id)
     with pytest.raises(ConflictError) as caught:
         await recall_use_case(admin, done.id)
@@ -1335,8 +1341,11 @@ async def test_media_can_always_be_removed_from_email_only_broadcast(
     admin: UserDto,
 ) -> None:
     email_only = await _make(broadcast_repository, delivery=BroadcastDelivery.EMAIL, contents={})
-    await broadcast_repository.update_fields(
-        email_only.id, media_type=BroadcastMediaType.PHOTO, media_extension="jpg"
+    await set_broadcast(
+        broadcast_repository.session,
+        email_only.id,
+        media_type=BroadcastMediaType.PHOTO,
+        media_extension="jpg",
     )
     cleared = await DeleteBroadcastMediaUseCase(
         broadcast_repository, media_config, uow, event_publisher

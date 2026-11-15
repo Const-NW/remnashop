@@ -69,7 +69,7 @@ class RecallBroadcastUseCase(UseCase[int, BroadcastDto]):
                     "Recall window has passed", code=ErrorCode.BROADCAST_RECALL_EXPIRED
                 )
             await self._broadcast_repository.clear_recall_failures(data)
-            await self._broadcast_repository.update_fields(data, recall_requested_at=now)
+            await self._broadcast_repository.request_recall(data, now)
             if broadcast.status is BroadcastStatus.SENDING:
                 await cancel_sending(self._broadcast_repository, data)
             await self._event_publisher.publish(

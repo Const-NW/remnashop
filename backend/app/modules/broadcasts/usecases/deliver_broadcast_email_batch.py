@@ -142,7 +142,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
                 return False
             if await self._redis.exists(smtp_pause_key(bulk=profile.is_bulk)):
                 # heartbeat: a long pause is not a stall
-                await self._broadcast_repository.update_fields(data)
+                await self._broadcast_repository.touch(data)
                 return True
             pending = await self._broadcast_repository.claim_pending_email(
                 data,
@@ -249,7 +249,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             await self._redis.set(smtp_pause_key(bulk=profile.is_bulk), "1", ex=SMTP_PAUSE_SECONDS)
             async with self._uow:
                 # heartbeat: a long pause is not a stall
-                await self._broadcast_repository.update_fields(broadcast_id)
+                await self._broadcast_repository.touch(broadcast_id)
                 await self._broadcast_repository.release_claims([r.id for r in queue])
             logger.warning(f"Broadcast '{broadcast_id}' email paused: {error}")
             return True
@@ -293,7 +293,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             return
         async with self._uow:
             # broadcast row before recipient rows, the order cancel takes them in
-            await self._broadcast_repository.update_fields(broadcast_id)
+            await self._broadcast_repository.touch(broadcast_id)
             metrics = [await self._record_one(recipient, result) for recipient, result in results]
         for metric in metrics:
             if metric is not None:
