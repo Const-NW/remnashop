@@ -17,6 +17,7 @@ from app.modules.settings import BotRequirementsDto
 from app.modules.settings.bot_commands import BOT_COMMANDS
 from app.modules.subscriptions import PlanCatalogDto
 from app.modules.users import UserDto
+from app.telegram.dialogs.rendering import label_with_icon
 from app.telegram.i18n import build_translator_hub
 from app.telegram.legal_gate import LegalAcceptCallback, LegalDocumentCallback, gate_message_key
 from app.telegram.middlewares.requirements import CHANNEL_CHECK_CALLBACK
@@ -111,7 +112,7 @@ async def test_terms_lists_visible_documents() -> None:
     assert [b.text for b in buttons] == [
         runner.get("btn-legal.OFFER"),
         runner.get("btn-legal.PRIVACY_POLICY"),
-        runner.get("ntf-customer-button-close"),
+        label_with_icon(runner, "btn-customer-notification.close").text,
     ]
     assert buttons[-1].callback_data == CUSTOMER_NOTIFICATION_CLOSE_CALLBACK
     assert buttons[0].callback_data == LegalDocumentCallback(kind=LegalDocumentKind.OFFER).pack()

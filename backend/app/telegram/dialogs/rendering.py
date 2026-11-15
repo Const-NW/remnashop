@@ -14,8 +14,8 @@ from loguru import logger
 from app.core.utils.telegram_text import (
     PREMIUM_EMOJI_RE,
     TELEGRAM_CAPTION_LIMIT,
+    compose_button_text,
     html_text_length,
-    split_button_icon,
 )
 from app.modules.dialogs import catalog
 from app.modules.translations import strip_serializer_escapes
@@ -191,14 +191,8 @@ class LabelIcon(BaseStyle):
 
 
 def compose_button_label(label: str, icon: Optional[str], icon_id: Optional[str]) -> ButtonLabel:
-    """A premium emoji opening the label is the button's icon, ahead of the
-    picked one. Otherwise the picked premium id wins over the picked glyph, which
-    is kept for the dashboard: adding it to the text would show the emoji twice."""
-    text, leading_id = split_button_icon(label)
-    if leading_id:
-        return ButtonLabel(text=text, icon_custom_emoji_id=leading_id)
-    text = f"{icon} {text}" if icon and not icon_id else text
-    return ButtonLabel(text=text, icon_custom_emoji_id=icon_id)
+    text, icon_custom_emoji_id = compose_button_text(label, icon, icon_id)
+    return ButtonLabel(text=text, icon_custom_emoji_id=icon_custom_emoji_id)
 
 
 def label_with_icon(runner: TranslatorRunner, text_key: str, **kwargs: Any) -> ButtonLabel:

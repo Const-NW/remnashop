@@ -49,6 +49,19 @@ def split_button_icon(label: str) -> tuple[str, Optional[str]]:
     return PREMIUM_EMOJI_RE.sub(r"\1", label), icon_id
 
 
+def compose_button_text(
+    label: str, icon: Optional[str], icon_id: Optional[str]
+) -> tuple[str, Optional[str]]:
+    """A button's text and premium icon id. A premium emoji opening the label is
+    the icon, ahead of the picked one. Otherwise the picked premium id wins over
+    the picked glyph, which is kept for the dashboard: adding it to the text
+    would show the emoji twice."""
+    text, leading_id = split_button_icon(label)
+    if leading_id:
+        return text, leading_id
+    return (f"{icon} {text}" if icon and not icon_id else text), icon_id
+
+
 def html_text_length(text: str) -> int:
     return telegram_length(html.unescape(_TAG_RE.sub("", text)))
 

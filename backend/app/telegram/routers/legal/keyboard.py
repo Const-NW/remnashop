@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup
 from fluentogram import TranslatorRunner
 
 from app.core.constants import CUSTOMER_NOTIFICATION_CLOSE_CALLBACK
@@ -27,9 +27,8 @@ def close_keyboard(runner: TranslatorRunner) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(
-                    text=runner.get("ntf-customer-button-close"),
-                    callback_data=CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
+                label_with_icon(runner, "btn-customer-notification.close").inline_button(
+                    callback_data=CUSTOMER_NOTIFICATION_CLOSE_CALLBACK
                 )
             ]
         ]
