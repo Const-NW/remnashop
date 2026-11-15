@@ -240,7 +240,8 @@ class UpdateOAuthSettingsDto:
 class AppearanceSettingsDto(BaseDto, TimestampMixin):
     brand_name: Optional[str] = None
     primary_color: Optional[str] = None
-    shader_palette: Optional[list[str]] = None
+    shader_base: Optional[str] = None
+    shader_tones: Optional[list[Optional[str]]] = None
     shader_enabled: bool = True
     has_logo: bool = False
     has_favicon: bool = False
@@ -253,7 +254,9 @@ class UpdateAppearanceSettingsDto:
     target: AppearanceTarget
     brand_name: Optional[str] = None
     primary_color: Optional[str] = None
-    shader_palette: Optional[list[str]] = None
+    # "" clears it back to the accent-derived base
+    shader_base: Optional[str] = None
+    shader_tones: Optional[list[Optional[str]]] = None
     shader_enabled: Optional[bool] = None
 
 

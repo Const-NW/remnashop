@@ -1,6 +1,6 @@
 import { Globe, Palette, RotateCcw, Upload, X } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -16,7 +16,8 @@ import {
 } from "@entities/appearance/api";
 import { getErrorMessage } from "@shared/api/http";
 import { useAppearancePreview, useBrandName, useReloadAppearance } from "@entities/appearance/use-appearance";
-import { DEFAULT_ACCENT_COLOR, DEFAULT_SHADER_PALETTE_HEX, hexToHueDegrees, hueRotateHex } from "@shared/lib/color";
+import { DEFAULT_ACCENT_COLOR } from "@shared/lib/color";
+import { DEFAULT_SHADER_BASE, resolveShaderStops, SHADER_TONE_COUNT } from "@shared/lib/shader-palette";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { usePermissions } from "@entities/user/use-current-user";
 import { toast } from "@shared/lib/toast";
@@ -58,9 +59,30 @@ const ACCENT_COLOR_PRESETS: readonly string[] = [
   "#14b8a6",
 ];
 
-// uColourPalette's cosine-gradient coefficients, in uniform order
-const SHADER_PALETTE_KEYS = ["base", "amplitude", "frequency", "phase"] as const;
+const NO_PINNED_TONES: readonly null[] = Array(SHADER_TONE_COUNT).fill(null);
 
+interface ShaderSwatchProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onReset: () => void;
+  resetDisabled: boolean;
+}
+
+function ShaderSwatch({ label, value, onChange, onReset, resetDisabled }: ShaderSwatchProps) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-2.5 py-2">
+      <ColorPickerField value={value} onChange={onChange} />
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate text-xs font-medium text-foreground">{label}</span>
+        <span className="font-mono text-xs text-muted-foreground">{value}</span>
+      </div>
+      <IconButton size="7" className="ml-auto" onClick={onReset} disabled={resetDisabled}>
+        <RotateCcw className="size-3.5" />
+      </IconButton>
+    </div>
+  );
+}
 
 interface ImageSlotProps {
   target: AppearanceTarget;
@@ -187,7 +209,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
   const { t } = useTranslation();
   const isDashboard = target === "dashboard";
   const reloadAppearance = useReloadAppearance();
-  const { setPreviewColor, setPreviewPalette, setPreviewShaderEnabled } = useAppearancePreview();
+  const { setPreviewColor, setPreviewShaderColors, setPreviewShaderEnabled } = useAppearancePreview();
   const permissions = usePermissions();
   // null: nothing stored, the name in use applies (the default, for the cabinet the dashboard's)
   const [brandName, setBrandName] = useState<string | null>(null);
@@ -197,8 +219,11 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
   const [previousColor, setPreviousColor] = useState<string | null>(null);
   const [hexInput, setHexInput] = useState(DEFAULT_ACCENT_COLOR);
   const [colorTouched, setColorTouched] = useState(false);
-  const [shaderPalette, setShaderPalette] = useState<string[]>([...DEFAULT_SHADER_PALETTE_HEX]);
-  const [paletteTouched, setPaletteTouched] = useState(false);
+  // off: the background follows the accent (the cabinet's: the dashboard's background)
+  const [ownShaderBase, setOwnShaderBase] = useState(false);
+  const [shaderBase, setShaderBase] = useState(DEFAULT_SHADER_BASE);
+  const [shaderTones, setShaderTones] = useState<(string | null)[]>([...NO_PINNED_TONES]);
+  const [shaderColorsTouched, setShaderColorsTouched] = useState(false);
   const [shaderEnabled, setShaderEnabled] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -215,8 +240,10 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
     setAccentColor(loadedColor);
     setPreviousColor(ACCENT_COLOR_PRESETS.includes(loadedColor.toLowerCase()) ? null : loadedColor);
     setColorTouched(false);
-    setShaderPalette(data.shader_palette ?? [...DEFAULT_SHADER_PALETTE_HEX]);
-    setPaletteTouched(false);
+    setOwnShaderBase(data.shader_base !== null);
+    setShaderBase(data.shader_base ?? DEFAULT_SHADER_BASE);
+    setShaderTones(data.shader_tones ?? [...NO_PINNED_TONES]);
+    setShaderColorsTouched(false);
     setShaderEnabled(data.shader_enabled);
   };
 
@@ -237,9 +264,14 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
     if (isDashboard) setPreviewColor(colorTouched ? accentColor : null);
   }, [isDashboard, accentColor, colorTouched, setPreviewColor]);
 
+  const shaderColors = useMemo(
+    () => ({ base: ownShaderBase ? shaderBase : null, tones: shaderTones }),
+    [ownShaderBase, shaderBase, shaderTones],
+  );
+
   useEffect(() => {
-    if (isDashboard) setPreviewPalette(paletteTouched ? shaderPalette : null);
-  }, [isDashboard, shaderPalette, paletteTouched, setPreviewPalette]);
+    if (isDashboard) setPreviewShaderColors(shaderColorsTouched ? shaderColors : null);
+  }, [isDashboard, shaderColors, shaderColorsTouched, setPreviewShaderColors]);
 
   // a boolean has no "unset" state, so no touched gate
   useEffect(() => {
@@ -251,10 +283,10 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
     if (!isDashboard) return;
     return () => {
       setPreviewColor(null);
-      setPreviewPalette(null);
+      setPreviewShaderColors(null);
       setPreviewShaderEnabled(null);
     };
-  }, [isDashboard, setPreviewColor, setPreviewPalette, setPreviewShaderEnabled]);
+  }, [isDashboard, setPreviewColor, setPreviewShaderColors, setPreviewShaderEnabled]);
 
   const setAccent = (value: string) => {
     if (!ACCENT_COLOR_PRESETS.includes(value.toLowerCase())) {
@@ -262,21 +294,19 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
     }
     setAccentColor(value);
     setColorTouched(true);
-
-    // a new accent resets a custom palette to the defaults; stays touched so the
-    // reset overrides a palette already saved on the backend
-    if (paletteTouched) {
-      setShaderPalette([...DEFAULT_SHADER_PALETTE_HEX]);
-    }
   };
 
-  const setPaletteColor = (index: number, value: string) => {
-    setShaderPalette((current) => current.map((hex, i) => (i === index ? value : hex)));
-    setPaletteTouched(true);
+  const shaderStops = resolveShaderStops(accentColor, shaderColors);
+
+  const changeShaderColors = (ownBase: boolean, base: string, tones: (string | null)[]) => {
+    setOwnShaderBase(ownBase);
+    setShaderBase(base);
+    setShaderTones(tones);
+    setShaderColorsTouched(true);
   };
 
-  // the hue rotation the shader renders with, so swatches show their on-canvas color
-  const shaderHueRadians = ((hexToHueDegrees(accentColor) - hexToHueDegrees(DEFAULT_ACCENT_COLOR)) * Math.PI) / 180;
+  const setShaderTone = (index: number, value: string | null) =>
+    changeShaderColors(ownShaderBase, shaderBase, shaderTones.map((tone, i) => (i === index ? value : tone)));
 
   const handleHexInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -297,14 +327,15 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
       const saved = await updateAppearance(target, {
         brand_name: isBrandNameChanged ? trimmedBrandName : undefined,
         primary_color: colorTouched ? accentColor : undefined,
-        shader_palette: paletteTouched ? shaderPalette : undefined,
+        shader_base: shaderColorsTouched ? (ownShaderBase ? shaderBase : "") : undefined,
+        shader_tones: shaderColorsTouched ? shaderTones : undefined,
         shader_enabled: shaderEnabled,
       });
       seedBranding(saved);
       setData(saved);
       reloadAppearance();
       setColorTouched(false);
-      setPaletteTouched(false);
+      setShaderColorsTouched(false);
       toast.success(t("settings.appearance.saveSuccess"));
     } catch (err) {
       toast.error(getErrorMessage(err, t("settings.appearance.saveError")));
@@ -352,7 +383,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
     state.kind === "ready" &&
     (isBrandNameChanged ||
       colorTouched ||
-      paletteTouched ||
+      shaderColorsTouched ||
       shaderEnabled !== state.data.shader_enabled);
 
   const resetButton = canReset && (
@@ -487,36 +518,49 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
                       />
                     </div>
                     <div
-                      className={`grid grid-cols-2 gap-2 transition-opacity ${shaderEnabled ? "" : "opacity-40"}`}
+                      className={`flex flex-col gap-2.5 transition-opacity ${shaderEnabled ? "" : "pointer-events-none opacity-40"}`}
                     >
-                      {SHADER_PALETTE_KEYS.map((key, index) => {
-                        const rawColor = shaderPalette[index] ?? DEFAULT_SHADER_PALETTE_HEX[index];
-                        const shownColor = hueRotateHex(rawColor, shaderHueRadians);
-                        const defaultColor = DEFAULT_SHADER_PALETTE_HEX[index];
-                        return (
-                          <div key={key} className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-2.5 py-2">
-                            <ColorPickerField
-                              value={rawColor}
-                              onChange={(value) => setPaletteColor(index, value)}
-                              displayValue={shownColor}
-                            />
-                            <div className="flex min-w-0 flex-col">
-                              <span className="truncate text-xs font-medium text-foreground">
-                                {t(`settings.appearance.shaderPalette.${key}`)}
-                              </span>
-                              <span className="font-mono text-xs text-muted-foreground">{shownColor}</span>
-                            </div>
-                            <IconButton
-                              size="7"
-                              className="ml-auto"
-                              onClick={() => setPaletteColor(index, defaultColor)}
-                              disabled={rawColor.toLowerCase() === defaultColor}
-                            >
-                              <RotateCcw className="size-3.5" />
-                            </IconButton>
-                          </div>
-                        );
-                      })}
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-foreground">{t("settings.appearance.shaderOwnBaseLabel")}</span>
+                        <Switch
+                          checked={ownShaderBase}
+                          // starts from the color on screen, so switching on changes nothing yet
+                          onChange={(on) => changeShaderColors(on, on ? shaderStops[0] : shaderBase, shaderTones)}
+                        />
+                      </div>
+                      <div
+                        className="h-4 w-full rounded-full ring-1 ring-white/10"
+                        style={{ background: `linear-gradient(to right, ${shaderStops.join(", ")})` }}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className={ownShaderBase ? "" : "pointer-events-none opacity-40"}>
+                          <ShaderSwatch
+                            label={t(
+                              ownShaderBase
+                                ? "settings.appearance.shaderBase"
+                                : isDashboard
+                                  ? "settings.appearance.shaderBaseFromAccent"
+                                  : "settings.appearance.shaderBaseFromDashboard",
+                            )}
+                            value={shaderStops[0]}
+                            onChange={(value) => changeShaderColors(true, value, shaderTones)}
+                            onReset={() => changeShaderColors(false, shaderBase, shaderTones)}
+                            resetDisabled={!ownShaderBase}
+                          />
+                        </div>
+                        {shaderTones.map((pinned, index) => (
+                          <ShaderSwatch
+                            key={index}
+                            label={t(pinned ? "settings.appearance.shaderTonePinned" : "settings.appearance.shaderToneAuto", {
+                              number: index + 1,
+                            })}
+                            value={shaderStops[index + 1]}
+                            onChange={(value) => setShaderTone(index, value)}
+                            onReset={() => setShaderTone(index, null)}
+                            resetDisabled={pinned === null}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </InnerCard>

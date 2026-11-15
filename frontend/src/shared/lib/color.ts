@@ -13,16 +13,7 @@ export function hexToRgbNormalized(hex: string): [number, number, number] {
   return [r / 255, g / 255, b / 255];
 }
 
-// The shader's default cosine-gradient palette (base/amplitude/frequency/phase).
-// Here, not in app/shader-state.ts, so the settings form can read it (FSD).
-export const DEFAULT_SHADER_PALETTE_HEX: readonly [string, string, string, string] = [
-  "#0f1629",
-  "#050d0d",
-  "#ffffff",
-  "#998066",
-];
-
-function rgbToHex(r: number, g: number, b: number): string {
+export function rgbToHex(r: number, g: number, b: number): string {
   const toHex = (channel: number) => Math.round(channel).toString(16).padStart(2, "0");
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
@@ -82,8 +73,8 @@ export function hexToHueDegrees(hex: string): number {
   return hue < 0 ? hue + 360 : hue;
 }
 
-// Row-major hue-rotation matrix (as CSS's hue-rotate()), shared by the shader uniform and hueRotateHex.
-export function hueRotationCoefficients(
+// Row-major hue-rotation matrix, as CSS's hue-rotate()
+function hueRotationCoefficients(
   angleRadians: number,
 ): [number, number, number, number, number, number, number, number, number] {
   const cosA = Math.cos(angleRadians);
@@ -101,7 +92,7 @@ export function hueRotationCoefficients(
   ];
 }
 
-// the shader's hue rotation applied to a hex color, for swatch previews
+// a hex color turned by a hue angle, as CSS's hue-rotate()
 export function hueRotateHex(hex: string, angleRadians: number): string {
   const [r, g, b] = hexToRgbNormalized(hex);
   const [m11, m12, m13, m21, m22, m23, m31, m32, m33] = hueRotationCoefficients(angleRadians);

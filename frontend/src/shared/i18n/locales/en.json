@@ -1468,12 +1468,12 @@
       "accentColorLabel": "Accent color",
       "presetsLabel": "Presets",
       "shaderEnabledLabel": "Background shader",
-      "shaderPalette": {
-        "base": "Base",
-        "amplitude": "Amplitude",
-        "frequency": "Frequency",
-        "phase": "Phase"
-      },
+      "shaderOwnBaseLabel": "Custom background color",
+      "shaderBase": "Base color",
+      "shaderBaseFromAccent": "Base color · from accent",
+      "shaderBaseFromDashboard": "Base color · as in the dashboard",
+      "shaderToneAuto": "Tone {{number}} · auto",
+      "shaderTonePinned": "Tone {{number}} · manual",
       "logoLabel": "Logo",
       "faviconLabel": "Favicon",
       "logoHint": "SVG, PNG, JPG or WebP · square 128–1024 px · up to 1 MB",

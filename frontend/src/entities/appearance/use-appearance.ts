@@ -1,7 +1,8 @@
-import { useContext } from "react";
+import { useContext, useMemo } from "react";
 
 import type { AppearanceSettings } from "@entities/appearance/api";
 import { useShaderMuted } from "@shared/lib/shader-mute";
+import type { ShaderColors } from "@shared/lib/shader-palette";
 import type { AsyncState } from "@shared/lib/use-async-resource";
 
 import { AppearanceContext, AppearancePreviewContext, AppearanceReloadContext, type AppearancePreview } from "./context";
@@ -44,11 +45,16 @@ export function useEffectiveAccentColor(): string | null {
   return previewColor ?? (state.kind === "ready" ? state.data.primary_color : null);
 }
 
-// null: no override, the caller falls back to DEFAULT_SHADER_PALETTE_HEX
-export function useEffectiveShaderPalette(): string[] | null {
+// the live preview if any, otherwise the saved colors; nothing saved follows the accent
+export function useEffectiveShaderColors(): ShaderColors {
   const state = useAppearance();
-  const { previewPalette } = useAppearancePreview();
-  return previewPalette ?? (state.kind === "ready" ? state.data.shader_palette : null);
+  const { previewShaderColors } = useAppearancePreview();
+  const saved = state.kind === "ready" ? state.data : null;
+  const base = saved?.shader_base ?? null;
+  // by value, so effects keyed on the result don't rerun every render
+  const tonesKey = JSON.stringify(saved?.shader_tones ?? null);
+  const savedColors = useMemo<ShaderColors>(() => ({ base, tones: JSON.parse(tonesKey) }), [base, tonesKey]);
+  return previewShaderColors ?? savedColors;
 }
 
 // on while loading, as on the backend; the per-viewer mute wins over both

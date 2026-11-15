@@ -440,7 +440,8 @@ async def update_appearance_settings(
             target=target,
             brand_name=payload.brand_name,
             primary_color=payload.primary_color,
-            shader_palette=payload.shader_palette,
+            shader_base=payload.shader_base,
+            shader_tones=payload.shader_tones,
             shader_enabled=payload.shader_enabled,
         ),
     )

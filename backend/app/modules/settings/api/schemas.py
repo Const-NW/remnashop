@@ -194,7 +194,8 @@ class UpdateOAuthSettingsRequest(BaseModel):
 class AppearanceResponse(BaseModel):
     brand_name: Optional[str] = None
     primary_color: Optional[str] = None
-    shader_palette: Optional[list[str]] = None
+    shader_base: Optional[str] = None
+    shader_tones: Optional[list[Optional[str]]] = None
     shader_enabled: bool
     has_logo: bool
     has_favicon: bool
@@ -203,8 +204,10 @@ class AppearanceResponse(BaseModel):
 class UpdateAppearanceRequest(BaseModel):
     brand_name: Optional[str] = Field(default=None, min_length=1, max_length=64)
     primary_color: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
-    shader_palette: Optional[list[Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]]] = Field(
-        default=None, min_length=4, max_length=4
+    # "" goes back to the accent-derived base
+    shader_base: Optional[str] = Field(default=None, pattern=r"^(#[0-9a-fA-F]{6})?$")
+    shader_tones: Optional[list[Optional[Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]]]] = (
+        Field(default=None, min_length=3, max_length=3)
     )
     shader_enabled: Optional[bool] = None
 

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { appearanceImageUrl, DEFAULT_FAVICON_HREF, getAppearance } from "@entities/appearance/api";
 import { deriveTheme } from "@shared/lib/color";
+import type { ShaderColors } from "@shared/lib/shader-palette";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 
 import { AppearanceContext, AppearancePreviewContext, AppearanceReloadContext } from "./context";
@@ -47,7 +48,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
   // unsaved picks from the Appearance settings form; null falls back to the fetched value
   const [previewColor, setPreviewColor] = useState<string | null>(null);
   const effectiveColor = previewColor ?? (state.kind === "ready" ? state.data.primary_color : null);
-  const [previewPalette, setPreviewPalette] = useState<string[] | null>(null);
+  const [previewShaderColors, setPreviewShaderColors] = useState<ShaderColors | null>(null);
   const [previewShaderEnabled, setPreviewShaderEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -83,8 +84,8 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
           value={{
             previewColor,
             setPreviewColor,
-            previewPalette,
-            setPreviewPalette,
+            previewShaderColors,
+            setPreviewShaderColors,
             previewShaderEnabled,
             setPreviewShaderEnabled,
           }}

@@ -266,7 +266,8 @@ class SettingsRepository:
             id=row.id,
             brand_name=row.brand_name,
             primary_color=row.primary_color,
-            shader_palette=row.shader_palette,
+            shader_base=row.shader_base,
+            shader_tones=row.shader_tones,
             shader_enabled=row.shader_enabled,
             has_logo=row.logo_extension is not None,
             has_favicon=row.favicon_extension is not None,
@@ -290,6 +291,10 @@ class SettingsRepository:
     ) -> AppearanceSettingsDto:
         row = await self._get_or_create_appearance(data.target)
         apply_partial_update(row, data, skip=_APPEARANCE_UPDATE_SKIP)
+        if row.shader_base == "":
+            row.shader_base = None
+        if row.shader_tones is not None and all(tone is None for tone in row.shader_tones):
+            row.shader_tones = None
 
         await self.session.flush()
         await self.session.refresh(row)
@@ -300,7 +305,8 @@ class SettingsRepository:
 
         row.brand_name = None
         row.primary_color = None
-        row.shader_palette = None
+        row.shader_base = None
+        row.shader_tones = None
         row.shader_enabled = True
 
         await self.session.flush()
