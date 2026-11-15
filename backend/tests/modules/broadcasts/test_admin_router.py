@@ -17,6 +17,7 @@ from app.modules.auth.repository import SessionRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
+from tests.modules.broadcasts.factories import set_broadcast
 
 
 @pytest.fixture
@@ -263,7 +264,9 @@ async def test_update_non_draft_is_409(
 ) -> None:
     created = await client.post("/api/v1/broadcasts", json=_body(), headers=admin_headers)
     broadcast_id = created.json()["id"]
-    await broadcast_repository.update_fields(broadcast_id, status=BroadcastStatus.COMPLETED)
+    await set_broadcast(
+        broadcast_repository.session, broadcast_id, status=BroadcastStatus.COMPLETED
+    )
     response = await client.put(
         f"/api/v1/broadcasts/{broadcast_id}", json=_body("Bye"), headers=admin_headers
     )

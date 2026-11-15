@@ -205,9 +205,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
             if result.file_id:
                 media = replace(media, file_id=result.file_id, path=None)
                 async with self._uow:
-                    await self._broadcast_repository.update_fields(
-                        broadcast_id, media_file_id=result.file_id
-                    )
+                    await self._broadcast_repository.set_media_file_id(broadcast_id, result.file_id)
             if not await self._still_sending(broadcast_id):
                 return False, media
         return True, media
@@ -252,7 +250,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
     async def _heartbeat(self, broadcast_id: int) -> None:
         # stall watchdog reads updated_at; the chain lock must outlive long flood waits
         async with self._session_lock, self._uow:
-            await self._broadcast_repository.update_fields(broadcast_id)
+            await self._broadcast_repository.touch(broadcast_id)
         await self._lock.reacquire()
 
     async def _record(
@@ -267,7 +265,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
             # a flood-wait heartbeat may still hold the session
             async with self._session_lock, self._uow:
                 # broadcast row before recipient rows, the order cancel takes them in
-                await self._broadcast_repository.update_fields(broadcast_id)
+                await self._broadcast_repository.touch(broadcast_id)
                 for recipient, result in recorded:
                     await self._record_one(recipient, result)
             await self._lock.reacquire()

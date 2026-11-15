@@ -52,12 +52,7 @@ class RetryBroadcastUseCase(UseCase[int, BroadcastDto]):
                     f"Broadcast '{data}' has nothing to retry",
                     code=ErrorCode.BROADCAST_INVALID_STATUS,
                 )
-            await self._broadcast_repository.update_fields(
-                data,
-                status=BroadcastStatus.SCHEDULED,
-                scheduled_at=datetime_now(),
-                completed_at=None,
-            )
+            await self._broadcast_repository.schedule(data, datetime_now())
             result = await self._broadcast_repository.refresh_counts(data)
             await self._event_publisher.publish(
                 BroadcastChangedEvent(actor=actor, action="retry", broadcast_id=data)

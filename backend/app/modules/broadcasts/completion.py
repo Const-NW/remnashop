@@ -17,9 +17,7 @@ async def complete_broadcast(
 ) -> None:
     # the caller holds the broadcast row lock and has seen it SENDING: one chain completes it
     counts = await repository.refresh_counts(broadcast_id)
-    await repository.update_fields(
-        broadcast_id, status=BroadcastStatus.COMPLETED, completed_at=datetime_now()
-    )
+    await repository.finish(broadcast_id, BroadcastStatus.COMPLETED, datetime_now())
     await publisher.publish(
         BroadcastCompletedEvent(
             broadcast_id=broadcast_id,
@@ -40,9 +38,7 @@ async def fail_broadcast(
         return
     if broadcast.status is not BroadcastStatus.SENDING:
         return
-    await repository.update_fields(
-        broadcast_id, status=BroadcastStatus.FAILED, completed_at=datetime_now()
-    )
+    await repository.finish(broadcast_id, BroadcastStatus.FAILED, datetime_now())
     # FAILED, not CANCELED: a retry after fixing the cause resends them
     await repository.fail_pending(broadcast_id, _STOPPED)
     await repository.refresh_counts(broadcast_id)
