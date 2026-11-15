@@ -7,7 +7,6 @@ import {
   defaultDropAnimationSideEffects,
   getFirstCollision,
   pointerWithin,
-  rectIntersection,
   useDndContext,
   useDroppable,
   useSensor,
@@ -334,12 +333,11 @@ export function ButtonGrid({
     });
   }, [dragRows]);
 
-  // The pointer picks the row, the nearest button in it the slot; while a button has just
-  // changed rows its old target is held, or the shifting layout flips it straight back.
+  // The pointer picks the row, the nearest button in it the slot; between rows the last target
+  // is held: a move resizes the buttons, and judging by overlap would flip it back and forth.
   const collisionDetection: CollisionDetection = useCallback(
     (args) => {
-      const pointerHits = pointerWithin(args);
-      let overId = getFirstCollision(pointerHits.length > 0 ? pointerHits : rectIntersection(args), "id");
+      let overId = getFirstCollision(pointerWithin(args), "id");
       if (overId != null) {
         const rowIds = rows[String(overId)];
         if (rowIds && rowIds.length > 0) {
