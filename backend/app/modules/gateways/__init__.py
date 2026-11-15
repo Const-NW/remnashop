@@ -9,6 +9,7 @@ from app.modules.gateways.field_catalog import (
 from app.modules.gateways.gateway_settings import (
     AntilopaySettings,
     AuraPaySettings,
+    CisPaySettings,
     CloudPaymentsSettings,
     CryptomusSettings,
     CryptoPaySettings,
@@ -40,6 +41,7 @@ __all__ = [
     "VERIFY_IP_FIELD_KEY",
     "AntilopaySettings",
     "AuraPaySettings",
+    "CisPaySettings",
     "CloudPaymentsSettings",
     "CryptoPaySettings",
     "CryptomusSettings",

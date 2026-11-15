@@ -169,6 +169,12 @@ class PayPearSettings(GatewaySettings):
     currency: Optional[str] = None
 
 
+class CisPaySettings(GatewaySettings):
+    shop_id: str
+    api_key: SecretStr
+    currency: Optional[str] = None
+
+
 GATEWAY_SETTINGS: Final[dict[PaymentGatewayType, type[GatewaySettings]]] = {
     PaymentGatewayType.TELEGRAM_STARS: TelegramStarsSettings,
     PaymentGatewayType.YOOKASSA: YooKassaSettings,
@@ -193,4 +199,5 @@ GATEWAY_SETTINGS: Final[dict[PaymentGatewayType, type[GatewaySettings]]] = {
     PaymentGatewayType.LAVA: LavaSettings,
     PaymentGatewayType.CLOUDPAYMENTS: CloudPaymentsSettings,
     PaymentGatewayType.PAYPEAR: PayPearSettings,
+    PaymentGatewayType.CISPAY: CisPaySettings,
 }

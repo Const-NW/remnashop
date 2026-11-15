@@ -23,4 +23,5 @@ export const GATEWAY_DOCS_URLS: Readonly<Record<string, string>> = {
   SEVERPAY: "https://docs.severpay.io/en/",
   AURAPAY: "https://docs.aurapay.tech/",
   PAYPEAR: "https://paypear.ru/docs/",
+  CISPAY: "https://cispay.app/developers",
 };
