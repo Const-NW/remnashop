@@ -69,6 +69,7 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
     support_telegram: Optional[str] = None
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
+    plan_change_credit_enabled: bool = True
 
     @property
     def support_link(self) -> Optional[str]:
@@ -92,6 +93,7 @@ class CabinetSettingsDto:
     support_telegram: Optional[str]
     support_url: Optional[str]
     payments_enabled: bool
+    plan_change_credit_enabled: bool
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -110,6 +112,7 @@ class UpdateShopSettingsDto:
     support_telegram: Optional[str] = None
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
+    plan_change_credit_enabled: Optional[bool] = None
     fields_set: frozenset[str] = frozenset()
 
 

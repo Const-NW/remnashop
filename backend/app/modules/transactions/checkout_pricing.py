@@ -11,6 +11,7 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
 from app.modules.plans import PlanDto, PlanRepository
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import PurchaseEligibility, SubscriptionRepository, get_owned_target
 from app.modules.transactions.dto import PriceQuote
 from app.modules.transactions.ports import PromocodeLiveness
@@ -39,6 +40,7 @@ class CheckoutPricer:
         uow: UnitOfWork,
         promocode_liveness: PromocodeLiveness,
         subscription_repository: SubscriptionRepository,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._plan_repository = plan_repository
         self._user_repository = user_repository
@@ -47,6 +49,7 @@ class CheckoutPricer:
         self._uow = uow
         self._promocode_liveness = promocode_liveness
         self._subscription_repository = subscription_repository
+        self._settings_repository = settings_repository
 
     async def load_purchasable_plan(
         self,
@@ -108,6 +111,8 @@ class CheckoutPricer:
             target = await get_owned_target(
                 self._subscription_repository, target_subscription_id, user_id
             )
+            if not (await self._settings_repository.get_shop_settings()).plan_change_credit_enabled:
+                return ZERO_AMOUNT
             rates = await self._pricing_repository.get_rate_table()
         return change_credit_for(target, duration_days, currency, rates)
 

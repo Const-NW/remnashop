@@ -61,6 +61,7 @@ class ShopSettingsResponse(BaseModel):
     support_telegram: Optional[str]
     support_url: Optional[str]
     payment_email: Optional[str]
+    plan_change_credit_enabled: bool
 
 
 class UpdateShopSettingsRequest(BaseModel):
@@ -87,6 +88,7 @@ class UpdateShopSettingsRequest(BaseModel):
     support_telegram: Optional[str] = None
     support_url: Optional[str] = Field(default=None, pattern=r"^https://.+", max_length=512)
     payment_email: Optional[EmailStr] = None
+    plan_change_credit_enabled: Optional[bool] = None
 
     @field_validator("max_active_subscriptions", mode="before")
     @classmethod
@@ -369,3 +371,4 @@ class CabinetSettingsResponse(BaseModel):
     support_telegram: Optional[str]
     support_url: Optional[str]
     payments_enabled: bool
+    plan_change_credit_enabled: bool

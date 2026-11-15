@@ -52,6 +52,7 @@ class QuoteCheckoutRequest(BaseModel):
 class CheckoutQuoteResponse(BaseModel):
     base_price: Decimal
     change_credit: Decimal
+    change_credit_days: int
     plan_discount_percent: int
     discount_percent: int
     discount_source: DiscountSource

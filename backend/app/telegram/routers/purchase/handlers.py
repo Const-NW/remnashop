@@ -244,6 +244,8 @@ async def select_duration(
     first = quotes[methods[0].currency]
     data["discount_percent"] = first.discount_percent
     data["discount_source"] = first.discount_source.value
+    data["change_credit"] = first.change_credit > 0
+    data["change_credit_days"] = first.change_credit_days
     data["methods"] = [
         {
             "gateway_type": m.gateway_type.value,

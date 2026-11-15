@@ -132,27 +132,30 @@ def _discount_notice(runner: TranslatorRunner, percent: int, source: DiscountSou
 
 
 def _type_notice(
-    runner: TranslatorRunner,
-    purchase_type: PurchaseType,
-    days: int,
-    target: Optional[SubscriptionDto],
+    runner: TranslatorRunner, purchase_type: PurchaseType, data: dict[str, Any]
 ) -> str:
     if purchase_type is PurchaseType.NEW:
         return ""
-    if purchase_type is PurchaseType.CHANGE and (
-        days == 0 or (target is not None and target.is_unlimited)
-    ):
-        # an unlimited change credits only from unlimited to unlimited, never in days
-        credited = days == 0 and target is not None and target.is_unlimited
+    if purchase_type is PurchaseType.RENEW:
+        return TrustedHtml(
+            render_window_text(runner, "frg-purchase-type-notice", purchase_type="RENEW")
+        )
+    # what the quote credited: an unlimited one's payment off the price, or days on a fixed term
+    if data.get("change_credit"):
+        return TrustedHtml(
+            render_window_text(runner, "frg-purchase-change-unlimited-notice", kind="credit")
+        )
+    credit_days = data.get("change_credit_days", 0)
+    if credit_days > 0:
         return TrustedHtml(
             render_window_text(
                 runner,
-                "frg-purchase-change-unlimited-notice",
-                kind="credit" if credited else "no_carry",
+                "frg-purchase-change-credit-days-notice",
+                days=runner.get("time-unit.day", value=credit_days),
             )
         )
     return TrustedHtml(
-        render_window_text(runner, "frg-purchase-type-notice", purchase_type=purchase_type.value)
+        render_window_text(runner, "frg-purchase-change-unlimited-notice", kind="no_carry")
     )
 
 
@@ -350,14 +353,7 @@ async def confirm_getter(
             original_price=_original_price(data),
             currency_symbol=Currency(data["currency"]).symbol,
             method=runner.get(f"gateway-name.{data['gateway_type']}"),
-            type_notice=_type_notice(
-                runner,
-                purchase_type,
-                data["duration_days"],
-                await _target(dialog_manager, list_own_subscriptions)
-                if purchase_type is PurchaseType.CHANGE
-                else None,
-            ),
+            type_notice=_type_notice(runner, purchase_type, data),
             plan_changed_notice=_plan_changed_notice(runner, plan, renewed) if plan else "",
             terms_notice=terms_notice,
         ),

@@ -42,4 +42,5 @@ class GetCabinetSettingsUseCase(UseCase[None, CabinetSettingsDto, UserDto]):
             support_telegram=shop.support_telegram,
             support_url=shop.support_url,
             payments_enabled=access.payments_enabled,
+            plan_change_credit_enabled=shop.plan_change_credit_enabled,
         )

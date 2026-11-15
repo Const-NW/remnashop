@@ -165,6 +165,7 @@ async def test_rate_change_moves_catalog_but_not_existing_order(
             uow,
             PromocodeRepository(plan_repository.session),
             SubscriptionRepository(plan_repository.session),
+            SettingsRepository(plan_repository.session),
         ),
         user_repository,
         gateway_repository,

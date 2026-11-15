@@ -121,6 +121,7 @@ def purchase_use_case(
         idempotency_repository,
         UserRepository(subscription_repository.session),
         AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
     )
 
 

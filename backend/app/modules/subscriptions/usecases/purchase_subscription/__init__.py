@@ -15,6 +15,8 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
+from app.modules.subscriptions.change_credit import ChangeCreditCalculator
 from app.modules.subscriptions.dto import PurchaseSubscriptionDto, SubscriptionDto
 from app.modules.subscriptions.eligibility import PurchaseEligibility
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
@@ -43,6 +45,7 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
         idempotency_repository: PurchaseIdempotencyRepository,
         user_repository: UserRepository,
         config: AppConfig,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._idempotency = idempotency_repository
@@ -75,6 +78,7 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
             uow,
             event_publisher,
             pricing_repository,
+            ChangeCreditCalculator(remnawave_sdk, uow, pricing_repository, settings_repository),
         )
 
     async def _assert_squads_in_panel(self, data: PurchaseSubscriptionDto) -> None:
