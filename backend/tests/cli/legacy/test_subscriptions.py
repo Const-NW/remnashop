@@ -162,3 +162,27 @@ def test_convert_plan_snapshot_drops_the_leading_emoji_like_the_plan() -> None:
         currency=Currency.USD,
     )
     assert out["name"] == "ОБЫЧНЫЙ"
+
+
+def test_live_subscription_takes_panel_state() -> None:
+    panel_expire = datetime(2025, 9, 1, tzinfo=timezone.utc)
+    index = PanelIndex(
+        by_username={"rs_1001": 55},
+        status={55: SubscriptionStatus.EXPIRED},
+        expire_at={55: panel_expire},
+    )
+    result = transform_subscriptions(
+        [_row(1, "DISABLED"), _row(2)],
+        users=USERS,
+        current_subscription_ids={2},
+        index=index,
+        plan_codes={3: "pro"},
+        last_payments={},
+        anchor_currency=Currency.USD,
+        report=MigrationReport(),
+    )
+    by_id = {item["id"]: item for item in result}
+    assert by_id[1]["status"] is SubscriptionStatus.DELETED
+    assert by_id[1]["expire_at"] == NOW
+    assert by_id[2]["status"] is SubscriptionStatus.EXPIRED
+    assert by_id[2]["expire_at"] == panel_expire
