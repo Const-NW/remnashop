@@ -166,7 +166,7 @@ export function GatewaySettingsCard({
     <Row
       glyph={
         logoUrl ? (
-          <img src={logoUrl} alt="" className="size-[22px] rounded-[6px] object-contain" />
+          <img src={logoUrl} alt="" className="size-[22px] object-contain" />
         ) : (
           <span className="text-sm font-semibold">{label.charAt(0)}</span>
         )
