@@ -3038,6 +3038,7 @@
       "buttonsDiscard": "Discard changes",
       "buttonsDiscardTitle": "Discard changes?",
       "buttonLabelPending": "Save the button grid first to unlock editing this label.",
+      "buttonPremiumHint": "A premium emoji shows on a button only at the very start of the text, in place of the button icon, and only if the bot's owner has Telegram Premium. Anywhere else it shows as a regular emoji.",
       "discardSwitchConfirm": "Discard unsaved button changes and switch windows?",
       "discardSwitchConfirmButton": "Discard and switch",
       "buttonUrlEmpty": "A URL button needs a link.",

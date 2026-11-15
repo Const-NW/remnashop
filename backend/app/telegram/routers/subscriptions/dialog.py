@@ -7,6 +7,7 @@ from magic_filter import F
 
 from app.telegram.banners import with_window_banner
 from app.telegram.dialogs.keyboard import ConfigKeyboard
+from app.telegram.dialogs.rendering import LabelIcon
 from app.telegram.routers.subscriptions.catalog import register_subscriptions_catalog
 from app.telegram.routers.subscriptions.getters import (
     device_confirm_delete_all_getter,
@@ -28,7 +29,12 @@ subscriptions_list = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     ListGroup(
-        Button(text=Format("{item[label]}"), id="subscription", on_click=on_subscription_selected),
+        Button(
+            text=Format("{item[label]}"),
+            id="subscription",
+            on_click=on_subscription_selected,
+            style=LabelIcon("item", "label"),
+        ),
         id="subscriptions",
         item_id_getter=lambda item: item["id"],
         items="subscriptions",
@@ -52,7 +58,12 @@ devices = Window(
     DynamicMedia("banner"),
     Format("{window_text}"),
     ListGroup(
-        Button(text=Format("{item[label]}"), id="device_item", on_click=on_device_delete_request),
+        Button(
+            text=Format("{item[label]}"),
+            id="device_item",
+            on_click=on_device_delete_request,
+            style=LabelIcon("item", "label"),
+        ),
         id="devices_list",
         item_id_getter=lambda item: item["index"],
         items="devices",

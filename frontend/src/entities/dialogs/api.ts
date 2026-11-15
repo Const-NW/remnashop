@@ -217,6 +217,18 @@ export function splitPremiumEmoji(value: string): TextPart[] {
   return parts;
 }
 
+/** A button label as the bot sends it: a premium emoji opening it becomes the button's icon,
+ * one anywhere else goes out as its glyph. A label that is only the emoji keeps it as text. */
+export function splitButtonIcon(label: string): { text: string; icon?: { glyph: string; customEmojiId: string } } {
+  const trimmed = label.trim();
+  const match = trimmed.match(new RegExp(`^${PREMIUM_EMOJI_RE.source}`));
+  const rest = match ? trimmed.slice(match[0].length).trim() : "";
+  if (match && rest) {
+    return { text: rest.replace(PREMIUM_EMOJI_RE, "$1"), icon: { glyph: match[1], customEmojiId: match[2] } };
+  }
+  return { text: trimmed.replace(PREMIUM_EMOJI_RE, "$1") };
+}
+
 /** What Telegram counts: UTF-16 units, with premium emoji markup as its glyph. */
 export function sentTextLength(value: string): number {
   return value.replace(PREMIUM_EMOJI_RE, "$1").length;

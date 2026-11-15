@@ -37,6 +37,18 @@ def telegram_length(text: str) -> int:
     return len(sent.encode("utf-16-le")) // 2
 
 
+def split_button_icon(label: str) -> tuple[str, Optional[str]]:
+    """A button label as Telegram takes it, and the premium emoji id it opens with.
+    A custom emoji shows on a button only as its icon, before the text, so one
+    anywhere else goes out as its glyph."""
+    label = label.strip()
+    icon_id = None
+    if (match := PREMIUM_EMOJI_RE.match(label)) and label[match.end() :].strip():
+        icon_id = match.group(2)
+        label = label[match.end() :].lstrip()
+    return PREMIUM_EMOJI_RE.sub(r"\1", label), icon_id
+
+
 def html_text_length(text: str) -> int:
     return telegram_length(html.unescape(_TAG_RE.sub("", text)))
 

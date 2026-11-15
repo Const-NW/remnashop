@@ -85,17 +85,18 @@ async def test_duration_labels_carry_the_quoted_price_and_the_period() -> None:
         _quote("2.25", 10, DiscountSource.PERSONAL),
     )
 
-    assert data["durations"] == [
-        {
-            "days": 30,
-            "label": _get(
-                "btn-purchase.duration",
-                period=_get("time-unit.month", value=1),
-                price="2.25",
-                currency_symbol="$",
-            ),
-        }
-    ]
+    [duration] = data["durations"]
+    assert duration["days"] == 30
+    # the glyph from the icon key precedes the label
+    assert duration["label"].text.endswith(
+        " "
+        + _get(
+            "btn-purchase.duration",
+            period=_get("time-unit.month", value=1),
+            price="2.25",
+            currency_symbol="$",
+        )
+    )
     assert "frg-purchase-discount" in data["window_text"]
     assert "'percent': 10" in data["window_text"]
     assert data["back_text"].text.endswith(" btn-purchase.back-plans")
@@ -107,7 +108,7 @@ async def test_duration_falls_back_to_the_list_price_when_the_quote_fails() -> N
 
     data = await _durations({"plan_id": 10, "purchase_type": "NEW"}, catalog, quote)
 
-    assert "'price': '2.50'" in data["durations"][0]["label"]
+    assert "'price': '2.50'" in data["durations"][0]["label"].text
     assert "frg-purchase-discount" not in data["window_text"]
 
 
@@ -181,25 +182,27 @@ async def test_method_labels_price_in_each_method_currency() -> None:
         i18n=_i18n(),
     )
 
-    assert data["methods"] == [
-        {
-            "id": "YOOKASSA",
-            "label": _get(
+    assert [(m["id"], m["label"].text) for m in data["methods"]] == [
+        (
+            "YOOKASSA",
+            "btn-purchase.method-icon "
+            + _get(
                 "btn-purchase.method",
                 gateway="gateway-name.YOOKASSA",
                 price="199",
                 currency_symbol="₽",
             ),
-        },
-        {
-            "id": "TELEGRAM_STARS",
-            "label": _get(
+        ),
+        (
+            "TELEGRAM_STARS",
+            "btn-purchase.method-icon "
+            + _get(
                 "btn-purchase.method",
                 gateway="gateway-name.TELEGRAM_STARS",
                 price="100",
                 currency_symbol="★",
             ),
-        },
+        ),
     ]
     assert "frg-purchase-plan" in data["window_text"]
     assert data["back_text"].text.endswith(" btn-purchase.back-duration")
