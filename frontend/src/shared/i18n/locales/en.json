@@ -1634,7 +1634,8 @@
         "RIOPAY": "Must match the terminal currency. Defaults to RUB.",
         "SEVERPAY": "Must match the merchant currency. Defaults to RUB.",
         "CLOUDPAYMENTS": "Defaults to RUB.",
-        "PAYPALYCH": "Must match the shop currency. Defaults to RUB."
+        "PAYPALYCH": "Must match the shop currency. Defaults to RUB.",
+        "CISPAY": "USD means crypto (USDT) only. Defaults to RUB: the customer picks SBP, card or crypto on the cisPay page."
       },
       "flagHints": {
         "require_paid_purchase": "Customers see this payment method only after paying another way at least once.",
@@ -1660,6 +1661,7 @@
         "ROLLYPAY": "RollyPay",
         "ANTILOPAY": "Antilopay",
         "AURAPAY": "AuraPay",
+        "CISPAY": "cisPay",
         "CLOUDPAYMENTS": "CloudPayments",
         "LAVA": "Lava",
         "PAYPALYCH": "Paypalych",

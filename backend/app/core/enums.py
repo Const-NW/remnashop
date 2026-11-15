@@ -32,6 +32,7 @@ class PaymentGatewayType(UpperStrEnum):
     LAVA = auto()
     CLOUDPAYMENTS = auto()
     PAYPEAR = auto()
+    CISPAY = auto()
 
 
 class PaymentOutcome(UpperStrEnum):

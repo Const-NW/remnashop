@@ -1714,7 +1714,8 @@
         "RIOPAY": "Должна совпадать с валютой терминала. Если пусто — RUB.",
         "SEVERPAY": "Должна совпадать с валютой мерчанта. Если пусто — RUB.",
         "CLOUDPAYMENTS": "Если пусто — RUB.",
-        "PAYPALYCH": "Должна совпадать с валютой магазина. Если пусто — RUB."
+        "PAYPALYCH": "Должна совпадать с валютой магазина. Если пусто — RUB.",
+        "CISPAY": "USD — только оплата криптовалютой (USDT). Если пусто — RUB: покупатель сам выбирает СБП, карту или криптовалюту на странице cisPay."
       },
       "flagHints": {
         "require_paid_purchase": "Этот способ оплаты появится у клиента после первой оплаты другим способом.",
@@ -1740,6 +1741,7 @@
         "ROLLYPAY": "RollyPay",
         "ANTILOPAY": "Antilopay",
         "AURAPAY": "AuraPay",
+        "CISPAY": "cisPay",
         "CLOUDPAYMENTS": "CloudPayments",
         "LAVA": "Lava",
         "PAYPALYCH": "Paypalych",

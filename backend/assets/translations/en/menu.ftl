@@ -483,6 +483,7 @@ gateway-name =
     .LAVA = Lava
     .CLOUDPAYMENTS = CloudPayments
     .PAYPEAR = PayPear
+    .CISPAY = cisPay
 
 ntf-referrals =
     .no-subscription = ❌ You have no subscription the bonus days can be added to.
