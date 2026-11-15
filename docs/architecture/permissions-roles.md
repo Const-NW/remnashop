@@ -72,7 +72,7 @@ class Permission(UpperStrEnum):
     PROMOCODES_DELETE = auto()
     PROMOCODES_GENERATE_CODE = auto()
     TRANSACTIONS_VIEW = auto()
-    # ...250 members total; see core/security/permissions.py for the current, exact list.
+    # ...about 250 members; core/security/permissions.py has the exact list
 
 GRANTABLE_PERMISSIONS: Final[frozenset[Permission]] = frozenset(PERMISSION_METADATA)
 # minus login/bot/gateway-credential changes, irreversible and bulk-overwrite actions
@@ -80,9 +80,9 @@ TOKEN_GRANTABLE_PERMISSIONS: Final[frozenset[Permission]] = (
     GRANTABLE_PERMISSIONS - _TOKEN_EXCLUDED_PERMISSIONS
 )
 
-# ADMIN's default is a strict subset -- OWNER-only by default: admins/API tokens,
+# ADMIN's default is a strict subset; OWNER-only by default: admins/API tokens,
 # appearance, backups, blacklist, event log, gateways, OAuth and email settings,
-# user management (block/delete/merge/Telegram bind/sessions -- viewing the users
+# user management (block/delete/merge/Telegram bind/sessions; viewing the users
 # list and a user's card is in ADMIN's default), refunds, notifications,
 # currency rates/anchor. Abridged here;
 # ROLE_PERMISSIONS and test_role_permissions_admin_matches_expected_defaults pin
@@ -112,7 +112,7 @@ ROLE_PERMISSIONS: Final[dict[Role, set[Permission]]] = {
 
 ## Granularity rule: one `Permission` per usecase, with named exceptions
 
-**Default: every post-auth `UseCase` gets its own `Permission` member.** Two usecases must never share a `required_permission` value. This is a hard rule now, not a case-by-case judgment call — a bundled permission means an `OWNER` can't grant one operation on a resource without also granting every other operation bundled under the same name, and an API token can't be scoped to less than the whole bundle. `Permission` is the actual authorization boundary for token actors (see the enforcement-point rule above), so under-granularity there is a real capability leak, not just an inconvenience.
+**Default: every post-auth `UseCase` gets its own `Permission` member.** Two usecases must never share a `required_permission` value. This is a hard rule, not a case-by-case judgment call — a bundled permission means an `OWNER` can't grant one operation on a resource without also granting every other operation bundled under the same name, and an API token can't be scoped to less than the whole bundle. `Permission` is the actual authorization boundary for token actors (see the enforcement-point rule above), so under-granularity there is a real capability leak, not just an inconvenience.
 
 **`PERMISSION_METADATA: dict[Permission, PermissionMeta]`** (`resource: str`, `kind: Literal["read", "write"]`) is the single source of truth for which permissions are *grantable at all* — `GRANTABLE_PERMISSIONS` is `frozenset(PERMISSION_METADATA)` and `TOKEN_GRANTABLE_PERMISSIONS` subtracts only the explicit `_TOKEN_EXCLUDED_PERMISSIONS` from it (the catalog's `token_grantable` flag is read from the result), never a separately maintained list, and it's also what `GET /permissions/catalog` returns verbatim (drives the frontend's `PermissionPicker`, grouped by `resource`). Adding a new `Permission` member without a `PERMISSION_METADATA` entry (and without adding it to the exceptions below) is a bug — `tests/core/security/test_permissions.py::test_every_catalog_permission_has_metadata` pins the exact set of non-catalog members, so forgetting one fails CI.
 
@@ -122,7 +122,7 @@ ROLE_PERMISSIONS: Final[dict[Role, set[Permission]]] = {
 
 1. **Self-referential resources: `ADMINS_MANAGE`, `API_TOKENS_MANAGE`.** These gate an actor managing *other actors of the same kind* (admins managing admins, tokens managing tokens) — `OWNER`/`SYSTEM`-only forever, never token-grantable, so splitting them into per-usecase permissions buys nothing (nobody can ever be granted a subset). Confirmed against Remnawave's own backend (`ScopeCatalogService`, `libs/contracts`): their API-tokens and admin/role-management controllers carry no `@ScopeResource` decorator either — the same resources are structurally excluded from *their* token-scope catalog too. This is deliberate parity, not an oversight.
 2. **`OWN_ACCOUNT_MANAGE`** — gates "the current actor operating on their own profile/sessions/OAuth identities/passkeys/notifications" across 25 usecases. This isn't a resource an actor CRUDs; it's "am I allowed to manage myself at all," which is binary by nature (an admin who can view their own sessions but can't revoke them isn't a distinction anyone has asked for) — neither admin- nor token-grantable: it's in every privileged role's default, and revoking it would break `GET /users/me`.
-3. **`PUBLIC`** — always passes for any authenticated actor (~40 usecases). Most are customer self-service (checkout, plan catalog, promocode activation, referrals and bonus days, trial, devices, own transactions, notification feed, profile, ...) where the boundary is that the usecase acts on the actor's own identity (`get_current_user`/`get_cabinet_user`, see CLAUDE.md), not a capability to grant; plus a few reads every channel needs (`GetBannerForDisplayUseCase`, `GetCabinetSettingsUseCase`). The dashboard overview's `GetOverviewUseCase`, `GetRevenueChartUseCase`, `GetOnlineChartUseCase` and `GetAttentionUseCase` check each section's own read permission (`USERS_VIEW`, `SUBSCRIPTIONS_VIEW`, `TRANSACTIONS_VIEW`, `PLANS_VIEW`, ...) inside `_execute` instead; `GetHourlyOnlineUseCase` is open to any staff member on purpose.
+3. **`PUBLIC`** — always passes for any authenticated actor (~45 usecases). Most are customer self-service (checkout, plan catalog, promocode activation, referrals and bonus days, trial, devices, own transactions, notification feed, profile, ...) where the boundary is that the usecase acts on the actor's own identity (`get_current_user`/`get_cabinet_user`, see [AGENTS.md](../../AGENTS.md#topology)), not a capability to grant; plus a few reads every channel needs (`GetBannerForDisplayUseCase`, `GetCabinetSettingsUseCase`). The dashboard overview's `GetOverviewUseCase`, `GetRevenueChartUseCase`, `GetOnlineChartUseCase` and `GetAttentionUseCase` check each section's own read permission (`USERS_VIEW`, `SUBSCRIPTIONS_VIEW`, `TRANSACTIONS_VIEW`, `PLANS_VIEW`, ...) inside `_execute` instead; `GetHourlyOnlineUseCase` is open to any staff member on purpose.
 
 **Not bundled, but still outside the catalog — `OWNER`/`SYSTEM`-only:** `PRICING_RATES_MANAGE`, `PRICING_ANCHOR_MANAGE`, `USERS_UNBLOCK_BLACKLIST_MATCHES`, `BACKUPS_RUN_DOWNLOAD` (a DATABASE dump subsumes every other read permission), `NOTIFICATION_VAPID_KEYS_GENERATE` (regenerating drops every device's push subscription), `OVERVIEW_RECAP_VIEW` (the shop recap card), `TRANSACTIONS_UNRATED_RATE` (rating transactions that lack an anchor amount). Each gates one usecase, but none is grantable to an admin or a token, and `ADMIN`'s role default doesn't include them. `tests/core/security/test_permissions.py` pins this set.
 

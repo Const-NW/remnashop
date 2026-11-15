@@ -1,6 +1,6 @@
 # Context Map
 
-Snapshot of `backend/app/modules/*` as of 2026-11-08: what each module owns, and how they actually depend on each other (verified by grepping cross-module imports, not just what import-linter *permits*). See [Topology](../../CLAUDE.md#topology) for the four-process split (`api`/`telegram`/`worker`/`cli`) that runs these modules, and [permissions-roles.md](permissions-roles.md) for the actor model referenced throughout.
+What each module in `backend/app/modules/*` owns, and how they actually depend on each other (from cross-module imports, not just what import-linter *permits*). See [Topology](../../AGENTS.md#topology) for the four-process split (`api`/`telegram`/`worker`/`cli`) that runs these modules, and [permissions-roles.md](permissions-roles.md) for the actor model referenced throughout.
 
 ## Modules
 
@@ -52,21 +52,21 @@ Real cross-module edges (`users` omitted), all through the target module's publi
 
 ```
 customer_notifications -> account_merge, cabinet_auth, email, notifications, promocodes, referrals, settings, subscriptions, transactions
-overview      -> api_tokens, backups, broadcasts, email, event_log, plans, pricing, settings, subscriptions, transactions
+overview      -> api_tokens, backups, broadcasts, email, event_log, notifications, plans, pricing, settings, subscriptions, transactions
 cabinet_auth  -> access, auth, blacklist, email, legal, oauth, settings
 identity_links -> account_merge, auth, blacklist, cabinet_auth, email, oauth, settings
 analytics     -> advertising, pricing, promocodes, referrals, subscriptions, transactions
 transactions  -> gateways, legal, plans, pricing, settings, subscriptions
 referrals     -> plans, pricing, settings, subscriptions, transactions
 loyalty       -> account_merge, plans, pricing, subscriptions, transactions
-broadcasts    -> email, promocodes, settings, translations
+broadcasts    -> email, promocodes, settings, subscriptions, translations
 promocodes    -> plans, pricing, subscriptions, transactions
 subscriptions -> plans, pricing, settings
 advertising   -> pricing, settings, transactions
 access        -> advertising, settings
 oauth         -> auth, blacklist, settings
 passkeys      -> auth, settings
-notifications -> settings, translations
+notifications -> promocodes, settings, subscriptions, transactions, translations
 plans         -> pricing, settings
 dialogs       -> banners, translations
 auth, email   -> settings
@@ -88,12 +88,12 @@ api_tokens, backups, blacklist, connect_guide, pricing, translations -> (nothing
 
 `backend/.importlinter`'s `modules-acyclic` contract (`acyclic_siblings` over `app.modules`) fails the build on any new cycle, so a two-way need between modules has to become a port or an event, not an import back.
 
-`convert_for_report` (`pricing/resolver.py`) is the one report-side currency conversion: amount → anchor → target, cut to cents (`ROUND_HALF_UP`), no rounding mode or charm ending — those are checkout rules, `resolve_price`'s job. analytics, overview and advertising used to carry private copies of it that shipped the raw ~28-digit quotient into the API; any new report converts through this one, not a local helper. Charged and listed prices go through `price_for` (a duration's or add-on's pinned price, else its converted base) — the catalog and the checkout quote share it.
+`convert_for_report` (`pricing/resolver.py`) is the one report-side currency conversion: amount → anchor → target, cut to cents (`ROUND_HALF_UP`), no rounding mode or charm ending — those are checkout rules, `resolve_price`'s job. A new report converts through it, not a local helper. Charged and listed prices go through `price_for` (a duration's or add-on's pinned price, else its converted base) — the catalog and the checkout quote share it.
 
 `referrals`' edge into `subscriptions` is a real usecase call, not just a repo read: `AssignReferralRewardsUseCase` runs `PurchaseSubscriptionUseCase` to grant reward days.
 
 **Event-driven decoupling, not import** (handlers in each module's `subscribers.py`, registered by `app/worker/subscribers.py`): `advertising` reacts to `TelegramUserRegisteredEvent`/`CabinetUserRegisteredEvent` for attribution; `referrals` to the same two plus `SubscriptionPurchasedEvent`/`SubscriptionRenewedEvent`/`SubscriptionChangedEvent`/`TransactionRefundedEvent` for rewards and their reversal; `loyalty` to purchases, renewals, plan changes, refunds and `AccountsMergedEvent` for recalculation; `transactions` to purchases/renewals/changes (marking a paid order fulfilled) and `AccessSettingsChangedEvent` (notifying the payment waitlist); `customer_notifications` to every customer-facing event; `notifications` subscribes by stored event type (`subscribe_stored`) to deliver grouped events to admins. The publishing modules never import their consumers — the modules only share the event class. `translations`' `LocaleActivatedEvent`/`LocaleDeactivatedEvent` have no subscriber (audit only): `add_locale` copies `en` translations into the new locale directly in its own transaction, since the dashboard re-reads them right after and an async copy lost that race.
 
-Every publish now goes through a transactional outbox, not straight to in-process subscribers — `core/outbox_event_publisher.py`'s `OutboxEventPublisher` (bound to the `EventPublisher` port every usecase injects) writes an `EventOutboxEntry` row in the *same* DB transaction as the usecase, then fire-and-forgets a taskiq task. `event_log`'s `process_outbox_entry_task`/`sweep_outbox_task` (running in the `worker` process) pick the row up, persist it permanently to the audit log, and call `bus.dispatch_stored()` to run any type-specific `EventBus` subscriber (e.g. auth's per-event logging) — so `event_log` sits on the delivery path for every event in the system, not just as a passive listener. See [events.md](events.md).
+Every publish goes through a transactional outbox, not straight to in-process subscribers — `core/outbox_event_publisher.py`'s `OutboxEventPublisher` (bound to the `EventPublisher` port every usecase injects) writes an `EventOutboxEntry` row in the *same* DB transaction as the usecase and kicks the worker after commit. `event_log`'s `process_outbox_entry_task`/`sweep_outbox_task` (running in the `worker` process) pick the row up, persist it permanently to the audit log, and call `bus.dispatch_stored()` to run any type-specific `EventBus` subscriber (e.g. auth's per-event logging) — so `event_log` sits on the delivery path for every event in the system, not just as a passive listener. See [events.md](events.md).
 
 **Boundary enforcement:** `backend/.importlinter`'s `module-boundaries` contract (custom type `ModuleBoundariesContract` in `backend/import_contracts.py`) covers every child of `app.modules` automatically: everything under `app.modules.<x>.*` is importable only from the module itself and from the two composition roots that wire it (`app.api.routers`, `app.worker.subscribers`), so a new file is private by default — only the graph above, through `__init__.py`, is allowed. Next to it: `modules-acyclic` (no cycles), `core-layer` (core imports no module or process), `modules-layer` (only routers reach their process), `telegram-extra` (aiogram/aiogram-dialog/fluentogram only inside the `telegram` process) and `usecases-without-sqlalchemy`. The bot's request-time code reading only through usecases is a test, `tests/telegram/test_no_repositories_at_request_time.py`, since repositories are exported from the same `__init__.py` as usecases and the import graph can't tell them apart. Run via `uv run lint-imports` (part of the standard verification command).
