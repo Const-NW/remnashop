@@ -39,14 +39,6 @@ def _channel_url(link: Optional[str]) -> Optional[str]:
     return link
 
 
-def _payments_allowed(access: Mapping[str, Any]) -> bool:
-    # 0018_restructure wrote `purchases_allowed`; the 0.7+ app itself saves
-    # `payments_allowed`, so a shop created on 0.7+ has only the latter.
-    if "payments_allowed" in access:
-        return bool(access["payments_allowed"])
-    return bool(access.get("purchases_allowed", True))
-
-
 def transform_settings(row: Mapping[str, Any], report: MigrationReport) -> SettingsRows:
     access = row["access"]
     requirements = row["requirements"]
@@ -63,7 +55,10 @@ def transform_settings(row: Mapping[str, Any], report: MigrationReport) -> Setti
         access={
             "id": SINGLETON_ID,
             "mode": AccessMode(access["mode"]),
-            "payments_enabled": _payments_allowed(access),
+            # 0018_restructure wrote purchases_allowed, the 0.7+ app saves payments_allowed
+            "payments_enabled": access.get(
+                "payments_allowed", access.get("purchases_allowed", True)
+            ),
             "registration_enabled": access["registration_allowed"],
         },
         bot_requirements={
