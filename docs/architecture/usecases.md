@@ -2,7 +2,7 @@
 
 Two patterns, both living in the same `usecases/` package. The split is **whether the class subclasses `core.usecase.UseCase`** — not naming, not folder placement.
 
-Clean Architecture treats "Interactor" and "Use Case" as synonyms; this project doesn't — every class in this pattern is named `*UseCase`, no exceptions (see Pattern 1 below for the OAuth-connect classes, which used to be the one holdout).
+Clean Architecture uses "Interactor" and "Use Case" interchangeably; this project uses only `*UseCase`, for both patterns.
 
 ## Pattern 1 — post-authentication (the common case)
 
@@ -12,8 +12,8 @@ Subclass `core.usecase.UseCase[InputDto, OutputDto]`:
 - Implement `async def _execute(self, actor: Actor, data: InputDto) -> OutputDto`. `core.actor.Actor` covers both a session's `UserDto` and an API token's `SyntheticActor`; a usecase acting on the caller's own account (checkout, trial, devices, catalog, promocode activation) declares `UseCase[InputDto, OutputDto, UserDto]` instead, so mypy refuses a token actor and its route resolves the actor through `get_current_user`.
 - The base class's `__call__(actor, data)` runs `_check_permissions(actor)` before `_execute` — the actor is checked against `required_permission`, not assumed valid. See [permissions-roles.md](permissions-roles.md).
 - A usecase with no `required_permission` set **denies by default** (fails closed), it does not silently allow.
-- `.system` gives a `BoundUseCase` pre-bound to a synthetic system actor (`core/usecase.py`'s `_system_actor()`), for background/internal callers that have no real actor and skip the permission check entirely.
-- `modules/oauth/`'s four OAuth-**connect** classes (`OAuthConnectAuthorizeUseCase`, `OAuthConnectCallbackUseCase`, `OAuthDisconnectUseCase`, `ListOAuthIdentitiesUseCase` — linking/unlinking a provider to an *already-logged-in* user's account, `required_permission = Permission.OWN_ACCOUNT_MANAGE`) are this pattern: they subclass `UseCase` and take a real `actor`. (They used to carry a legacy `*Interactor` suffix — renamed for consistency, since that naming was cosmetic residue that caused real confusion, not a signal of a distinct pattern.) Don't confuse them with the OAuth-**login** classes below, which are a different flow (no existing session) and genuinely pattern 2.
+- `.system` gives a `BoundUseCase` pre-bound to a synthetic system actor (`core.actor.SYSTEM_ACTOR`), for background/internal callers that have no real actor and skip the permission check entirely.
+- `modules/oauth/`'s four OAuth-**connect** classes (`OAuthConnectAuthorizeUseCase`, `OAuthConnectCallbackUseCase`, `OAuthDisconnectUseCase`, `ListOAuthIdentitiesUseCase` — linking/unlinking a provider to an *already-logged-in* user's account, `required_permission = Permission.OWN_ACCOUNT_MANAGE`) are this pattern: they subclass `UseCase` and take a real `actor`. Don't confuse them with the OAuth-**login** classes below, which are a different flow (no existing session) and genuinely pattern 2.
 
 ```python
 class UpdateBotSettingsUseCase(UseCase[UpdateBotSettingsDto, BotSettingsDto]):
@@ -59,7 +59,7 @@ Plain DI-injected classes with an `execute()` method, no `UseCase` base, no acto
 
 The same plain shape serves cabinet-session usecases that take the signed-in customer as `user: UserDto` (from `get_cabinet_user`) rather than an actor with permissions: `modules/identity_links/` (link/unlink identities, confirm a merge) and `legal`'s pending/accept documents.
 
- There is structurally no actor yet — that's what these usecases produce. Don't force them into `UseCase` with a placeholder actor.
+There is structurally no actor yet — that's what these usecases produce. Don't force them into `UseCase` with a placeholder actor.
 
 ```python
 class BootstrapOwnerUseCase:
@@ -77,7 +77,7 @@ class BootstrapOwnerUseCase:
 ## Rules that apply to both patterns
 
 - **Dependencies come through `__init__`** (`UserRepository`, `UnitOfWork`, `AppConfig`, `EventPublisher`, ...), registered as dishka providers in the module's `di.py`. See [di-providers.md](di-providers.md).
-- **Any usecase that writes must wrap the write in `async with self._uow: ...`.** `UnitOfWork.__aexit__` commits automatically on a clean exit and rolls back on exception — an explicit `await self._uow.commit()` inside the block is no longer necessary (harmless if present, but new code shouldn't add it). This wasn't always true: a repository call that only flushes (see [repositories.md](repositories.md)) used to be invisible outside the current session/transaction unless something called `commit()` explicitly, and that exact gap shipped once (`update_bot_settings` had no committing caller), only caught by a live cross-process test since a same-transaction unit test can't see the difference between flush and commit. The auto-commit-on-clean-exit behavior exists specifically so that class of bug can't recur.
+- **Any usecase that writes must wrap the write in `async with self._uow: ...`.** `UnitOfWork.__aexit__` commits automatically on a clean exit and rolls back on exception; new code doesn't call `await self._uow.commit()` inside the block. A repository only flushes (see [repositories.md](repositories.md)), so a write outside a unit of work is lost when the session closes, and a same-transaction unit test can't tell flush from commit.
 - **Publish domain events instead of calling `logger.*` directly** for anything a subscriber might care about (failed login, bootstrap conflict, ...) — via the injected `EventPublisher` port. See [events.md](events.md).
 - **One file per usecase** in `usecases/`, re-exported from `usecases/__init__.py` — what routers, tasks and `di.py` import. The module's top-level `__init__.py` (the only thing other modules may import) exports only the names some other package actually imports (`tests/test_module_interfaces.py`).
 - **Every usecase input and output type is a `*Dto` in the module's `dto.py`** — never declared inside a `usecases/` file, never `*Input`/`*Result`. A `usecases/` file holds the usecase and its private helpers only. Where a usecase input would collide with a repository-level DTO of the same name, the usecase one takes a verb that says what it does (`IssueApiTokenDto` next to the repository's `CreateApiTokenDto`, `UploadBannerFileDto` next to `UploadBannerDto`).
