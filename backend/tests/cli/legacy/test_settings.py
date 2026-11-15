@@ -42,6 +42,27 @@ def test_access_settings() -> None:
     assert access["registration_enabled"] is False
 
 
+def test_access_payments_allowed_key_from_0_7_app() -> None:
+    access = {"mode": "PUBLIC", "payments_allowed": False, "registration_allowed": True}
+    assert (
+        transform_settings(_row(access=access), MigrationReport()).access["payments_enabled"]
+        is False
+    )
+
+
+def test_access_payments_allowed_wins_over_purchases_allowed() -> None:
+    access = {
+        "mode": "PUBLIC",
+        "purchases_allowed": True,
+        "payments_allowed": False,
+        "registration_allowed": True,
+    }
+    assert (
+        transform_settings(_row(access=access), MigrationReport()).access["payments_enabled"]
+        is False
+    )
+
+
 def test_requirements_to_bot_requirements() -> None:
     report = MigrationReport()
     req = transform_settings(_row(), report).bot_requirements
