@@ -23,6 +23,13 @@ interface GithubRelease {
   html_url: string;
 }
 
+interface GithubCompare {
+  ahead_by: number;
+  html_url: string;
+}
+
+const DEV_BRANCH = "dev";
+
 const LONG_PRESS_MS = 600;
 // the debug bar's preview of a CI image; local builds carry no git data
 const FAKE_OFFICIAL_GIT = {
@@ -41,6 +48,7 @@ export function BuildInfoBadge({ mobile = false }: { mobile?: boolean }) {
   const [stars, setStars] = useState<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [latestRelease, setLatestRelease] = useState<GithubRelease | null>(null);
+  const [devCompare, setDevCompare] = useState<GithubCompare | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const didLongPress = useRef(false);
 
@@ -61,6 +69,17 @@ export function BuildInfoBadge({ mobile = false }: { mobile?: boolean }) {
 
         // only a CI build can be compared against releases
         if (!data.git.is_official_build) return;
+
+        // a dev build has no release to compare with, so count the commits it misses instead
+        if (data.git.branch === DEV_BRANCH && data.git.commit_sha) {
+          fetch(githubApiUrl(data.repository_url, `/compare/${data.git.commit_sha}...${DEV_BRANCH}`), { signal: controller.signal })
+            .then((response) => (response.ok ? (response.json() as Promise<GithubCompare>) : null))
+            .then((compare) => {
+              if (!controller.signal.aborted) setDevCompare(compare);
+            })
+            .catch(() => {});
+          return;
+        }
 
         fetch(githubApiUrl(data.repository_url, "/releases/latest"), { signal: controller.signal })
           .then((response) => (response.ok ? (response.json() as Promise<GithubRelease>) : null))
@@ -105,7 +124,11 @@ export function BuildInfoBadge({ mobile = false }: { mobile?: boolean }) {
   const release = fakeUpdate
     ? { tag_name: "v999.0.0", html_url: `${metadata.repository_url}/releases` }
     : latestRelease;
-  const isUpdateAvailable = release ? isNewerVersion(release.tag_name, currentVersion) : false;
+  const update = devCompare && devCompare.ahead_by > 0
+    ? { badge: `+${devCompare.ahead_by}`, label: t("buildInfo.newCommits", { count: devCompare.ahead_by }), url: devCompare.html_url }
+    : release && isNewerVersion(release.tag_name, currentVersion)
+      ? { badge: release.tag_name, label: release.tag_name, url: release.html_url }
+      : null;
 
   return (
     <>
@@ -120,11 +143,11 @@ export function BuildInfoBadge({ mobile = false }: { mobile?: boolean }) {
       >
         <Info className="size-4 shrink-0" />
         <span className={`${labelClass} font-mono`}>{currentVersion}</span>
-        {isUpdateAvailable && release && (
+        {update && (
           <span
             className={`${labelClass} ml-auto rounded-full border border-primary/40 bg-accent px-2 py-1 font-mono text-[11px] font-semibold leading-none text-primary shadow-[0_0_10px_color-mix(in_srgb,var(--color-primary)_40%,transparent)]`}
           >
-            {release.tag_name}
+            {update.badge}
           </span>
         )}
       </Pressable>
@@ -156,16 +179,16 @@ export function BuildInfoBadge({ mobile = false }: { mobile?: boolean }) {
                     <div className="mt-0.5 font-mono text-base font-semibold text-foreground">v{currentVersion}</div>
                   </div>
 
-                  {isUpdateAvailable && release && isHttpsUrl(release.html_url) && (
+                  {update && isHttpsUrl(update.url) && (
                     <Pressable
                       as="a"
-                      href={release.html_url}
+                      href={update.url}
                       target="_blank"
                       rel="noreferrer"
                       className="flex h-8 items-center gap-1.5 rounded-full border border-primary/35 bg-primary/15 px-3 font-mono text-xs font-medium text-primary transition-colors hover:bg-primary/20"
                     >
                       <ArrowUpCircle className="size-3.5" />
-                      {release.tag_name}
+                      {update.label}
                     </Pressable>
                   )}
                 </div>

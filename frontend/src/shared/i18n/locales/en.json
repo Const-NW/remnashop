@@ -2464,6 +2464,8 @@
     "branch": "Branch",
     "commit": "Commit",
     "commitDate": "Commit date",
+    "newCommits_one": "{{count}} new commit",
+    "newCommits_other": "{{count}} new commits",
     "githubButton": "GitHub",
     "telegramButton": "Telegram"
   },
