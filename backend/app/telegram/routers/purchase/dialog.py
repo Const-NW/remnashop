@@ -82,7 +82,12 @@ duration = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     ListGroup(
-        Button(text=Format("{item[label]}"), id="duration", on_click=on_duration_selected),
+        Button(
+            text=Format("{item[label]}"),
+            id="duration",
+            on_click=on_duration_selected,
+            style=LabelIcon("item", "label"),
+        ),
         id="durations",
         item_id_getter=lambda item: item["days"],
         items="durations",
@@ -99,7 +104,12 @@ method = Window(
     DynamicMedia("banner", when="banner"),
     Format("{window_text}"),
     ListGroup(
-        Button(text=Format("{item[label]}"), id="method", on_click=on_method_selected),
+        Button(
+            text=Format("{item[label]}"),
+            id="method",
+            on_click=on_method_selected,
+            style=LabelIcon("item", "label"),
+        ),
         id="methods",
         item_id_getter=lambda item: item["id"],
         items="methods",

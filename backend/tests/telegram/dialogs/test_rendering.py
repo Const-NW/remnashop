@@ -411,6 +411,23 @@ def test_label_with_icon_puts_a_plain_glyph_in_the_text() -> None:
     assert (label.text, label.icon_custom_emoji_id) == ("❌ Cancel", None)
 
 
+def test_label_with_icon_takes_a_leading_premium_emoji_over_the_picked_icon() -> None:
+    ftl = (
+        "btn-x =\n"
+        "    .item = { $status ->\n"
+        "            [ACTIVE] [🟢](emoji:111) Beta\n"
+        "           *[other] 🔴 Beta\n"
+        "        }\n"
+        "    .item-icon = ❤️\n"
+        "    .item-icon-id = 999\n"
+    )
+    runner = _label_runner(ftl)
+    active = label_with_icon(runner, "btn-x.item", status="ACTIVE")
+    expired = label_with_icon(runner, "btn-x.item", status="EXPIRED")
+    assert (active.text, active.icon_custom_emoji_id) == ("Beta", "111")
+    assert (expired.text, expired.icon_custom_emoji_id) == ("🔴 Beta", "999")
+
+
 async def test_label_with_icon_sends_a_premium_icon_instead_of_the_glyph() -> None:
     runner = _label_runner(_CANCEL_FTL + "    .cancel-icon-id = 5368324170671202286\n")
     data = {"cancel_text": label_with_icon(runner, "btn-x.cancel")}

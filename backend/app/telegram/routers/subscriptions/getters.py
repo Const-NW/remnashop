@@ -26,6 +26,7 @@ from app.telegram.dialogs.config_cache import DialogConfigCache
 from app.telegram.dialogs.context import build_condition_data, menu_flags, selected_subscription_id
 from app.telegram.dialogs.rendering import (
     UNAVAILABLE_BUTTONS_KEY,
+    label_with_icon,
     render_dialog_buttons,
     render_window_text,
     resolve_variable_kwargs,
@@ -79,7 +80,8 @@ async def subscriptions_list_getter(
     data["subscriptions"] = [
         {
             "id": s.id,
-            "label": runner.get(
+            "label": label_with_icon(
+                runner,
                 "btn-subscriptions.item",
                 # an active unlimited one has no date to read "until"
                 status="UNLIMITED"
@@ -183,7 +185,8 @@ async def devices_getter(
         {
             "index": index,
             "hwid": device.hwid,
-            "label": runner.get(
+            "label": label_with_icon(
+                runner,
                 "btn-devices.item",
                 platform_icon=runner.get(f"platform-icon.{_platform_icon_key(device.platform)}"),
                 platform=device.platform or "?",
@@ -193,7 +196,7 @@ async def devices_getter(
         }
         for index, device in enumerate(devices)
     ]
-    dialog_manager.dialog_data["hwid_map"] = formatted
+    dialog_manager.dialog_data["hwid_map"] = [{"hwid": item["hwid"]} for item in formatted]
 
     data: dict[str, Any] = {
         "devices": formatted,

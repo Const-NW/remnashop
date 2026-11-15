@@ -236,7 +236,8 @@ async def duration_getter(
         durations.append(
             {
                 "days": duration.days,
-                "label": runner.get(
+                "label": label_with_icon(
+                    runner,
                     "btn-purchase.duration",
                     period=format_period(runner, duration.days),
                     price=format_price(price),
@@ -286,7 +287,8 @@ async def method_getter(
         "methods": [
             {
                 "id": method["gateway_type"],
-                "label": runner.get(
+                "label": label_with_icon(
+                    runner,
                     "btn-purchase.method",
                     gateway=runner.get(f"gateway-name.{method['gateway_type']}"),
                     price=_price(data["prices"], method["currency"]),

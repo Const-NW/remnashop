@@ -1,12 +1,13 @@
 from typing import Final
 
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup
 from fluentogram import TranslatorRunner
 
 from app.core.constants import REDIS_KEY_PREFIX, TIME_1M
 from app.core.enums import LegalDocumentKind
 from app.modules.legal import PendingLegalDocumentsDto
+from app.telegram.dialogs.rendering import label_with_icon
 
 
 class LegalDocumentCallback(CallbackData, prefix="legal"):
@@ -41,17 +42,15 @@ def legal_gate_keyboard(
         inline_keyboard=[
             *(
                 [
-                    InlineKeyboardButton(
-                        text=runner.get(f"btn-legal.{document.kind}"),
-                        callback_data=LegalDocumentCallback(kind=document.kind).pack(),
+                    label_with_icon(runner, f"btn-legal.{document.kind}").inline_button(
+                        callback_data=LegalDocumentCallback(kind=document.kind).pack()
                     )
                 ]
                 for document in pending.documents
             ),
             [
-                InlineKeyboardButton(
-                    text=runner.get("btn-legal-gate.accept"),
-                    callback_data=LegalAcceptCallback(ids=ids).pack(),
+                label_with_icon(runner, "btn-legal-gate.accept").inline_button(
+                    callback_data=LegalAcceptCallback(ids=ids).pack()
                 )
             ],
         ]

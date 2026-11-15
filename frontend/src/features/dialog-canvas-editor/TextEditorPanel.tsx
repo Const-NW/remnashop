@@ -2,7 +2,7 @@ import { RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { sentTextLength, splitTextKey, updateDialogText } from "@entities/dialogs/api";
+import { PREMIUM_EMOJI_RE, sentTextLength, splitTextKey, updateDialogText } from "@entities/dialogs/api";
 import type { VariableOption } from "@entities/dialogs/api";
 import { getErrorMessage } from "@shared/api/http";
 import { resetTranslation } from "@entities/translations/api";
@@ -39,7 +39,9 @@ interface TextEditorPanelProps {
   /** Text takes emoji inline, at the cursor. A premium one becomes the markup
    * the bot turns into a custom_emoji entity. */
   emojiInsert?: boolean;
-  /** Replaces the emoji picker inside the field; the button label puts its icon picker there. */
+  /** The button label's icon picker. A one-line field shows premium markup as raw text, so there it
+   * replaces the emoji picker; a multiline one keeps both, a premium emoji opening a select variant
+   * being that variant's icon. */
   fieldAction?: ReactNode;
   /** Telegram rejects a button, or a message without a banner, with no text. */
   required?: boolean;
@@ -111,9 +113,19 @@ export function TextEditorPanel({
   }, [textKey, activeLocale, entry?.value]);
 
   const hasVariables = variables.length > 0;
+  const emojiPicker = emojiInsert && (
+    <EmojiPicker current={null} disabled={!canUpdate} onPick={handleEmojiPick} onClear={() => undefined} />
+  );
   const emoji =
-    fieldAction ??
-    (emojiInsert && <EmojiPicker current={null} disabled={!canUpdate} onPick={handleEmojiPick} onClear={() => undefined} />);
+    fieldAction && !multiline
+      ? fieldAction
+      : (fieldAction || emojiPicker) && (
+          <>
+            {fieldAction}
+            {emojiPicker}
+          </>
+        );
+  const hasButtonPremium = fieldAction !== undefined && multiline && draft.search(PREMIUM_EMOJI_RE) !== -1;
   const pickers = (hasVariables || emoji) && (
     <>
       {hasVariables && (
@@ -207,6 +219,7 @@ export function TextEditorPanel({
           {t("dialogs.inspector.textTooLong", { length: draftLength, max: maxLength })}
         </p>
       )}
+      {hasButtonPremium && <p className="text-xs text-muted-foreground">{t("dialogs.inspector.buttonPremiumHint")}</p>}
       {isOverCaption && (
         <p className="text-xs text-warning">{t("dialogs.inspector.textOverCaption", { max: captionLength })}</p>
       )}

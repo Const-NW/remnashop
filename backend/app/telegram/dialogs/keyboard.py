@@ -13,6 +13,7 @@ from loguru import logger
 from app.core.enums import ButtonLinkType
 from app.modules.dialogs import catalog
 from app.telegram.dialogs.config_cache import DialogConfigCache
+from app.telegram.dialogs.rendering import compose_button_label
 from app.telegram.dialogs.state_pool import resolve_custom_window_key, resolve_state
 
 
@@ -38,20 +39,19 @@ class ConfigKeyboard(Keyboard):
         for row in data.get("buttons", []):
             rendered_row: list[Union[InlineKeyboardButton, KeyboardButton]] = []
             for button in row:
-                if not button["text"]:
+                # the icon field takes only a custom emoji id, and Telegram drops it
+                # silently if the bot's owner has no Premium
+                label = compose_button_label(
+                    button["text"], button.get("icon"), button.get("icon_custom_emoji_id")
+                )
+                text, icon_id = label.text, label.icon_custom_emoji_id
+                if not text:
                     # Telegram rejects the whole keyboard over one empty button,
                     # so an unfilled label would take the window down
                     logger.warning(
                         f"Skipping button {button['id']} in window {window_key}: its label is empty"
                     )
                     continue
-                # A plain emoji goes into the label: the icon field takes only a
-                # custom emoji id, and is silently dropped if the bot's owner has
-                # no Premium. With both stored the id wins; the glyph is there for
-                # the dashboard, and adding it would show the emoji twice.
-                icon_id = button.get("icon_custom_emoji_id")
-                icon = button.get("icon")
-                text = f"{icon} {button['text']}" if icon and not icon_id else button["text"]
                 link_type = button["link_type"]
                 if link_type in (ButtonLinkType.URL, ButtonLinkType.WEB_APP):
                     url = button["url_value"]

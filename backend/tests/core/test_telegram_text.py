@@ -5,6 +5,7 @@ from app.core.exceptions import ValidationError
 from app.core.utils.telegram_text import (
     PREMIUM_EMOJI_RE,
     html_text_length,
+    split_button_icon,
     telegram_length,
     validate_telegram_html,
 )
@@ -69,3 +70,20 @@ def test_validate_raises_with_given_code() -> None:
 
 def test_html_text_length_ignores_tags_and_entities() -> None:
     assert html_text_length("<b>ab</b>&lt;[⭐](emoji:1)") == 4
+
+
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("[🟢](emoji:111) Beta", ("Beta", "111")),
+        ("  [🟢](emoji:111)  Beta ", ("Beta", "111")),
+        # only the first one can be the icon; the rest go out as glyphs
+        ("[🟢](emoji:111) Beta [💀](emoji:222)", ("Beta 💀", "111")),
+        ("🔴 Beta · [💀](emoji:222) expired", ("🔴 Beta · 💀 expired", None)),
+        # Telegram refuses a button without text
+        ("[🚫](emoji:333)", ("🚫", None)),
+        ("Cancel", ("Cancel", None)),
+    ],
+)
+def test_split_button_icon(label: str, expected: tuple[str, object]) -> None:
+    assert split_button_icon(label) == expected

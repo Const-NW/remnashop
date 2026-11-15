@@ -172,6 +172,30 @@ async def test_render_keyboard_passes_a_premium_emoji_as_an_icon() -> None:
     assert keyboard[0][0].icon_custom_emoji_id == "5386587088873331829"
 
 
+async def test_render_keyboard_turns_a_leading_premium_emoji_into_the_icon() -> None:
+    widget = ConfigKeyboard(window_key="menu.main")
+    data = {
+        "buttons": [
+            [
+                {
+                    "id": 1,
+                    "text": "[📱](emoji:5386587088873331829) Devices",
+                    "style": None,
+                    "icon": "\U0001f4f1",
+                    "icon_custom_emoji_id": None,
+                    "link_type": ButtonLinkType.ACTION,
+                    "action_key": "get_trial",
+                    "target_window_key": None,
+                    "url_value": None,
+                }
+            ]
+        ]
+    }
+    keyboard = await widget._render_keyboard(data, MagicMock())
+    assert keyboard[0][0].text == "Devices"
+    assert keyboard[0][0].icon_custom_emoji_id == "5386587088873331829"
+
+
 async def test_render_keyboard_prefers_the_premium_icon_over_the_glyph() -> None:
     # The dashboard stores the fallback glyph alongside a premium id so it has
     # something to draw; sending both would show the emoji twice.
@@ -222,7 +246,8 @@ async def test_render_keyboard_skips_url_button_with_empty_url() -> None:
     assert keyboard == []
 
 
-async def test_render_keyboard_skips_button_with_an_empty_label() -> None:
+@pytest.mark.parametrize("text", ["", "   "])
+async def test_render_keyboard_skips_button_with_an_empty_label(text: str) -> None:
     # A button saved before anyone typed its label has an empty translation, and
     # Telegram refuses the whole keyboard over it.
     widget = ConfigKeyboard(window_key="menu.main")
@@ -231,7 +256,7 @@ async def test_render_keyboard_skips_button_with_an_empty_label() -> None:
             [
                 {
                     "id": 1,
-                    "text": "",
+                    "text": text,
                     "style": None,
                     "icon_custom_emoji_id": None,
                     "link_type": ButtonLinkType.NAVIGATE,

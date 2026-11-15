@@ -25,7 +25,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { buttonKey, iconIdTextKey, iconTextKey } from "@entities/dialogs/api";
+import { buttonKey, iconIdTextKey, iconTextKey, splitButtonIcon } from "@entities/dialogs/api";
 import { EmojiThumbnail } from "@features/dialog-canvas-editor/EmojiThumbnail";
 import type { DialogButtonItem } from "@entities/dialogs/api";
 import type { Selection } from "@features/dialog-canvas-editor/DialogCanvasEditor";
@@ -129,11 +129,12 @@ function ButtonFace({
   textByKey: Record<string, string>;
   className: string;
 }) {
-  const { label, isUnlabelled } = useButtonLabel(button, textByKey);
+  const { label: rawLabel, isUnlabelled } = useButtonLabel(button, textByKey);
   const styleClassName = button.style ? STYLE_CLASSNAME[button.style] : "bg-white/[0.08]";
-  const icon = textByKey[iconTextKey(button.text_key)];
+  const { text: label, icon: leadingIcon } = splitButtonIcon(rawLabel);
+  const icon = leadingIcon?.glyph ?? textByKey[iconTextKey(button.text_key)];
   // a premium icon keeps its plain glyph, drawn if the thumbnail fails
-  const iconId = textByKey[iconIdTextKey(button.text_key)];
+  const iconId = leadingIcon?.customEmojiId ?? textByKey[iconIdTextKey(button.text_key)];
 
   return (
     <span
