@@ -148,6 +148,8 @@ def transform_subscriptions(
                 old_snapshot, public_code=public_code, price_paid=price, currency=currency
             ),
         )
+        if status is not SubscriptionStatus.DELETED and panel_id in index.status:
+            item.update(status=index.status[panel_id], expire_at=index.expire_at[panel_id])
         result.append(item)
 
     report.count(_TABLE, len(rows), len(result))

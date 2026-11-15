@@ -7,6 +7,7 @@ from remnapy import RemnawaveSDK
 from remnapy.exceptions import ForbiddenError, UnauthorizedError
 
 from app.cli.legacy.errors import LegacyMigrationError
+from app.core.enums import SubscriptionStatus
 
 _MIN_PANEL_MAJOR: Final[int] = 3
 _PAGE_SIZE: Final[int] = 1000
@@ -21,6 +22,9 @@ class PanelIndex:
     by_username: dict[str, int] = field(default_factory=dict)
     by_telegram_id: dict[int, list[int]] = field(default_factory=dict)
     first_connected_at: dict[int, datetime] = field(default_factory=dict)
+    # the panel's own state wins over the old database's, which may have missed webhooks
+    status: dict[int, SubscriptionStatus] = field(default_factory=dict)
+    expire_at: dict[int, datetime] = field(default_factory=dict)
 
 
 async def fetch_panel_index(sdk: RemnawaveSDK, page_size: int = _PAGE_SIZE) -> PanelIndex:
@@ -31,6 +35,8 @@ async def fetch_panel_index(sdk: RemnawaveSDK, page_size: int = _PAGE_SIZE) -> P
         for user in page.users:
             index.by_short_uuid[user.short_uuid] = user.id
             index.by_username[user.username] = user.id
+            index.status[user.id] = SubscriptionStatus(user.status)
+            index.expire_at[user.id] = user.expire_at
             if user.first_connected_at is not None:
                 index.first_connected_at[user.id] = user.first_connected_at
             if user.telegram_id is not None:

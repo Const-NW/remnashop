@@ -7,6 +7,7 @@ from remnapy import RemnawaveSDK
 
 from app.cli.legacy.errors import LegacyMigrationError
 from app.cli.legacy.panel import PanelIndex, assert_panel_v3, fetch_panel_index, resolve_panel_id
+from app.core.enums import SubscriptionStatus
 from tests.fakes.remnawave import _user_payload, make_fake_remnawave_transport
 
 
@@ -57,6 +58,18 @@ async def test_fetch_panel_index_keeps_first_connection() -> None:
     index = await fetch_panel_index(_sdk(transport))
 
     assert index.first_connected_at == {1: datetime(2025, 12, 1, 10, tzinfo=timezone.utc)}
+
+
+async def test_fetch_panel_index_keeps_status_and_expiry() -> None:
+    store: dict[int, dict[str, Any]] = {}
+    _put(store, 1, "u1")
+    store[1]["status"] = "EXPIRED"
+    transport, _, _ = make_fake_remnawave_transport(store)
+
+    index = await fetch_panel_index(_sdk(transport))
+
+    assert index.status == {1: SubscriptionStatus.EXPIRED}
+    assert index.expire_at == {1: datetime(2030, 1, 1, tzinfo=timezone.utc)}
 
 
 def _index() -> PanelIndex:
