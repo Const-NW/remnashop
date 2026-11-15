@@ -341,7 +341,7 @@ async def test_bot_settings_never_return_the_token(
     token = "123456789:AAH-critical-routes-bot-token"
     update = await client.patch(
         f"{API_V1}/settings/bot",
-        json={"token": token, "secret_token": "critical-webhook-secret"},
+        json={"token": token},
         headers=owner_headers,
     )
     read = await client.get(f"{API_V1}/settings/bot", headers=owner_headers)

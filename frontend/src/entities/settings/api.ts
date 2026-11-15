@@ -8,7 +8,6 @@ export interface BotSettings {
 
 export interface UpdateBotSettingsPayload {
   token?: string;
-  secret_token?: string;
   drop_pending_updates?: boolean;
 }
 

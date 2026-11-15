@@ -40,7 +40,6 @@ class BotStatusResponse(BaseModel):
 
 class UpdateBotSettingsRequest(BaseModel):
     token: Optional[str] = Field(default=None, min_length=1)
-    secret_token: Optional[str] = Field(default=None, min_length=1)
     drop_pending_updates: Optional[bool] = None
 
 

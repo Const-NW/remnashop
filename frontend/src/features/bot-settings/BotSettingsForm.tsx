@@ -15,7 +15,6 @@ import {
 import type { BotSettings, BotStatus } from "@entities/settings/api";
 import { usePermissions } from "@entities/user/use-current-user";
 import { copyToClipboard } from "@shared/lib/clipboard";
-import { randomString } from "@shared/lib/random-string";
 import { toast } from "@shared/lib/toast";
 import { useFieldValidation } from "@shared/lib/use-field-validation";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
@@ -34,25 +33,16 @@ import { IconButton } from "@shared/ui/IconButton";
 import { Pressable } from "@shared/ui/Pressable";
 import { SaveFooter } from "@shared/ui/SaveFooter";
 
-// Telegram's secret_token requirement: 1-256 chars, only A-Z, a-z, 0-9, "_", "-".
-const SECRET_TOKEN_CHARSET =
-  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-";
-const SECRET_TOKEN_LENGTH = 32;
 const RESTART_COOLDOWN_SECONDS = 10;
 const LOGS_POLL_INTERVAL_MS = 3000;
 // Telegram bot token format: numeric bot id, ":", then the 35-char API secret.
 const BOT_TOKEN_PATTERN = /^\d+:[A-Za-z0-9_-]{35}$/;
-const SECRET_TOKEN_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
 // the backend's check (set_bot_proxy.py): scheme://[user:password@]host:port with one of its schemes.
 // A pattern, not new URL(): browsers long parsed no host out of non-web schemes like socks5://
 const PROXY_URL_PATTERN = /^(?:http|socks5h?):\/\/(?:[^@/\s]+@)?(?:\[[0-9a-f:.]+\]|[^:/\s@]+):\d{1,5}\/?$/i;
 
 function isProxyUrl(value: string): boolean {
   return PROXY_URL_PATTERN.test(value);
-}
-
-function generateSecretToken(): string {
-  return randomString(SECRET_TOKEN_CHARSET, SECRET_TOKEN_LENGTH);
 }
 
 function StatusBadge({ status }: { status: BotStatus }) {
@@ -162,7 +152,6 @@ export function BotSettingsForm() {
   const canSetProxy = permissions.includes("BOT_PROXY_SET");
   const canViewStatus = permissions.includes("BOT_STATUS_VIEW");
   const [token, setToken] = useState("");
-  const [secretToken, setSecretToken] = useState("");
   const [proxyUrl, setProxyUrl] = useState("");
   const [isRemovingProxy, setIsRemovingProxy] = useState(false);
   const [dropPendingUpdates, setDropPendingUpdates] = useState(false);
@@ -180,7 +169,6 @@ export function BotSettingsForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [restartCooldown, setRestartCooldown] = useState(0);
-  const [isSecretCopied, setIsSecretCopied] = useState(false);
   const [isLogsOpen, setIsLogsOpen] = useState(false);
 
   useEffect(() => {
@@ -189,20 +177,9 @@ export function BotSettingsForm() {
     return () => clearTimeout(timer);
   }, [restartCooldown]);
 
-  const handleGenerateSecretToken = () => {
-    const generated = generateSecretToken();
-    setSecretToken(generated);
-    void copyToClipboard(generated).then((copied) => {
-      if (!copied) return;
-      setIsSecretCopied(true);
-      setTimeout(() => setIsSecretCopied(false), 1500);
-    });
-  };
-
-  const validation = useFieldValidation<"token" | "secretToken" | "proxy">();
+  const validation = useFieldValidation<"token" | "proxy">();
   const errors = {
     token: token && !BOT_TOKEN_PATTERN.test(token) ? t("settings.bot.errorInvalidToken") : null,
-    secretToken: secretToken && !SECRET_TOKEN_PATTERN.test(secretToken) ? t("settings.bot.secretTokenInvalid") : null,
     proxy: proxyUrl.trim() && !isProxyUrl(proxyUrl.trim()) ? t("apiErrors.BOT_PROXY_URL_INVALID") : null,
   };
   const shown = (name: keyof typeof errors) => validation.visible(name, errors[name]);
@@ -214,8 +191,7 @@ export function BotSettingsForm() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const hasSettingsChanges =
-      Boolean(token || secretToken) || dropPendingUpdates !== initialDropPendingUpdates;
+    const hasSettingsChanges = Boolean(token) || dropPendingUpdates !== initialDropPendingUpdates;
     const proxy = proxyUrl.trim();
     validation.submit();
     if ((!hasSettingsChanges && !proxy) || Object.values(errors).some((error) => error !== null)) return;
@@ -227,11 +203,9 @@ export function BotSettingsForm() {
       if (hasSettingsChanges) {
         settings = await updateBotSettings({
           token: token || undefined,
-          secret_token: secretToken || undefined,
           drop_pending_updates: dropPendingUpdates,
         });
         setToken("");
-        setSecretToken("");
         setInitialDropPendingUpdates(settings.drop_pending_updates);
       }
       if (proxy) {
@@ -286,7 +260,7 @@ export function BotSettingsForm() {
   };
 
   const dirty =
-    Boolean(token || secretToken || proxyUrl.trim()) || dropPendingUpdates !== initialDropPendingUpdates;
+    Boolean(token || proxyUrl.trim()) || dropPendingUpdates !== initialDropPendingUpdates;
   const canSave = canManage || canSetProxy;
   // without a token the process restarts into the same idle app: nothing to apply yet
   const isConfigured = state.kind === "ready" && state.data.is_configured;
@@ -346,27 +320,6 @@ export function BotSettingsForm() {
                 {...watch("token")}
                 placeholder={t("settings.bot.placeholder")}
                 autoComplete="off"
-              />
-            </Field>
-            <Field
-              label={t("settings.bot.secretTokenLabel")}
-              htmlFor="bot-secret-token"
-              info={t("settings.bot.secretTokenHint")}
-              error={shown("secretToken")}
-            >
-              <Input
-                id="bot-secret-token"
-                type="password"
-                value={secretToken}
-                onChange={(event) => setSecretToken(event.target.value)}
-                {...watch("secretToken")}
-                placeholder={t("settings.bot.placeholder")}
-                autoComplete="off"
-                end={
-                  <InlineAction onClick={handleGenerateSecretToken}>
-                    {isSecretCopied ? t("settings.bot.secretTokenCopied") : t("settings.bot.generateSecretToken")}
-                  </InlineAction>
-                }
               />
             </Field>
           </fieldset>

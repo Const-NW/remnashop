@@ -24,8 +24,8 @@ if __name__ == "__main__":
         _bot_settings = asyncio.run(read_bot_settings(_config))
         if _bot_settings.token is None or _bot_settings.secret_token is None:
             logger.warning(
-                "Bot token not set, telegram service is idle. "
-                "Set it in Dashboard -> Settings -> Telegram Bot, then press Restart."
+                "Bot is not configured, telegram service is idle. "
+                "Save the token in Dashboard -> Settings -> Telegram Bot, then press Restart."
             )
             _app = get_idle_app(_config)
         else:

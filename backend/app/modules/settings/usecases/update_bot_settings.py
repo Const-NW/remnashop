@@ -1,3 +1,6 @@
+import secrets
+from dataclasses import replace
+
 from loguru import logger
 
 from app.core.actor import Actor
@@ -27,6 +30,9 @@ class UpdateBotSettingsUseCase(UseCase[UpdateBotSettingsDto, BotSettingsDto]):
     async def _execute(self, actor: Actor, data: UpdateBotSettingsDto) -> BotSettingsDto:
         async with self._uow:
             before = await self._settings_repository.get_bot_settings()
+            # the webhook secret only links us to Telegram: nobody needs to type it
+            if before.secret_token is None and data.secret_token is None:
+                data = replace(data, secret_token=secrets.token_urlsafe(32))
             settings = await self._settings_repository.update_bot_settings(data)
             await self._event_publisher.publish(
                 BotSettingsChangedEvent(

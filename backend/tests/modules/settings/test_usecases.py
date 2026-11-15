@@ -1493,3 +1493,16 @@ async def test_bot_token_change_is_audited_without_its_value(
     assert isinstance(event, BotSettingsChangedEvent)
     assert event.changed_fields == ["secret_token", "token"]
     assert "123:abcdef" not in repr(event)
+
+
+async def test_saving_a_token_generates_the_webhook_secret_once(
+    settings_repository: SettingsRepository, uow: UnitOfWork
+) -> None:
+    use_case = UpdateBotSettingsUseCase(settings_repository, uow, RecordingEventPublisher())
+
+    first = await use_case(OWNER, UpdateBotSettingsDto(token="123:abcdef"))
+    second = await use_case(OWNER, UpdateBotSettingsDto(token="456:ghijkl"))
+
+    assert first.is_configured
+    assert first.secret_token is not None and second.secret_token is not None
+    assert first.secret_token.get_secret_value() == second.secret_token.get_secret_value()

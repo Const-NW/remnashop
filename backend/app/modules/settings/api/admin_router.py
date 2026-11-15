@@ -122,7 +122,6 @@ async def update_bot_settings(
         actor,
         UpdateBotSettingsDto(
             token=payload.token,
-            secret_token=payload.secret_token,
             drop_pending_updates=payload.drop_pending_updates,
         ),
     )

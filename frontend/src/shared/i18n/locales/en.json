@@ -1424,15 +1424,11 @@
       "pendingUpdates": "Pending updates: {{total}}",
       "tokenLabel": "Bot token",
       "tokenHint": "Issued by @BotFather when the bot is created. Used to send messages as the bot and to register the webhook.",
-      "secretTokenLabel": "Webhook secret token",
-      "secretTokenHint": "Sent back by Telegram in every webhook request’s header; the API checks it matches before trusting the request, so only Telegram can reach your webhook.",
-      "generateSecretToken": "Generate",
-      "secretTokenCopied": "Copied",
       "placeholder": "Leave blank to keep",
       "errorInvalidToken": "Invalid bot token format.",
       "dropPendingUpdatesLabel": "Drop pending updates when setting the webhook",
       "dropPendingUpdatesHint": "Discards any updates Telegram queued up before the webhook was set, instead of delivering that backlog once it goes live.",
-      "applyChangesDescription": "Restarts the telegram process so it picks up the saved token, secret and proxy. Has no effect if the process isn’t currently running.",
+      "applyChangesDescription": "Restarts the telegram process so it picks up the saved token and proxy. Has no effect if the process isn’t currently running.",
       "restartBot": "Restart",
       "restartRequested": "Restart requested. The bot process will come back up with the saved settings shortly.",
       "showLogs": "View logs",
@@ -1446,8 +1442,7 @@
       "removeProxy": "Remove",
       "proxyRemoved": "Proxy removed.",
       "copyLogs": "Copy",
-      "logsCopied": "Copied",
-      "secretTokenInvalid": "Latin letters, digits, _ and -, up to 256 characters."
+      "logsCopied": "Copied"
     },
     "botCommands": {
       "title": "Commands",
