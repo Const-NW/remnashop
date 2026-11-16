@@ -70,6 +70,7 @@ dev = [
     "types-cachetools",
     "pytest-asyncio",
     "import-linter>=2.13",
+    "pytest-xdist>=3.8.0",
 ]
 
 [tool.ruff]

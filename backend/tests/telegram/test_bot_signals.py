@@ -49,6 +49,7 @@ class _SpyHub:
 
 
 async def test_listener_routes_each_signal_and_survives_a_failing_handler(redis) -> None:
+    # pub/sub channels ignore the Redis db index: under pytest -n other workers publish too
     cache, hub = _SpyCache(), _SpyHub()
     signals = RedisBotSignals(redis)
     task = asyncio.create_task(
@@ -60,11 +61,11 @@ async def test_listener_routes_each_signal_and_survives_a_failing_handler(redis)
         await signals.dialogs_changed()
         await signals.translation_changed(Locale.RU, "msg-main-menu", "", "Привет!")
         for _ in range(50):
-            if hub.calls and cache.reload_count:
+            if ("ru", "msg-main-menu", "Привет!") in hub.calls:
                 break
             await asyncio.sleep(0.05)
-        assert cache.reload_count == 1
-        assert hub.calls == [("ru", "msg-main-menu", "Привет!")]
+        assert cache.reload_count >= 1
+        assert ("ru", "msg-main-menu", "Привет!") in hub.calls
     finally:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -154,7 +155,7 @@ async def test_listener_subscribes_again_after_losing_redis(
             if cache.reload_count:
                 break
             await asyncio.sleep(0.05)
-        assert cache.reload_count == 1
+        assert cache.reload_count >= 1
     finally:
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -196,7 +197,7 @@ async def test_listener_keeps_its_subscription_through_a_quiet_spell(
             if cache.reload_count:
                 break
             await asyncio.sleep(0.05)
-        assert cache.reload_count == 1
+        assert cache.reload_count >= 1
         assert counting.subscriptions == 1
     finally:
         task.cancel()

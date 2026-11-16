@@ -89,14 +89,9 @@ jobs:
       - name: 🧱 Import Contracts
         run: uv run lint-imports
 
-      - name: 🗄️ Migrate Test Database
-        run: uv run alembic upgrade head
-        env:
-          DATABASE_HOST: localhost
-          DATABASE_PORT: "5432"
-
+      # each xdist worker creates and migrates its own database (tests/conftest.py)
       - name: 🧪 Pytest
-        run: uv run pytest -q
+        run: uv run pytest -q -n auto
 
   frontend:
     name: ⚛️ Frontend

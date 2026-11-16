@@ -9,21 +9,32 @@ os.environ.setdefault("REDIS_HOST", "localhost")
 os.environ.setdefault("REDIS_PORT", "6379")
 # the test client talks plain http to testserver: a Secure cookie never comes back
 os.environ.setdefault("APP_SECURE_COOKIES", "false")
+# pytest -n: each xdist worker gets its own database and Redis index, since some
+# tests commit for real and _clean_redis flushes the whole index
+_XDIST_WORKER = os.environ.get("PYTEST_XDIST_WORKER")
+if _XDIST_WORKER:
+    os.environ["DATABASE_NAME"] = f"remnashop_test_{_XDIST_WORKER}"
+    os.environ["REDIS_NAME"] = str(int(_XDIST_WORKER.removeprefix("gw")) + 1)
 
+import asyncio
 from decimal import Decimal
 from typing import AsyncIterator
 
 import httpx
 import pytest
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 from dishka import AsyncContainer
 from dishka.integrations.fastapi import ContainerMiddleware
 from fastapi import FastAPI
 from redis.asyncio import Redis
 from remnapy import RemnawaveSDK
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from app.api.app import get_app
 from app.core.config import AppConfig
+from app.core.constants import ALEMBIC_INI
 from app.core.db.uow import UnitOfWork
 from app.core.outbox_event_publisher import OutboxEventPublisher
 from app.core.ports import EventPublisher
@@ -65,6 +76,24 @@ from tests.fakes.container import make_test_container
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.remnawave import FakeHwidStore, FakeUserStore, make_fake_remnawave_transport
 from tests.modules.subscriptions.factories import make_eligibility
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    if not _XDIST_WORKER:
+        return
+    asyncio.run(_recreate_worker_database())
+    alembic_command.upgrade(AlembicConfig(str(ALEMBIC_INI)), "head")
+
+
+async def _recreate_worker_database() -> None:
+    database = AppConfig.get().database
+    admin = create_async_engine(
+        database.model_copy(update={"name": "postgres"}).dsn, isolation_level="AUTOCOMMIT"
+    )
+    async with admin.connect() as connection:
+        await connection.execute(text(f'DROP DATABASE IF EXISTS "{database.name}" WITH (FORCE)'))
+        await connection.execute(text(f'CREATE DATABASE "{database.name}"'))
+    await admin.dispose()
 
 
 @pytest.fixture

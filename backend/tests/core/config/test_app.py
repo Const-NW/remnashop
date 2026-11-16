@@ -2,7 +2,6 @@ import base64
 from pathlib import Path
 
 import pytest
-from cryptography.fernet import Fernet
 from pydantic import ValidationError
 
 from app.core.config import AppConfig
@@ -20,7 +19,7 @@ def test_media_dir_is_overridable(config: AppConfig, tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "key",
     [
-        Fernet.generate_key().decode(),  # url-safe alphabet, what Fernet emits
+        base64.urlsafe_b64encode(b"\xfb" * 32).decode(),  # url-safe alphabet, what Fernet emits
         base64.b64encode(b"\xfb" * 32).decode(),  # standard alphabet, openssl rand -base64 32
     ],
 )
