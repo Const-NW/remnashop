@@ -1416,6 +1416,11 @@
       "telegramPremium": "Telegram Premium",
       "ip": "IP-адрес",
       "browser": "Браузер",
+      "landingUrl": "Первая страница",
+      "referer": "Пришёл с",
+      "utm": "UTM",
+      "clickId": "Click ID",
+      "platform": "Платформа",
       "sources": {
         "BOT": "Бот",
         "CABINET_TELEGRAM": "Кабинет · Telegram",

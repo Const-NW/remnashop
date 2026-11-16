@@ -10,6 +10,7 @@ from redis.asyncio import Redis
 
 from app.core.constants import REDIS_KEY_PREFIX, TTL_10M
 from app.core.enums import OAuthProvider, UpperStrEnum
+from app.modules.users import FirstTouchDto
 
 _KEY_PREFIX: Final[str] = f"{REDIS_KEY_PREFIX}oauth:state:"
 
@@ -46,6 +47,7 @@ class OAuthState:
     binding_hash: Optional[str] = None
     referral_code: Optional[str] = None
     ad_link_code: Optional[str] = None
+    first_touch: Optional[FirstTouchDto] = None
 
 
 _STATE_ADAPTER: Final[TypeAdapter[OAuthState]] = TypeAdapter(OAuthState)
@@ -64,6 +66,7 @@ class OAuthStateStore:
         binding_hash: Optional[str] = None,
         referral_code: Optional[str] = None,
         ad_link_code: Optional[str] = None,
+        first_touch: Optional[FirstTouchDto] = None,
     ) -> str:
         state = secrets.token_urlsafe(32)
         oauth_state = OAuthState(
@@ -74,6 +77,7 @@ class OAuthStateStore:
             binding_hash=binding_hash,
             referral_code=referral_code,
             ad_link_code=ad_link_code,
+            first_touch=first_touch,
         )
         await self._redis.set(
             f"{_KEY_PREFIX}{state}", _STATE_ADAPTER.dump_json(oauth_state), ex=TTL_10M

@@ -111,5 +111,7 @@ class CabinetOAuthCallbackUseCase:
                 "Failed to exchange OAuth code", code=ErrorCode.OAUTH_CODE_EXCHANGE_FAILED
             ) from error
         return profile, InviteCodesDto(
-            referral_code=state_data.referral_code, ad_link_code=state_data.ad_link_code
+            referral_code=state_data.referral_code,
+            ad_link_code=state_data.ad_link_code,
+            first_touch=state_data.first_touch,
         )

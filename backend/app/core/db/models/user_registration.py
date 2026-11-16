@@ -24,4 +24,14 @@ class UserRegistration(BaseSql):
     telegram_is_premium: Mapped[Optional[bool]]
     ip_address: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(String(512))
+    # first cabinet visit as the browser reported it
+    landing_url: Mapped[Optional[str]] = mapped_column(String(512))
+    referer: Mapped[Optional[str]] = mapped_column(String(512))
+    utm_source: Mapped[Optional[str]] = mapped_column(String(128))
+    utm_medium: Mapped[Optional[str]] = mapped_column(String(128))
+    utm_campaign: Mapped[Optional[str]] = mapped_column(String(128))
+    utm_content: Mapped[Optional[str]] = mapped_column(String(128))
+    utm_term: Mapped[Optional[str]] = mapped_column(String(128))
+    click_id: Mapped[Optional[str]] = mapped_column(String(256))
+    platform: Mapped[Optional[str]] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=NOW_FUNC)

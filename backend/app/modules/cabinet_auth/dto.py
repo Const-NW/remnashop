@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from app.core.enums import CaptchaProvider, Locale, OAuthProvider
+from app.modules.users import FirstTouchDto
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -26,6 +27,7 @@ class CabinetMethodsDto:
 class InviteCodesDto:
     referral_code: Optional[str] = None
     ad_link_code: Optional[str] = None
+    first_touch: Optional[FirstTouchDto] = None
 
 
 @dataclass(frozen=True, kw_only=True)

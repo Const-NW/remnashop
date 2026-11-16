@@ -3,6 +3,7 @@ from app.modules.users.di import get_users_providers
 from app.modules.users.display_name import clean_display_name
 from app.modules.users.dto import (
     CreateUserDto,
+    FirstTouchDto,
     RegisterCabinetUserDto,
     RegisterTelegramUserDto,
     RegistrationSnapshotDto,
@@ -54,6 +55,7 @@ __all__ = [
     "CreateUserDto",
     "CurrentUserResponse",
     "FindTelegramUserUseCase",
+    "FirstTouchDto",
     "OAuthIdentityLookup",
     "PasskeyRevoker",
     "PromocodeLiveness",

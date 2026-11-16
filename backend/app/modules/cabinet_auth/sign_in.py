@@ -213,6 +213,7 @@ class CabinetSignIn:
                     telegram_language_code=profile.language,
                     ip_address=client_ip,
                     user_agent=user_agent,
+                    first_touch=codes.first_touch,
                 ),
             )
         )
@@ -262,6 +263,7 @@ class CabinetSignIn:
                         source=RegistrationSource.CABINET_EMAIL,
                         ip_address=client_ip,
                         user_agent=user_agent,
+                        first_touch=codes.first_touch,
                     ),
                 )
             )
@@ -337,6 +339,7 @@ class CabinetSignIn:
                         source=RegistrationSource(f"CABINET_{provider.value}"),
                         ip_address=client_ip,
                         user_agent=user_agent,
+                        first_touch=codes.first_touch,
                     ),
                 )
             )
