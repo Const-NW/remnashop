@@ -173,10 +173,7 @@ ntf-customer-cabinet-new-device-sign-in = Someone signed in to your account from
 ntf-customer-accounts-merged = The other account's subscriptions, payments and sign-in methods are now here. If it wasn't you, contact support.
     .title = Accounts merged
     .emoji = 🔗
-ntf-customer-referral-reward-issued = { $has_name ->
-        [yes] { $name } made a payment —{" "}
-       *[no] {""}
-    }you've received { $amount } { $reward_type ->
+ntf-customer-referral-reward-issued = Your invitee made a payment — you've received { $amount } { $reward_type ->
         [EXTRA_DAYS] { $amount ->
             [one] bonus day
            *[other] bonus days
@@ -494,7 +491,7 @@ ntf-subscription-device-removed = { $user } removed a device.
     .title = User removed a device!
 ntf-promocode-activated = { $user } activated a promocode.
     .title = Promocode activated!
-ntf-customer-referral-attached = { $name } joined through your invite link.{ $rewarded ->
+ntf-customer-referral-attached = Someone joined through your invite link.{ $rewarded ->
         [yes] { " " }You'll get your reward once they pay for a subscription.
        *[no] {""}
     }
