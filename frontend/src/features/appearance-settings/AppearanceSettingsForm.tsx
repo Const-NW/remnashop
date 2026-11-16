@@ -16,7 +16,7 @@ import {
 } from "@entities/appearance/api";
 import { getErrorMessage } from "@shared/api/http";
 import { useAppearancePreview, useBrandName, useReloadAppearance } from "@entities/appearance/use-appearance";
-import { DEFAULT_ACCENT_COLOR } from "@shared/lib/color";
+import { DEFAULT_ACCENT_COLOR, HEX_COLOR_PATTERN } from "@shared/lib/color";
 import { DEFAULT_SHADER_BASE, resolveShaderStops, SHADER_TONE_COUNT } from "@shared/lib/shader-palette";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { usePermissions } from "@entities/user/use-current-user";
@@ -38,7 +38,6 @@ import { SaveFooter } from "@shared/ui/SaveFooter";
 
 const SVG_MIME_TYPE = "image/svg+xml";
 const ACCEPTED_FILE_TYPES = `image/jpeg,image/png,image/webp,${SVG_MIME_TYPE}`;
-const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
 // mirrors the backend's _LIMITS_BY_KIND
 const IMAGE_LIMITS: Record<AppearanceImageKind, { minSide: number; maxSide: number; maxKb: number }> = {
@@ -535,13 +534,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
                       <div className="grid grid-cols-2 gap-2">
                         <div className={ownShaderBase ? "" : "pointer-events-none opacity-40"}>
                           <ShaderSwatch
-                            label={t(
-                              ownShaderBase
-                                ? "settings.appearance.shaderBase"
-                                : isDashboard
-                                  ? "settings.appearance.shaderBaseFromAccent"
-                                  : "settings.appearance.shaderBaseFromDashboard",
-                            )}
+                            label={t("settings.appearance.shaderBase")}
                             value={shaderStops[0]}
                             onChange={(value) => changeShaderColors(true, value, shaderTones)}
                             onReset={() => changeShaderColors(false, shaderBase, shaderTones)}
