@@ -298,12 +298,13 @@ textarea::-webkit-resizer {
 }
 
 
-/* Dialog bodies reserve the scrollbar's width up front, so content doesn't shift when
-   the scrollbar appears, and give that width back out of their right padding, so both sides
-   read the same. This rule outranks the padding utility: a body padded other than 1rem says
-   so in --dialog-pad. Nested lists keep their own layout. */
+/* Dialog bodies keep their scrollbar even with nothing to scroll, so content doesn't shift when
+   it's needed, and give its width back out of their right padding, so both sides read the same.
+   overflow: scroll, not scrollbar-gutter: Safari reserves the native scrollbar's width for an empty
+   gutter, not the 8px it draws. This rule outranks the padding utility: a body padded other than
+   1rem says so in --dialog-pad. Nested lists keep their own layout. */
 [data-dialog] .min-h-0.flex-1.overflow-y-auto {
-  scrollbar-gutter: stable;
+  overflow-y: scroll;
   padding-right: calc(var(--dialog-pad, 1rem) - var(--scrollbar-size));
 }
 

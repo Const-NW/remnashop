@@ -71,7 +71,7 @@ function ClientAppsSection({ state }: { state: AsyncState<ClientApps> }) {
         <EmptyState text={t("dashboard.clientApps.empty")} />
       )}
       {data?.available && data.platforms.length > 0 && (
-        <div className="-mb-4 -mr-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pb-4 pr-[calc(1rem-var(--scrollbar-size))] [scrollbar-gutter:stable] pt-4">
+        <div className="-mb-4 -mr-4 flex min-h-0 flex-1 flex-col gap-4 overflow-y-scroll overscroll-contain pb-4 pr-[calc(1rem-var(--scrollbar-size))] pt-4">
           {data.platforms.map((platform) => (
             <PlatformRow key={platform.platform} platform={platform} />
           ))}
