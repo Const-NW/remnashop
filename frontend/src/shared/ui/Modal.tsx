@@ -46,6 +46,10 @@ async function morphPanels(parent: HTMLElement, child: HTMLElement, direction: "
   delete parent.dataset.morphGhost;
   delete child.dataset.morphing;
   animations.forEach((animation) => animation.cancel());
+
+  // Safari can keep painting the clip of the morph's first frame on the panel; a clip change a frame later repaints it
+  child.style.clipPath = `inset(0 ${PANEL_CLIP_RADIUS})`;
+  requestAnimationFrame(() => requestAnimationFrame(() => (child.style.clipPath = "")));
 }
 
 interface ModalProps {
