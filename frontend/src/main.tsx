@@ -24,7 +24,7 @@ window.addEventListener("vite:preloadError", (event) => {
 });
 
 // Paddings and masks give back the width the scrollbar really takes: zero for overlay scrollbars
-// (Firefox and macOS defaults), the native width where a browser skips the 8px ::-webkit-scrollbar.
+// (Firefox and macOS defaults), the native width where a browser skips the 10px ::-webkit-scrollbar.
 const scrollbarProbe = document.createElement("div");
 scrollbarProbe.style.cssText = "position:absolute;visibility:hidden;width:100px;height:100px;overflow:scroll";
 document.body.append(scrollbarProbe);
