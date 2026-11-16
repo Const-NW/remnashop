@@ -104,13 +104,12 @@ def _user_event(
         if not hours:
             # 0 is the moment of expiry, which user.expired already reports
             return None
-        if hours > 0:
+        # the panel sends hours since expiry: negative = still ahead
+        if hours < 0:
             return SubscriptionExpiringEvent(
-                user=owner, subscription_id=subscription_id, hours=hours
+                user=owner, subscription_id=subscription_id, hours=-hours
             )
-        return SubscriptionExpiredAgoEvent(
-            user=owner, subscription_id=subscription_id, hours=-hours
-        )
+        return SubscriptionExpiredAgoEvent(user=owner, subscription_id=subscription_id, hours=hours)
     if event == "user.not_connected":
         hours = meta.not_connected_after_hours if meta else None
         if not hours:
