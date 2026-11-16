@@ -191,6 +191,7 @@ Search the module and `app/core` first. Often re-implemented: `subscriptions.get
 - Lists of entities use `ListRow`; a raw `<table>` only for a data matrix (pricing, retention). Raw `<button>`/`<input>` only for drag handles, file inputs, inline text links and tab strips.
 - A field kind added to a generic component (a settings form) stays generic, with no one feature's flags wired into it.
 - Money goes through `shared/lib/format`'s `formatMoney`; a full date or date-time shown to the admin through `shared/lib/relative-time`'s `formatDate`/`formatDateTime`/`formatTime`. Counts use `toLocaleString(language)`, and short chart labels may call `toLocaleDateString` with their own options. A page size comes from the entity's `api.ts` constant, not a literal.
+- A payment gateway's logo is `features/gateway-settings/logos/<GATEWAY_TYPE>.png|svg`: the bare mark, no background or rounded corners, cropped to its edges so it fills the 22px box; a white mark is recolored to the brand color; every `PaymentGatewayType` has exactly one (`tests/modules/gateways/test_logos.py`). The same file goes into the cabinet repository's `src/entities/plan/gateway-logos/` with the gateway's release, since the cabinet shows it at checkout and in payment history.
 
 ### Tests
 
