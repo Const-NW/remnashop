@@ -55,6 +55,7 @@ function primaryForeground(primaryColor: string): string {
 
 // the shader's "no rotation" point: its hue shifts by the picked accent's delta from this
 export const DEFAULT_ACCENT_COLOR = "#22d3ee";
+export const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
 // degrees, 0..360
 export function hexToHueDegrees(hex: string): number {
