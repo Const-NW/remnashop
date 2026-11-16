@@ -46,6 +46,17 @@ _QUOTE_EDGE_NEWLINE_RE: Final[re.Pattern[str]] = re.compile(
 )
 
 
+def plan_title(name: str, icon_id: Optional[str], fallback: Optional[str]) -> TrustedHtml:
+    """The plan's name behind its icon: the custom emoji, its glyph where it can't render."""
+    escaped = html.escape(name)
+    if icon_id:
+        glyph = html.escape(fallback or "•")
+        return TrustedHtml(
+            f'<tg-emoji emoji-id="{html.escape(icon_id)}">{glyph}</tg-emoji> {escaped}'
+        )
+    return TrustedHtml(f"{html.escape(fallback)} {escaped}" if fallback else escaped)
+
+
 def _prepare_value(value: Any) -> Any:
     if value is None or value == "":
         return _EMPTY
@@ -195,15 +206,22 @@ def compose_button_label(label: str, icon: Optional[str], icon_id: Optional[str]
     return ButtonLabel(text=text, icon_custom_emoji_id=icon_custom_emoji_id)
 
 
-def label_with_icon(runner: TranslatorRunner, text_key: str, **kwargs: Any) -> ButtonLabel:
+def label_with_icon(
+    runner: TranslatorRunner,
+    text_key: str,
+    *,
+    default_icon_id: Optional[str] = None,
+    **kwargs: Any,
+) -> ButtonLabel:
     """A label for a button the bot hardcodes rather than renders from config.
     Those never reach ConfigKeyboard, so the icon has to come along here or it
-    would silently never show."""
-    return compose_button_label(
-        runner.get(text_key, **kwargs),
-        _optional_translation(runner, catalog.icon_text_key(text_key)),
-        _optional_translation(runner, catalog.icon_id_text_key(text_key)),
-    )
+    would silently never show. `default_icon_id` shows only while the key has no
+    icon of its own, glyph or premium."""
+    icon = _optional_translation(runner, catalog.icon_text_key(text_key))
+    icon_id = _optional_translation(runner, catalog.icon_id_text_key(text_key))
+    if icon is None and icon_id is None:
+        icon_id = default_icon_id
+    return compose_button_label(runner.get(text_key, **kwargs), icon, icon_id)
 
 
 async def render_dialog_buttons(

@@ -9,6 +9,7 @@ from sqlalchemy import (
     Row,
     Select,
     Text,
+    and_,
     case,
     cast,
     delete,
@@ -24,9 +25,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.db.filters import in_ids
+from app.core.db.models.active_locale import ActiveLocale
 from app.core.db.models.ad_link import AdLink
 from app.core.db.models.broadcast import Broadcast, BroadcastEmailImage, BroadcastRecipient
 from app.core.db.models.plan import Plan
+from app.core.db.models.plan_translation import PlanTranslation
 from app.core.db.models.subscription import Subscription
 from app.core.db.models.user import User
 from app.core.enums import (
@@ -789,6 +792,7 @@ class BroadcastRepository:
         live = (
             select(
                 Subscription.user_id,
+                Subscription.plan_snapshot["plan_id"].as_integer().label("plan_id"),
                 Subscription.plan_snapshot["name"].as_string().label("plan_name"),
                 Subscription.plan_snapshot["names"].label("plan_names"),
                 Subscription.expire_at,
@@ -802,8 +806,24 @@ class BroadcastRepository:
             .subquery()
         )
         rows = await self.session.execute(
-            select(User, live.c.plan_name, live.c.plan_names, live.c.expire_at)
+            select(
+                User,
+                # the plan as it reads now; the snapshot's once the plan is deleted
+                func.coalesce(PlanTranslation.name, Plan.name),
+                live.c.plan_name,
+                live.c.plan_names,
+                live.c.expire_at,
+            )
             .outerjoin(live, live.c.user_id == User.id)
+            .outerjoin(Plan, Plan.id == live.c.plan_id)
+            .outerjoin(
+                PlanTranslation,
+                and_(
+                    PlanTranslation.plan_id == Plan.id,
+                    PlanTranslation.locale == User.language,
+                    PlanTranslation.locale.in_(select(ActiveLocale.locale)),
+                ),
+            )
             .where(in_ids(User.id, user_ids))
         )
         return {
@@ -814,11 +834,10 @@ class BroadcastRepository:
                 language=user.language,
                 bonus_days=user.bonus_days,
                 points=int(user.points),
-                # names: the plan's translations, absent on a snapshot taken before them
-                plan_name=(plan_names or {}).get(user.language.value, plan_name),
+                plan_name=current_name or (plan_names or {}).get(user.language.value, plan_name),
                 expire_at=expire_at,
             )
-            for user, plan_name, plan_names, expire_at in rows.tuples()
+            for user, current_name, plan_name, plan_names, expire_at in rows.tuples()
         }
 
     async def is_recipient(self, broadcast_id: int, user_id: int) -> bool:

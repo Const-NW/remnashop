@@ -428,6 +428,15 @@ def test_label_with_icon_takes_a_leading_premium_emoji_over_the_picked_icon() ->
     assert (expired.text, expired.icon_custom_emoji_id) == ("🔴 Beta", "999")
 
 
+def test_label_with_icon_takes_the_default_icon_only_without_one_of_its_own() -> None:
+    bare = label_with_icon(
+        _label_runner("btn-x =\n    .cancel = Cancel\n"), "btn-x.cancel", default_icon_id="7"
+    )
+    glyph = label_with_icon(_label_runner(_CANCEL_FTL), "btn-x.cancel", default_icon_id="7")
+    assert (bare.text, bare.icon_custom_emoji_id) == ("Cancel", "7")
+    assert (glyph.text, glyph.icon_custom_emoji_id) == ("❌ Cancel", None)
+
+
 async def test_label_with_icon_sends_a_premium_icon_instead_of_the_glyph() -> None:
     runner = _label_runner(_CANCEL_FTL + "    .cancel-icon-id = 5368324170671202286\n")
     data = {"cancel_text": label_with_icon(runner, "btn-x.cancel")}

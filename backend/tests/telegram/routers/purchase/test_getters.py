@@ -12,9 +12,9 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.modules.subscriptions import PlanCatalogDto, SubscriptionDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
+from app.telegram.dialogs.rendering import plan_title
 from app.telegram.routers.purchase.getters import (
     _plan_details,
-    _plan_title,
     confirm_getter,
     duration_getter,
     method_getter,
@@ -286,9 +286,9 @@ async def test_plan_buttons_carry_the_custom_emoji_or_lead_with_the_glyph() -> N
 
 
 def test_plan_title_renders_the_icon_before_an_escaped_name() -> None:
-    assert _plan_title("A<B", "123", "📦") == '<tg-emoji emoji-id="123">📦</tg-emoji> A&lt;B'
-    assert _plan_title("A<B", None, "⭐") == "⭐ A&lt;B"
-    assert _plan_title("A<B", None, None) == "A&lt;B"
+    assert plan_title("A<B", "123", "📦") == '<tg-emoji emoji-id="123">📦</tg-emoji> A&lt;B'
+    assert plan_title("A<B", None, "⭐") == "⭐ A&lt;B"
+    assert plan_title("A<B", None, None) == "A&lt;B"
 
 
 def test_plan_description_renders_premium_emoji_and_escapes_html() -> None:

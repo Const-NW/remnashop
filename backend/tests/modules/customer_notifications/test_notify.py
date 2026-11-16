@@ -33,6 +33,7 @@ from app.modules.customer_notifications.usecases import NotifyCustomerUseCase
 from app.modules.notifications.dto import PushMessage
 from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
+from app.modules.plans import PlanRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.subscriptions import SubscriptionRepository
@@ -129,6 +130,7 @@ class _Fixture:
             settings,
             orders,
             SubscriptionRepository(orders.session),
+            PlanRepository(orders.session),
             cast(Any, _Renderers()),
             cast(Any, self.tokens),
             cast(Any, self.signals),

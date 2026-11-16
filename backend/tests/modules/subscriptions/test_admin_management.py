@@ -1176,7 +1176,9 @@ async def test_own_subscriptions_keep_an_expired_one_for_renewal(
         await session.execute(
             update(Subscription).where(Subscription.id == subscription_id).values(status=status)
         )
-    use_case = ListOwnSubscriptionsUseCase(subscription_repository, uow)
+    use_case = ListOwnSubscriptionsUseCase(
+        subscription_repository, PlanRepository(subscription_repository.session), uow
+    )
 
     owner = await user_repository.find_by_id(expired.user_id)
     other = await user_repository.find_by_id(deleted.user_id)

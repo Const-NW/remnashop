@@ -13,6 +13,7 @@ from app.core.enums import (
     BroadcastDelivery,
     BroadcastStatus,
     Locale,
+    PlanType,
     Role,
 )
 from app.core.enums import (
@@ -30,6 +31,9 @@ from app.modules.broadcasts.dto import (
     SaveBroadcastDto,
 )
 from app.modules.broadcasts.repository import BroadcastRepository
+from app.modules.plans import PlanRepository
+from app.modules.plans.dto import CreatePlanDto, PlanTranslationDto
+from app.modules.translations import TranslationRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 from tests.modules.broadcasts.factories import add_subscription, make_customer, set_broadcast
@@ -299,6 +303,40 @@ async def test_recipient_context_names_the_plan_in_the_recipients_language(
 
     # no German name: the plan's own
     assert (contexts[ru].plan_name, contexts[de].plan_name) == ("Про", "Pro")
+
+
+async def test_recipient_context_names_the_plan_as_it_reads_now(
+    session: AsyncSession,
+    user_repository: UserRepository,
+    broadcast_repository: BroadcastRepository,
+) -> None:
+    await TranslationRepository(session).add_active_locale(Locale.EN)
+    plan = await PlanRepository(session).create(
+        CreatePlanDto(
+            public_code="team",
+            name="Командный 2",
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=3,
+            translations=[PlanTranslationDto(locale=Locale.EN, name="Team")],
+        )
+    )
+    en = await make_customer(user_repository, session, telegram_id=8304, language=Locale.EN)
+    ru = await make_customer(user_repository, session, telegram_id=8305, language=Locale.RU)
+    for user_id in (en, ru):
+        # bought before the rename
+        await add_subscription(
+            session,
+            user_id,
+            plan_id=plan.id,
+            plan_name="Командный",
+            plan_names={Locale.EN: "Old team"},
+            expire_at=datetime_now() + timedelta(days=10),
+        )
+
+    contexts = await broadcast_repository.recipient_contexts([en, ru])
+
+    assert (contexts[en].plan_name, contexts[ru].plan_name) == ("Team", "Командный 2")
 
 
 async def test_scheduling_queries(broadcast_repository: BroadcastRepository) -> None:
