@@ -80,7 +80,7 @@ async def _rows(session: AsyncSession) -> list[EventOutboxEntry]:
             {"hours": 24},
         ),
         (
-            _payload("user.expiration", _user(), WebhookMetaDto(expiration=-24)),
+            _payload("user.expiration", _user(), WebhookMetaDto(expiration=24)),
             "SubscriptionExpiredAgoEvent",
             {"hours": 24},
         ),

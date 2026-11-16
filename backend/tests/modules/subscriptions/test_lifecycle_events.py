@@ -81,7 +81,7 @@ def _webhook(
         (
             "user.expiration",
             "ACTIVE",
-            {"expiration": 72},
+            {"expiration": -72},
             "SubscriptionExpiringEvent",
             SubscriptionStatus.ACTIVE,
         ),
