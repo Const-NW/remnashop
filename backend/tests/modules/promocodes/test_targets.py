@@ -167,6 +167,7 @@ async def test_targets_list_what_days_leave_active(
     use_case = ListPromocodeTargetsUseCase(
         promocode_repository,
         subscription_repository,
+        PlanRepository(promocode_repository.session),
         ReferralRepository(promocode_repository.session),
         PromocodeTargets(
             PlanRepository(promocode_repository.session),

@@ -1,12 +1,18 @@
 from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.modules.plans import PlanRepository
 from app.modules.promocodes.availability import assert_available_to, get_usable_promocode
 from app.modules.promocodes.dto import ListPromocodeTargetsDto
 from app.modules.promocodes.plan_limits import PLAN_LIMITED_REWARDS
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.promocodes.targets import PromocodeTargets
-from app.modules.subscriptions import ReferrerLookup, SubscriptionDto, SubscriptionRepository
+from app.modules.subscriptions import (
+    ReferrerLookup,
+    SubscriptionDto,
+    SubscriptionRepository,
+    with_current_plan_labels,
+)
 from app.modules.users import UserDto
 
 
@@ -20,12 +26,14 @@ class ListPromocodeTargetsUseCase(UseCase[ListPromocodeTargetsDto, list[Subscrip
         self,
         promocode_repository: PromocodeRepository,
         subscription_repository: SubscriptionRepository,
+        plan_repository: PlanRepository,
         referrer_lookup: ReferrerLookup,
         targets: PromocodeTargets,
         uow: UnitOfWork,
     ) -> None:
         self._promocode_repository = promocode_repository
         self._subscription_repository = subscription_repository
+        self._plan_repository = plan_repository
         self._referrer_lookup = referrer_lookup
         self._targets = targets
         self._uow = uow
@@ -43,7 +51,10 @@ class ListPromocodeTargetsUseCase(UseCase[ListPromocodeTargetsDto, list[Subscrip
 
         async with self._uow:
             # EXPIRED included: days can bring one back
-            subscriptions = await self._subscription_repository.get_live_by_user(actor.id)
+            subscriptions = await with_current_plan_labels(
+                await self._subscription_repository.get_live_by_user(actor.id),
+                self._plan_repository,
+            )
         # the panel is asked outside the transaction, one at a time: a customer has a few
         return [
             subscription

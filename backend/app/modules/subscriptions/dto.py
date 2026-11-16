@@ -52,6 +52,9 @@ class PlanSnapshot:
     unlimited_from_credit_days: Optional[int] = None
     # the plan's translated names at checkout; `name` for a locale it has none for
     names: dict[Locale, str] = field(default_factory=dict)
+    # a custom emoji, and the plain glyph shown where it can't render
+    icon_emoji_id: Optional[str] = None
+    icon_emoji_fallback: Optional[str] = None
 
     def display_name(self, locale: Locale) -> str:
         return self.names.get(locale, self.name)
@@ -107,6 +110,8 @@ class PlanSnapshot:
             ),
             "unlimited_from_credit_days": self.unlimited_from_credit_days,
             "names": {locale.value: name for locale, name in self.names.items()},
+            "icon_emoji_id": self.icon_emoji_id,
+            "icon_emoji_fallback": self.icon_emoji_fallback,
         }
 
     @classmethod
@@ -141,6 +146,8 @@ class PlanSnapshot:
             ),
             unlimited_from_credit_days=data.get("unlimited_from_credit_days"),
             names={Locale(locale): name for locale, name in (data.get("names") or {}).items()},
+            icon_emoji_id=data.get("icon_emoji_id"),
+            icon_emoji_fallback=data.get("icon_emoji_fallback"),
         )
 
     @classmethod
@@ -170,6 +177,8 @@ class PlanSnapshot:
             credit_paid=price_paid,
             credit_days=duration_days,
             names=plan.localized_names(),
+            icon_emoji_id=plan.icon_emoji_id,
+            icon_emoji_fallback=plan.icon_emoji_fallback,
         )
 
 

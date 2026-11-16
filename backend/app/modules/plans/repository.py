@@ -215,6 +215,10 @@ class PlanRepository:
     async def list_active(self) -> list[PlanDto]:
         return await self._list(active_only=True)
 
+    async def list_by_ids(self, plan_ids: list[int]) -> list[PlanDto]:
+        result = await self.session.execute(select(Plan).where(in_ids(Plan.id, plan_ids)))
+        return await self._to_dtos(list(result.scalars().all()))
+
     async def _get_or_raise(self, plan_id: int) -> Plan:
         row = await self.session.get(Plan, plan_id)
         if row is None:

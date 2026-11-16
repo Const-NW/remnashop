@@ -38,6 +38,10 @@ from app.modules.subscriptions.idempotency_repository import (
     PurchaseIdempotencyRepository,
 )
 from app.modules.subscriptions.panel_squads import PanelSquadCatalog, missing_squads
+from app.modules.subscriptions.plan_labels import (
+    current_plan_snapshots,
+    with_current_plan_labels,
+)
 from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotResponse
 from app.modules.subscriptions.ports import (
     OpenOrderCounter,
@@ -121,9 +125,11 @@ __all__ = [
     "SubscriptionTrafficLimitedEvent",
     "SubscriptionTrafficThresholdEvent",
     "TorrentBlockerReportEvent",
+    "current_plan_snapshots",
     "get_owned_target",
     "get_subscriptions_providers",
     "is_unlimited_expiry",
     "missing_squads",
     "traffic_spent_for_good",
+    "with_current_plan_labels",
 ]

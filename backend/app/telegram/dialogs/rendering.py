@@ -46,6 +46,17 @@ _QUOTE_EDGE_NEWLINE_RE: Final[re.Pattern[str]] = re.compile(
 )
 
 
+def plan_title(name: str, icon_id: Optional[str], fallback: Optional[str]) -> TrustedHtml:
+    """The plan's name behind its icon: the custom emoji, its glyph where it can't render."""
+    escaped = html.escape(name)
+    if icon_id:
+        glyph = html.escape(fallback or "•")
+        return TrustedHtml(
+            f'<tg-emoji emoji-id="{html.escape(icon_id)}">{glyph}</tg-emoji> {escaped}'
+        )
+    return TrustedHtml(f"{html.escape(fallback)} {escaped}" if fallback else escaped)
+
+
 def _prepare_value(value: Any) -> Any:
     if value is None or value == "":
         return _EMPTY

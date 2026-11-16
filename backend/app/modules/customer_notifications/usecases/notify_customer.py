@@ -50,6 +50,7 @@ from app.modules.notifications import (
     plan_summary_block,
     telegram_card,
 )
+from app.modules.plans import PlanRepository
 from app.modules.settings import SettingsRepository, push_icon_path
 from app.modules.subscriptions import (
     SubscriptionChangedEvent,
@@ -65,6 +66,7 @@ from app.modules.subscriptions import (
     SubscriptionTrafficLimitedEvent,
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
+    current_plan_snapshots,
 )
 from app.modules.transactions import PaidOrderNotFulfilledEvent, TransactionRepository
 from app.modules.users import UserDto, UserRepository
@@ -125,6 +127,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         settings_repository: SettingsRepository,
         transaction_repository: TransactionRepository,
         subscription_repository: SubscriptionRepository,
+        plan_repository: PlanRepository,
         renderer_factory: NotificationRendererFactory,
         token_source: BotTokenSource,
         bot_signals: BotSignals,
@@ -141,6 +144,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         self._settings_repository = settings_repository
         self._transaction_repository = transaction_repository
         self._subscription_repository = subscription_repository
+        self._plan_repository = plan_repository
         self._renderer_factory = renderer_factory
         self._token_source = token_source
         self._bot_signals = bot_signals
@@ -287,7 +291,11 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         subscription = await self._find_subscription(data.subscription_id)
         if subscription is None:
             return data
-        name = subscription.plan_snapshot.display_name(locale)
+        async with self._uow:
+            (snapshot,) = await current_plan_snapshots(
+                [subscription.plan_snapshot], self._plan_repository
+            )
+        name = snapshot.display_name(locale)
         return replace(data, args={**data.args, "plan_name": name})
 
     async def _queue(

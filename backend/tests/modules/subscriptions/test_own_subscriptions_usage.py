@@ -7,6 +7,7 @@ from remnapy import RemnawaveSDK
 
 from app.core.db.uow import UnitOfWork
 from app.core.utils.time import datetime_now
+from app.modules.plans import PlanRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto, PanelActivityDto, SubscriptionDto
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usage import PanelTrafficUsage
@@ -41,7 +42,10 @@ async def test_reports_used_traffic_from_the_panel(
     assert actor is not None
     remnawave_store[78001] = _panel_user(78001, 5_000_000)
     use_case = ListOwnSubscriptionsUsageUseCase(
-        subscription_repository, PanelTrafficUsage(remnawave_sdk), uow
+        subscription_repository,
+        PlanRepository(subscription_repository.session),
+        PanelTrafficUsage(remnawave_sdk),
+        uow,
     )
 
     result = await use_case(actor)
@@ -72,7 +76,10 @@ async def test_a_panel_miss_leaves_used_traffic_empty(
     assert actor is not None
     remnawave_store[78011] = _panel_user(78011, 42)
     use_case = ListOwnSubscriptionsUsageUseCase(
-        subscription_repository, PanelTrafficUsage(remnawave_sdk), uow
+        subscription_repository,
+        PlanRepository(subscription_repository.session),
+        PanelTrafficUsage(remnawave_sdk),
+        uow,
     )
 
     result = await use_case(actor)

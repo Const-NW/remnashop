@@ -8,6 +8,7 @@ from app.core.enums import Locale
 from app.modules.banners.usecases import GetBannerForDisplayUseCase
 from app.modules.dialogs import catalog
 from app.modules.dialogs.flows.menu import register_menu_metadata
+from app.modules.plans import PlanRepository
 from app.modules.subscriptions import GetAvailableTrialUseCase
 from app.modules.subscriptions.usecases import (
     ListOwnActiveSubscriptionsUseCase,
@@ -88,9 +89,11 @@ async def test_menu_getter_includes_rendered_buttons(
             banner_repository, TranslationRepository(banner_repository.session), uow
         ),
         list_own_active_subscriptions=ListOwnActiveSubscriptionsUseCase(
-            subscription_repository, uow
+            subscription_repository, PlanRepository(subscription_repository.session), uow
         ),
-        list_own_subscriptions=ListOwnSubscriptionsUseCase(subscription_repository, uow),
+        list_own_subscriptions=ListOwnSubscriptionsUseCase(
+            subscription_repository, PlanRepository(subscription_repository.session), uow
+        ),
         get_available_trial=get_available_trial,
         get_cabinet_auth_settings=MagicMock(
             system=AsyncMock(return_value=MagicMock(telegram_enabled=True))
@@ -154,9 +157,11 @@ async def test_menu_getter_passes_name_variable_to_menu_text(
             banner_repository, TranslationRepository(banner_repository.session), uow
         ),
         list_own_active_subscriptions=ListOwnActiveSubscriptionsUseCase(
-            subscription_repository, uow
+            subscription_repository, PlanRepository(subscription_repository.session), uow
         ),
-        list_own_subscriptions=ListOwnSubscriptionsUseCase(subscription_repository, uow),
+        list_own_subscriptions=ListOwnSubscriptionsUseCase(
+            subscription_repository, PlanRepository(subscription_repository.session), uow
+        ),
         get_available_trial=get_available_trial,
         get_cabinet_auth_settings=MagicMock(
             system=AsyncMock(return_value=MagicMock(telegram_enabled=True))

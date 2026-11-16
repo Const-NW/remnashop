@@ -20,7 +20,12 @@ from app.modules.subscriptions import (
 from app.modules.transactions import QuoteCheckoutUseCase
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import selected_subscription_id
-from app.telegram.dialogs.rendering import TrustedHtml, label_with_icon, render_window_text
+from app.telegram.dialogs.rendering import (
+    TrustedHtml,
+    label_with_icon,
+    plan_title,
+    render_window_text,
+)
 from app.telegram.i18n import (
     format_expiry,
     format_period,
@@ -76,19 +81,8 @@ async def _target(
     return next((s for s in owned if s.id == target_id), None)
 
 
-def _plan_title(name: str, icon_id: Optional[str], fallback: Optional[str]) -> TrustedHtml:
-    """The plan's name behind its icon: the custom emoji, its glyph where it can't render."""
-    escaped = html.escape(name)
-    if icon_id:
-        glyph = html.escape(fallback or "•")
-        return TrustedHtml(
-            f'<tg-emoji emoji-id="{html.escape(icon_id)}">{glyph}</tg-emoji> {escaped}'
-        )
-    return TrustedHtml(f"{html.escape(fallback)} {escaped}" if fallback else escaped)
-
-
 def _catalog_plan_title(plan: CatalogPlanDto) -> TrustedHtml:
-    return _plan_title(plan.name, plan.icon_emoji_id, plan.icon_emoji_fallback)
+    return plan_title(plan.name, plan.icon_emoji_id, plan.icon_emoji_fallback)
 
 
 def _plan_details(runner: TranslatorRunner, plan: CatalogPlanDto, period: str = "") -> TrustedHtml:
@@ -343,7 +337,7 @@ async def confirm_getter(
             runner,
             "msg-purchase-confirm",
             purchase_type=purchase_type.value,
-            plan_name=_plan_title(
+            plan_name=plan_title(
                 data["plan_name"], data.get("plan_icon_id"), data.get("plan_icon_fallback")
             ),
             traffic_limit=traffic_limit,
