@@ -772,7 +772,9 @@ async def test_recall_deletes_and_marks(
 ) -> None:
     ids = await _customers(session, user_repository, 9730, 2)
     broadcast = await _sending(broadcast_repository, ids)
-    for recipient, message_id in zip(await _recipients(session, broadcast.id), (11, 12)):
+    for recipient, message_id in zip(
+        await _recipients(session, broadcast.id), (11, 12), strict=True
+    ):
         await broadcast_repository.mark_recipient(
             recipient.id, BroadcastRecipientStatus.SENT, message_id=message_id
         )

@@ -30,5 +30,5 @@ class ListOwnSubscriptionsUsageUseCase(UseCase[None, list[OwnSubscriptionUsageDt
         used = await asyncio.gather(*(self._usage.used_traffic(s) for s in subscriptions))
         return [
             OwnSubscriptionUsageDto(subscription=s, used_traffic=u)
-            for s, u in zip(subscriptions, used)
+            for s, u in zip(subscriptions, used, strict=True)
         ]

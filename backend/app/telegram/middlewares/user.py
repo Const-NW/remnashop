@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, ClassVar
 
 from aiogram.enums import ChatType
 from aiogram.types import Chat, TelegramObject
@@ -27,7 +27,7 @@ from app.telegram.notice import answer_notice
 
 
 class UserMiddleware(EventTypedMiddleware):
-    __event_types__ = [
+    __event_types__: ClassVar[list[MiddlewareEventType]] = [
         MiddlewareEventType.MESSAGE,
         MiddlewareEventType.CALLBACK_QUERY,
     ]
@@ -114,7 +114,10 @@ class DialogUserMiddleware(EventTypedMiddleware):
     # a background dialog start (bg manager) carries only a user id, no message to
     # register from; an error raised before UserMiddleware ran (aiogram-dialog's
     # UnknownIntent) reaches the error handlers without one too
-    __event_types__ = [MiddlewareEventType.AIOGD_UPDATE, MiddlewareEventType.ERROR]
+    __event_types__: ClassVar[list[MiddlewareEventType]] = [
+        MiddlewareEventType.AIOGD_UPDATE,
+        MiddlewareEventType.ERROR,
+    ]
 
     async def middleware_logic(
         self,

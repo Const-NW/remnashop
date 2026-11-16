@@ -664,10 +664,10 @@ async def test_list_paginated_excludes_deleted_by_default(
     )
     await subscription_repository.mark_deleted(dead.id)
 
-    items, total = await subscription_repository.list_paginated(status=None)
+    items, _ = await subscription_repository.list_paginated(status=None)
     assert dead.id not in [item.id for item in items]
 
-    deleted_items, deleted_total = await subscription_repository.list_paginated(
+    deleted_items, _ = await subscription_repository.list_paginated(
         status=SubscriptionStatus.DELETED
     )
     assert dead.id in [item.id for item in deleted_items]

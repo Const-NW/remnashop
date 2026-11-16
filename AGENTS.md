@@ -228,7 +228,7 @@ Feature-Sliced Design: `app/` (providers, router, styles) → `pages/` → `widg
 
 ## Typing
 
-Optional values use `typing.Optional[X]`, never PEP 604's `X | None`; other unions use `typing.Union[X, Y]`, not `X | Y`. Applies to backend Python code only (`ruff` has no rule to enforce this direction — it's discipline, not lint-enforced).
+Optional values use `typing.Optional[X]`, never PEP 604's `X | None`; other unions use `typing.Union[X, Y]`, not `X | Y`. Applies to backend Python code only (`ruff` has no rule for this direction; `tests/test_typing_style.py` checks every annotation).
 
 ## Constants
 

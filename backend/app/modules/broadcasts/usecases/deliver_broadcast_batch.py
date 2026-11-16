@@ -166,7 +166,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
                 broadcast_id,
                 [
                     (recipient, outcome)
-                    for recipient, outcome in zip(group, outcomes)
+                    for recipient, outcome in zip(group, outcomes, strict=True)
                     if not isinstance(outcome, BaseException)
                 ],
             )

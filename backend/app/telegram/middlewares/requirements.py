@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Final, Optional
+from typing import Any, Awaitable, Callable, ClassVar, Final, Optional
 
 from aiogram import Bot
 from aiogram.enums import ParseMode
@@ -99,7 +99,7 @@ async def is_channel_member(
 
 
 class RequirementsMiddleware(EventTypedMiddleware):
-    __event_types__ = [
+    __event_types__: ClassVar[list[MiddlewareEventType]] = [
         MiddlewareEventType.MESSAGE,
         MiddlewareEventType.CALLBACK_QUERY,
     ]

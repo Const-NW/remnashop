@@ -323,7 +323,7 @@ async def test_update_keeps_db_unchanged_when_panel_fails(
     user = await user_repository.create(CreateUserDto(name="buyer", telegram_id=9502))
     created = await subscription_repository.create(_create_dto(user.id, 9502))  # no panel user
 
-    with pytest.raises(Exception):
+    with pytest.raises(KeyError):  # the fake panel has no such user
         await _update_use_case(subscription_repository, remnawave_sdk, event_publisher, uow)(
             OWNER, UpdateSubscriptionDto(subscription_id=created.id, traffic_limit=999)
         )

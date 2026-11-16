@@ -636,7 +636,7 @@ async def test_adjust_set_price_scales_or_resets_pins(
     event_publisher: EventPublisher,
 ) -> None:
     await pricing_repository.get_rate_table()
-    plan, addon = await _seed_catalog(plan_repository, addon_repository)
+    plan, _ = await _seed_catalog(plan_repository, addon_repository)
     await plan_repository.set_price_override(
         SetPlanPriceOverrideDto(
             plan_id=plan.id, days=30, currency=Currency.RUB, price=Decimal("250")

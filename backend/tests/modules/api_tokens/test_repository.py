@@ -12,13 +12,13 @@ async def _create(
     *,
     name: str = "ci-script",
     token_hash: str = "hash-1",
-    scopes: list[str] = [Permission.BANNERS_UPLOAD.value],
+    scopes: tuple[str, ...] = (Permission.BANNERS_UPLOAD.value,),
 ) -> int:
     async with uow:
         token = await repository.create(
             CreateApiTokenDto(
                 name=name,
-                scopes=scopes,
+                scopes=list(scopes),
                 token_hash=token_hash,
                 created_by_user_id=None,
                 expires_at=None,

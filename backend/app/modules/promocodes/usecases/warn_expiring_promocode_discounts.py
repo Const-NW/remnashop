@@ -75,7 +75,9 @@ class WarnExpiringPromocodeDiscountsUseCase(UseCase[None, int]):
                 return 0
             candidate_keys = [_warned_key(promocode, user.id) for user, promocode, _ in candidates]
             warned = await self._redis.mget(candidate_keys)
-            for (user, promocode, percent), key, mark in zip(candidates, candidate_keys, warned):
+            for (user, promocode, percent), key, mark in zip(
+                candidates, candidate_keys, warned, strict=True
+            ):
                 if mark is not None:
                     continue
                 assert promocode.expires_at is not None

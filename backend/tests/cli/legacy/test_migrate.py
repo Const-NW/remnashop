@@ -471,7 +471,7 @@ async def test_preflight_rejects_old_panel(
     legacy_engine: AsyncEngine, legacy_at: LegacyAt, config: AppConfig
 ) -> None:
     await legacy_at(legacy_engine, LEGACY_HEAD)
-    with pytest.raises(LegacyMigrationError, match="3.x"):
+    with pytest.raises(LegacyMigrationError, match=r"3\.x"):
         await preflight(legacy_engine, sdk=_panel("2.7.0"), crypt_key=_crypt_key(config))
 
 

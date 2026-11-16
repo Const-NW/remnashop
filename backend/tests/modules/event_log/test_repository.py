@@ -135,7 +135,7 @@ async def test_list_filters_by_date_range(event_log_repository: EventLogReposito
     await event_log_repository.create(_entry(occurred_at=now - timedelta(days=10)))
     await event_log_repository.create(_entry(occurred_at=now))
 
-    items, total = await event_log_repository.list(occurred_from=now - timedelta(days=1))
+    _, total = await event_log_repository.list(occurred_from=now - timedelta(days=1))
 
     assert total == 1
 
@@ -179,7 +179,7 @@ async def test_create_with_outbox_id_is_idempotent(
 
     assert first is not None
     assert second is None
-    items, total = await event_log_repository.list()
+    _, total = await event_log_repository.list()
     assert total == 1
 
 

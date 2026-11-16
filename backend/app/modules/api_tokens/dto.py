@@ -2,13 +2,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
+from pydantic import Field
+
 from app.core.dto import BaseDto, TimestampMixin
 
 
 class ApiTokenDto(BaseDto, TimestampMixin):
     name: str
     scopes: list[str]
-    ip_allowlist: list[str] = []
+    ip_allowlist: list[str] = Field(default_factory=list)
     created_by_user_id: Optional[int] = None
     last_used_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None

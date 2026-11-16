@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from aiogram.enums import ChatType
 from aiogram.types import Chat, Message
@@ -32,7 +32,7 @@ class _FakeRunner:
 
 
 class _FakeHub:
-    translators_map = {"en": [], "ru": []}
+    translators_map: ClassVar[dict[str, list[Any]]] = {"en": [], "ru": []}
     root_locale = "en"
 
     def get_translator_by_locale(self, locale: str) -> _FakeRunner:

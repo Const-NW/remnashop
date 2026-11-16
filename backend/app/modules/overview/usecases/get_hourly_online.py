@@ -28,5 +28,7 @@ class GetHourlyOnlineUseCase(UseCase[None, HourlyOnlineDto]):
         peaks = await read_hourly_online_peaks(self._redis, hours)
         return HourlyOnlineDto(
             current=await read_latest_online(self._redis),
-            points=[HourlyOnlinePointDto(hour=h, peak=p) for h, p in zip(hours, peaks)],
+            points=[
+                HourlyOnlinePointDto(hour=h, peak=p) for h, p in zip(hours, peaks, strict=True)
+            ],
         )

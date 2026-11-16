@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import pytest
 from redis.asyncio import Redis
@@ -19,7 +19,7 @@ class _Runner:
 
 
 class _Hub:
-    translators_map = {"en": [], "ru": []}
+    translators_map: ClassVar[dict[str, list[Any]]] = {"en": [], "ru": []}
     root_locale = "en"
 
     def __init__(self) -> None:

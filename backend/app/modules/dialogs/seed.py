@@ -21,7 +21,9 @@ async def ensure_dialogs_seeded(
         # Earlier seeds stored a dotted key as a message id of its own, which
         # shadows the real row everywhere the two are looked up by joined key.
         dotted = [
-            text_key for text_key, (_, attribute_id, _) in zip(text_keys, rows) if attribute_id
+            text_key
+            for text_key, (_, attribute_id, _) in zip(text_keys, rows, strict=True)
+            if attribute_id
         ]
         for locale in locales:
             await translation_repository.seed_missing_many(locale, rows)

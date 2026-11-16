@@ -404,7 +404,7 @@ async def test_verify_authentication_rejects_unknown_challenge(
         "clientExtensionResults": {},
     }
 
-    with pytest.raises(AuthenticationError, match="[Cc]hallenge"):
+    with pytest.raises(AuthenticationError, match=r"[Cc]hallenge"):
         await use_case.execute(credential, CLIENT_IP, USER_AGENT)
 
 

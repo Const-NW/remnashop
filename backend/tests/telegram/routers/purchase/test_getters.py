@@ -63,7 +63,7 @@ def _quote(price: str, percent: int = 0, source: DiscountSource = DiscountSource
 
 
 async def _durations(
-    dialog_data: dict, catalog: PlanCatalogDto, quote: AsyncMock, owned: list | None = None
+    dialog_data: dict, catalog: PlanCatalogDto, quote: AsyncMock, owned: Optional[list] = None
 ) -> dict:
     return await duration_getter.__dishka_orig_func__(
         _manager(dialog_data),

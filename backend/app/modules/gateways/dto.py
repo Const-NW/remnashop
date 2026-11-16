@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from pydantic import Field
+
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import PaymentGatewayType
 
@@ -9,7 +11,7 @@ class PaymentGatewayDto(BaseDto, TimestampMixin):
     order_index: int = 0
     is_active: bool = False
     is_configured: bool = False
-    flags: dict[str, bool] = {}
+    flags: dict[str, bool] = Field(default_factory=dict)
 
 
 @dataclass(frozen=True, kw_only=True)

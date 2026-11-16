@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, ClassVar, Optional
 
 from aiogram.types import TelegramObject
 from dishka import AsyncContainer
@@ -13,7 +13,7 @@ from app.telegram.notice import answer_notice
 
 
 class BlacklistMiddleware(EventTypedMiddleware):
-    __event_types__ = [
+    __event_types__: ClassVar[list[MiddlewareEventType]] = [
         MiddlewareEventType.MESSAGE,
         MiddlewareEventType.CALLBACK_QUERY,
     ]

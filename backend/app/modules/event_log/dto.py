@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Final, Optional
 
+from pydantic import Field
+
 from app.core.constants import DEFAULT_PAGE_SIZE
 from app.core.dto import BaseDto
 from app.core.events import EventCategory
@@ -21,7 +23,7 @@ class EventLogEntryDto(BaseDto):
 
     ip_address: Optional[str] = None
 
-    payload: dict[str, Any] = {}
+    payload: dict[str, Any] = Field(default_factory=dict)
 
     outbox_id: Optional[int] = None
     target_id: Optional[int] = None

@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Final, Optional, cast
+from typing import Any, Awaitable, Callable, ClassVar, Final, Optional, cast
 
 from aiogram.types import Message, TelegramObject
 from dishka import AsyncContainer
@@ -20,7 +20,7 @@ def _parse_command(text: Optional[str]) -> Optional[str]:
 
 
 class CommandGateMiddleware(EventTypedMiddleware):
-    __event_types__ = [MiddlewareEventType.MESSAGE]
+    __event_types__: ClassVar[list[MiddlewareEventType]] = [MiddlewareEventType.MESSAGE]
 
     async def middleware_logic(
         self,

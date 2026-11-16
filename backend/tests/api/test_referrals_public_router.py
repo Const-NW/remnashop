@@ -194,7 +194,6 @@ async def test_api_token_cannot_use_customer_endpoints(
     # An API token is a staff credential with no customer identity behind it:
     # reaching a self-service route lands as user_id=0 and fails on a foreign
     # key instead of a clear refusal.
-    referrer_user, _ = referrer
     secret = "test-api-token-secret"
     async with uow:
         await api_token_repository.create(
