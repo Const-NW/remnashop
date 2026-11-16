@@ -70,6 +70,7 @@ class CabinetOAuthAuthorizeUseCase:
             binding_hash=binding_hash,
             referral_code=codes.referral_code,
             ad_link_code=codes.ad_link_code,
+            first_touch=codes.first_touch,
         )
         redirect_uri = build_cabinet_redirect_uri(cabinet_url, provider)
         try:

@@ -1,4 +1,5 @@
 import time
+from dataclasses import replace
 from typing import Optional
 
 from app.core.constants import TTL_7D
@@ -10,7 +11,7 @@ from app.modules.auth import IssuedSession
 from app.modules.cabinet_auth.init_data import codes_from_start_param, verify_init_data
 from app.modules.cabinet_auth.sign_in import CabinetSignIn
 from app.modules.settings import SettingsRepository
-from app.modules.users import UserDto
+from app.modules.users import FirstTouchDto, UserDto
 
 
 class TelegramWebAppLoginUseCase:
@@ -27,6 +28,7 @@ class TelegramWebAppLoginUseCase:
         client_ip: str,
         user_agent: Optional[str],
         legal_locale: Optional[Locale] = None,
+        first_touch: Optional[FirstTouchDto] = None,
     ) -> tuple[UserDto, IssuedSession]:
         async with self._uow:
             cabinet = await self._settings_repository.get_cabinet_auth_settings()
@@ -38,7 +40,8 @@ class TelegramWebAppLoginUseCase:
         data = verify_init_data(init_data, bot.token.get_secret_value(), int(time.time()))
         return await self._sign_in.telegram(
             data.profile,
-            codes_from_start_param(data.start_param),
+            # initData carries the codes; first_touch is the client's own, unsigned
+            replace(codes_from_start_param(data.start_param), first_touch=first_touch),
             client_ip,
             user_agent,
             # the Mini App signs in again with initData whenever its access token

@@ -294,6 +294,21 @@ class PromoteToAdminDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class FirstTouchDto:
+    """What the cabinet's browser saw on the customer's first visit; unverified."""
+
+    landing_url: Optional[str] = None
+    referer: Optional[str] = None
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    utm_content: Optional[str] = None
+    utm_term: Optional[str] = None
+    click_id: Optional[str] = None
+    platform: Optional[str] = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class RegistrationSnapshotDto:
     source: RegistrationSource
     start_payload: Optional[str] = None
@@ -301,6 +316,7 @@ class RegistrationSnapshotDto:
     telegram_is_premium: Optional[bool] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
+    first_touch: Optional[FirstTouchDto] = None
 
 
 class UserRegistrationDto(BaseDto):
@@ -310,6 +326,15 @@ class UserRegistrationDto(BaseDto):
     telegram_is_premium: Optional[bool] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
+    landing_url: Optional[str] = None
+    referer: Optional[str] = None
+    utm_source: Optional[str] = None
+    utm_medium: Optional[str] = None
+    utm_campaign: Optional[str] = None
+    utm_content: Optional[str] = None
+    utm_term: Optional[str] = None
+    click_id: Optional[str] = None
+    platform: Optional[str] = None
     created_at: datetime
 
     @property

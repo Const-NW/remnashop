@@ -228,6 +228,27 @@ async def test_mini_app_sign_in_lives_seven_days(
     assert TTL_7D - 60 <= lifetime <= TTL_7D + 60
 
 
+async def test_mini_app_records_its_platform(
+    client: httpx.AsyncClient,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+) -> None:
+    await _enable_telegram(settings_repository, uow)
+
+    response = await client.post(
+        f"{API_V1}/auth/telegram",
+        json={"init_data": _signed_init_data(), "first_touch": {"platform": "ios"}},
+    )
+
+    assert response.status_code == 200
+    async with uow:
+        user = await _user_by_telegram_id(uow, 9302)
+        registration = await user_repository.find_registration(user.id)
+    assert registration is not None
+    assert registration.platform == "ios"
+
+
 async def test_other_cabinet_sign_ins_keep_thirty_days(sign_in: CabinetSignIn) -> None:
     _, issued = await _sign_in(sign_in)
 

@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
@@ -38,6 +38,7 @@ from app.modules.cabinet_auth.api.schemas import (
     CabinetAuthResponse,
     CabinetMethodsResponse,
     DeeplinkResponse,
+    FirstTouchRequest,
     InviteCodesRequest,
     OAuthAuthorizeRequest,
     OAuthAuthorizeResponse,
@@ -70,9 +71,31 @@ from app.modules.oauth import (
     OAuthLoginCallbackUseCase,
     OAuthStateStore,
 )
-from app.modules.users import UserDto
+from app.modules.users import FirstTouchDto, UserDto
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _first_touch(body: Optional[FirstTouchRequest]) -> Optional[FirstTouchDto]:
+    if body is None:
+        return None
+    return FirstTouchDto(
+        landing_url=body.landing_url,
+        referer=body.referer,
+        utm_source=body.utm_source,
+        utm_medium=body.utm_medium,
+        utm_campaign=body.utm_campaign,
+        utm_content=body.utm_content,
+        utm_term=body.utm_term,
+        click_id=body.click_id,
+        platform=body.platform,
+    )
+
+
+def _invite_codes(
+    ref: Optional[str], ad: Optional[str], first_touch: Optional[FirstTouchRequest]
+) -> InviteCodesDto:
+    return InviteCodesDto(referral_code=ref, ad_link_code=ad, first_touch=_first_touch(first_touch))
 
 
 @router.get(
@@ -109,6 +132,7 @@ async def cabinet_telegram_login(
             resolve_client_ip(request),
             request.headers.get("user-agent"),
             body.legal_locale,
+            _first_touch(body.first_touch),
         )
     except AppError as error:
         if error.code in TELEGRAM_FAILURES:
@@ -131,7 +155,7 @@ async def cabinet_email_code(
     await use_case.execute(
         body.email,
         body.locale,
-        InviteCodesDto(referral_code=body.ref, ad_link_code=body.ad),
+        _invite_codes(body.ref, body.ad, body.first_touch),
         captcha_token=body.captcha_token,
         client_ip=resolve_client_ip(request),
     )
@@ -184,7 +208,7 @@ async def cabinet_telegram_deeplink(
     use_case: FromDishka[RequestDeeplinkUseCase],
     config: FromDishka[AppConfig],
 ) -> DeeplinkResponse:
-    ticket = await use_case.execute(InviteCodesDto(referral_code=body.ref, ad_link_code=body.ad))
+    ticket = await use_case.execute(_invite_codes(body.ref, body.ad, body.first_touch))
     if ticket.binding is not None:
         set_oauth_binding_cookie(
             response,
@@ -257,7 +281,7 @@ async def oauth_authorize(
         audience = SessionAudience.DASHBOARD
     else:
         url, binding = await cabinet.execute(
-            provider, InviteCodesDto(referral_code=body.ref, ad_link_code=body.ad)
+            provider, _invite_codes(body.ref, body.ad, body.first_touch)
         )
         audience = SessionAudience.CABINET
     set_oauth_binding_cookie(response, binding, config.secure_cookies, audience)

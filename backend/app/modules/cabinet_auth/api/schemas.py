@@ -1,10 +1,13 @@
-from typing import Literal, Optional
+from typing import Final, Literal, Optional
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import EMAIL_PATTERN
 from app.core.enums import CaptchaProvider, Locale, Role
 from app.core.utils.validators import known_locale
+
+_WEB_SCHEMES: Final[frozenset[str]] = frozenset({"http", "https"})
 
 
 class CaptchaWidgetResponse(BaseModel):
@@ -32,9 +35,30 @@ class CabinetAuthResponse(BaseModel):
     expires_in: int
 
 
+class FirstTouchRequest(BaseModel):
+    landing_url: Optional[str] = Field(None, max_length=512)
+    referer: Optional[str] = Field(None, max_length=512)
+    utm_source: Optional[str] = Field(None, max_length=128)
+    utm_medium: Optional[str] = Field(None, max_length=128)
+    utm_campaign: Optional[str] = Field(None, max_length=128)
+    utm_content: Optional[str] = Field(None, max_length=128)
+    utm_term: Optional[str] = Field(None, max_length=128)
+    click_id: Optional[str] = Field(None, max_length=256)
+    platform: Optional[str] = Field(None, max_length=32)
+
+    @field_validator("landing_url", "referer")
+    @classmethod
+    def _web_url(cls, value: Optional[str]) -> Optional[str]:
+        # dropped rather than refused: a bad hint must not fail the sign-in
+        if value is not None and urlsplit(value).scheme not in _WEB_SCHEMES:
+            return None
+        return value
+
+
 class TelegramWebAppLoginRequest(BaseModel):
     init_data: str = Field(max_length=4096)
     legal_locale: Optional[Locale] = None
+    first_touch: Optional[FirstTouchRequest] = None
 
     _legal_locale = field_validator("legal_locale", mode="before")(known_locale)
 
@@ -44,6 +68,7 @@ class RequestEmailCodeRequest(BaseModel):
     locale: Locale = Locale.EN
     ref: Optional[str] = Field(None, max_length=64)
     ad: Optional[str] = Field(None, max_length=64)
+    first_touch: Optional[FirstTouchRequest] = None
     captcha_token: Optional[str] = Field(None, max_length=4096)
 
 
@@ -65,6 +90,7 @@ class VerifyEmailCodeRequest(BaseModel):
 class InviteCodesRequest(BaseModel):
     ref: Optional[str] = Field(None, max_length=64)
     ad: Optional[str] = Field(None, max_length=64)
+    first_touch: Optional[FirstTouchRequest] = None
 
 
 class DeeplinkResponse(BaseModel):
@@ -76,6 +102,7 @@ class OAuthAuthorizeRequest(BaseModel):
     audience: Literal["dashboard", "cabinet"]
     ref: Optional[str] = Field(None, max_length=64)
     ad: Optional[str] = Field(None, max_length=64)
+    first_touch: Optional[FirstTouchRequest] = None
 
 
 class OAuthAuthorizeResponse(BaseModel):

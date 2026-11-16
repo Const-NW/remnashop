@@ -38,6 +38,7 @@ from app.core.utils.time import datetime_now
 from app.modules.users.dto import (
     CreateUserDto,
     DeletedFilter,
+    FirstTouchDto,
     PromoteAdminDto,
     RegistrationSnapshotDto,
     UpdateUserDto,
@@ -600,6 +601,7 @@ class UserRepository:
 
     async def add_registration(self, user_id: int, snapshot: RegistrationSnapshotDto) -> None:
         language = snapshot.telegram_language_code
+        touch = snapshot.first_touch or FirstTouchDto()
         self.session.add(
             UserRegistration(
                 user_id=user_id,
@@ -610,6 +612,15 @@ class UserRepository:
                 ip_address=snapshot.ip_address,
                 # browsers send whatever they like; the column has a bound
                 user_agent=snapshot.user_agent[:512] if snapshot.user_agent else None,
+                landing_url=touch.landing_url,
+                referer=touch.referer,
+                utm_source=touch.utm_source,
+                utm_medium=touch.utm_medium,
+                utm_campaign=touch.utm_campaign,
+                utm_content=touch.utm_content,
+                utm_term=touch.utm_term,
+                click_id=touch.click_id,
+                platform=touch.platform,
             )
         )
         await self.session.flush()

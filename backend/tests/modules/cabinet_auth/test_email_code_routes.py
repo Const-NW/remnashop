@@ -267,3 +267,38 @@ async def test_alias_code_signs_in_its_owner(
     response = await client.post(_VERIFY_URL, json={"email": "ivan+x@mail.ru", "code": code})
 
     assert response.status_code == 200
+
+
+async def test_first_touch_reaches_the_registration_snapshot(
+    client: httpx.AsyncClient,
+    email_dispatch: RecordingDispatch,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+) -> None:
+    first_touch = {
+        "landing_url": "https://cabinet.example.com/?utm_source=vk",
+        "referer": "javascript:alert(1)",
+        "utm_source": "vk",
+        "utm_campaign": "spring",
+        "click_id": "yclid:42",
+    }
+    response = await client.post(
+        _CODE_URL, json={"email": "touch@mail.ru", "first_touch": first_touch}
+    )
+    assert response.status_code == 204
+    code = _code_of(email_dispatch)
+    verified = await client.post(_VERIFY_URL, json={"email": "touch@mail.ru", "code": code})
+    assert verified.status_code == 200
+
+    async with uow:
+        user = await user_repository.find_by_email("touch@mail.ru")
+        assert user is not None
+        registration = await user_repository.find_registration(user.id)
+    assert registration is not None
+    assert registration.landing_url == first_touch["landing_url"]
+    assert registration.referer is None
+    assert (registration.utm_source, registration.utm_campaign, registration.click_id) == (
+        "vk",
+        "spring",
+        "yclid:42",
+    )

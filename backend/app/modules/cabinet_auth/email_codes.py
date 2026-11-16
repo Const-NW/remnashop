@@ -18,7 +18,7 @@ from app.core.utils.rate_counter import hit_counter, release_counter
 from app.modules.cabinet_auth.dto import EmailCodeGrantDto, InviteCodesDto
 from app.modules.cabinet_auth.events import EmailCodeAttemptsExhaustedEvent
 from app.modules.settings import CabinetAuthSettingsDto, SettingsRepository
-from app.modules.users import UserRepository
+from app.modules.users import FirstTouchDto, UserRepository
 
 _MAX_ATTEMPTS: Final[int] = 5
 _FAIL_PREFIX: Final[str] = f"{REDIS_KEY_PREFIX}cabinet:email_code_fail:"
@@ -35,6 +35,7 @@ class _EmailCodeRecord:
     referral_code: Optional[str]
     ad_link_code: Optional[str]
     locale: Locale
+    first_touch: Optional[FirstTouchDto] = None
 
 
 _RECORD_ADAPTER: Final[TypeAdapter[_EmailCodeRecord]] = TypeAdapter(_EmailCodeRecord)
@@ -96,6 +97,7 @@ class EmailCodeStore:
             referral_code=codes.referral_code,
             ad_link_code=codes.ad_link_code,
             locale=locale,
+            first_touch=codes.first_touch,
         )
         key = f"{self.key_prefix}{email_hash}"
         async with self._redis.pipeline(transaction=True) as pipe:
@@ -124,7 +126,9 @@ class EmailCodeStore:
                 raise EmailCodeExpired
             return EmailCodeGrantDto(
                 codes=InviteCodesDto(
-                    referral_code=record.referral_code, ad_link_code=record.ad_link_code
+                    referral_code=record.referral_code,
+                    ad_link_code=record.ad_link_code,
+                    first_touch=record.first_touch,
                 ),
                 locale=record.locale,
                 recipient=record.recipient,

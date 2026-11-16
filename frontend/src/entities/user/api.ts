@@ -216,6 +216,15 @@ export interface RegistrationSnapshot {
   ip_address: string | null;
   user_agent: string | null;
   browser: string | null;
+  landing_url: string | null;
+  referer: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  click_id: string | null;
+  platform: string | null;
   created_at: string;
 }
 
