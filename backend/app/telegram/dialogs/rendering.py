@@ -11,6 +11,7 @@ from fluentogram import TranslatorRunner
 from fluentogram.exceptions import KeyNotFoundError
 from loguru import logger
 
+from app.core.enums import ButtonLinkType
 from app.core.utils.telegram_text import (
     PREMIUM_EMOJI_RE,
     TELEGRAM_CAPTION_LIMIT,
@@ -247,6 +248,17 @@ async def render_dialog_buttons(
             condition = catalog.get_condition(button.visibility_condition)
             if not condition(getter_data):
                 continue
+        url_value = _resolve_variables(button.url_value, getter_data)
+        link_type = button.link_type
+        cabinet_url = getter_data.get("cabinet_url")
+        if (
+            link_type == ButtonLinkType.WEB_APP
+            and cabinet_url
+            and url_value
+            and url_value.startswith(cabinet_url)
+            and not getter_data.get("cabinet_webapp")
+        ):
+            link_type = ButtonLinkType.URL
         rows.setdefault(button.row, []).append(
             {
                 "id": button.id,
@@ -256,10 +268,10 @@ async def render_dialog_buttons(
                 "icon_custom_emoji_id": _optional_translation(
                     runner, catalog.icon_id_text_key(button.text_key)
                 ),
-                "link_type": button.link_type,
+                "link_type": link_type,
                 "action_key": button.action_key,
                 "target_window_key": button.target_window_key,
-                "url_value": _resolve_variables(button.url_value, getter_data),
+                "url_value": url_value,
             }
         )
     return [rows[row] for row in sorted(rows)]
