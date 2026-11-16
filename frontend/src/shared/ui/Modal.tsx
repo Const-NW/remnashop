@@ -55,8 +55,9 @@ async function morphPanels(
   delete child.dataset.morphing;
   animations.forEach((animation) => animation.cancel());
 
-  // Safari can keep painting the clip of the morph's first frame on the panel; a clip change a frame later repaints it
-  child.style.clipPath = `inset(0 ${PANEL_CLIP_RADIUS})`;
+  // Safari can keep painting the clip of the morph's first frame on the panel; a clip change a frame later
+  // repaints it. Negative inset: a clip at the border box would cut the panel's shadow for those frames.
+  child.style.clipPath = "inset(-100vmax)";
   requestAnimationFrame(() => requestAnimationFrame(() => (child.style.clipPath = "")));
 }
 
