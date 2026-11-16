@@ -47,6 +47,12 @@ async def verify_captcha(
             reply = await _siteverify(_VERIFY_URLS[cabinet.captcha_provider], form)
             if _passed(reply, hostname):
                 return
+            details = reply if isinstance(reply, dict) else {}
+            logger.warning(
+                f"Captcha rejected by '{cabinet.captcha_provider}': "
+                f"error_codes={details.get('error-codes')!r}, "
+                f"hostname={details.get('hostname')!r}, expected_hostname={hostname!r}"
+            )
         # an unreachable provider fails closed: the other sign-in methods don't depend on it
         except (httpx.HTTPError, ValueError) as error:
             logger.warning(f"Captcha check via '{cabinet.captcha_provider}' failed: {error!r}")
