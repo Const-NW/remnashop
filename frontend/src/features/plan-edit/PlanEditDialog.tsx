@@ -48,7 +48,7 @@ import { PlanIconPicker } from "@features/plan-edit/PlanIconPicker";
 import { PlanShareLinks } from "@features/plan-edit/PlanShareLinks";
 import { PlanSquadsField } from "@features/plan-edit/PlanSquadsField";
 import { getErrorMessage } from "@shared/api/http";
-import { currencySymbol } from "@shared/lib/format";
+import { currencySymbol, formatMoney } from "@shared/lib/format";
 import { blockNonDecimalKeys, blockNonIntegerKeys, parseRequiredInt } from "@shared/lib/number-input";
 import { randomId } from "@shared/lib/random-string";
 import { toast } from "@shared/lib/toast";
@@ -105,6 +105,29 @@ function durationsKey(rows: DurationRow[]): string {
 }
 
 const hintClassName = "text-xs text-muted-foreground";
+
+interface DurationSavings {
+  unit: "month" | "day";
+  amount: number;
+  percent: number;
+}
+
+// what the cabinet shows the customer for a longer duration: its price per month (per day when the shortest is under
+// a month) and the per-day saving against the shortest duration, negative when it costs more
+function durationSavings(rows: DurationRow[], row: DurationRow): DurationSavings | null {
+  const priced = rows
+    .map((r) => ({ days: Number(r.days), price: Number(r.base_price) }))
+    .filter((r) => r.days > 0 && r.price > 0);
+  const days = Number(row.days);
+  const price = Number(row.base_price);
+  if (!(days > 0 && price > 0) || priced.length < 2) return null;
+  const base = priced.reduce((a, b) => (b.days < a.days ? b : a));
+  if (days <= base.days) return null;
+  // epsilon: 0.3 * 100 can land just under 30
+  const percent = Math.floor((1 - (price * base.days) / (base.price * days)) * 100 + 1e-9);
+  if (base.days >= 30) return { unit: "month", amount: (price * 30) / days, percent };
+  return { unit: "day", amount: price / days, percent };
+}
 
 // a translation without a name is dropped: that language shows the plan's own name
 function translationsPayload(drafts: Record<string, TranslationDraft>): PlanTranslation[] {
@@ -544,6 +567,8 @@ function PlanEditDialogBody({
                           <DurationRowItem
                             key={row.id}
                             row={row}
+                            savings={durationSavings(durations, row)}
+                            anchorCurrency={anchorCurrency}
                             currencySuffix={currencySuffix}
                             disabled={!canManageDurations}
                             onChange={(patch) => updateDuration(row.id, patch)}
@@ -678,18 +703,22 @@ function LimitField({
 
 function DurationRowItem({
   row,
+  savings,
+  anchorCurrency,
   currencySuffix,
   disabled,
   onChange,
   onRemove,
 }: {
   row: DurationRow;
+  savings: DurationSavings | null;
+  anchorCurrency: string | null;
   currencySuffix: string | null;
   disabled: boolean;
   onChange: (patch: Partial<DurationRow>) => void;
   onRemove: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: row.id,
     disabled,
@@ -738,6 +767,17 @@ function DurationRowItem({
       <IconButton size="9" tone="danger" disabled={disabled} onClick={onRemove}>
         <Trash2 className="size-4" />
       </IconButton>
+      {savings && anchorCurrency && (
+        <span className={`col-span-2 col-start-2 px-3 ${hintClassName}`}>
+          {t(savings.unit === "month" ? "plans.edit.perMonth" : "plans.edit.perDay", {
+            price: formatMoney(savings.amount, anchorCurrency, i18n.language, true),
+          })}
+          {savings.percent > 0 && <> · {t("plans.edit.saving", { percent: savings.percent })}</>}
+          {savings.percent < 0 && (
+            <span className="text-warning"> · {t("plans.edit.overpay", { percent: -savings.percent })}</span>
+          )}
+        </span>
+      )}
     </div>
   );
 }
