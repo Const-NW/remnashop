@@ -3,6 +3,7 @@ from datetime import datetime, time, timedelta
 from typing import Optional
 
 from aiogram import Router
+from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 from aiogram_dialog import DialogManager, ShowMode, StartMode
@@ -16,6 +17,7 @@ from remnapy.enums import TrafficLimitStrategy
 from app.core.constants import TIMEZONE, USER_KEY
 from app.core.enums import PurchaseType
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions import (
     ActivateTrialDto,
@@ -26,6 +28,7 @@ from app.modules.subscriptions import (
 )
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
+from app.telegram.dialogs.rendering import render_window_text
 from app.telegram.i18n import format_wait, get_translator
 from app.telegram.notice import answer_notice
 from app.telegram.routers.menu.getters import connect_problem, menu_subscription
@@ -50,7 +53,10 @@ async def on_paysupport_command(
     message: Message, user: UserDto, i18n: FromDishka[TranslatorHub]
 ) -> None:
     logger.info(f"{user.log} Called '/paysupport' command")
-    await message.answer(get_translator(i18n, user).get("msg-paysupport"))
+    await message.answer(
+        render_window_text(get_translator(i18n, user), "msg-paysupport"),
+        parse_mode=ParseMode.HTML,
+    )
 
 
 @inject
@@ -147,4 +153,4 @@ async def on_show_connect_problem(
         is_trial=int(subscription.is_trial),
         reset_in=format_wait(runner, reset) if reset is not None else "none",
     )
-    await callback.answer(text, show_alert=True)
+    await callback.answer(premium_emoji_glyphs(text), show_alert=True)

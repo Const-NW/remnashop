@@ -6,6 +6,7 @@ from loguru import logger
 
 from app.core.enums import Locale
 from app.core.telegram_api import BotApiRefusedError, bot_client
+from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.modules.settings.bot_commands import BOT_COMMANDS
 from app.modules.settings.dto import BotCommandDto
 
@@ -43,7 +44,7 @@ async def push_bot_commands_to_telegram(
             text, errors = bundles[lang].format(key, {})
             if errors:
                 raise errors[0]
-            return str(text)
+            return premium_emoji_glyphs(str(text))
 
         ok = True
         async with bot_client(token, proxy, timeout=_TIMEOUT_SECONDS) as bot:

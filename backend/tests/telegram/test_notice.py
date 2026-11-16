@@ -50,3 +50,17 @@ async def test_button_press_gets_a_message_instead_of_an_alert() -> None:
         42, "<i>❌ Denied.</i>", parse_mode=ParseMode.HTML, reply_markup=None
     )
     sent.delete.assert_awaited_once()
+
+
+async def test_premium_emoji_markup_becomes_a_tg_emoji() -> None:
+    message = MagicMock(spec=Message)
+    message.answer = AsyncMock(return_value=MagicMock(spec=Message, delete=AsyncMock()))
+
+    await answer_notice(message, "[🚫](emoji:5872829476143894491) Gone")
+    await _drain()
+
+    message.answer.assert_awaited_once_with(
+        '<i><tg-emoji emoji-id="5872829476143894491">🚫</tg-emoji> Gone</i>',
+        parse_mode=ParseMode.HTML,
+        reply_markup=None,
+    )

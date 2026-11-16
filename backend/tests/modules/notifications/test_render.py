@@ -130,3 +130,12 @@ def test_telegram_card_escapes_values_and_drops_empty_rows() -> None:
         "• <b>Name</b>: A&amp;B</blockquote>"
         "\n\n<blockquote>Check &lt;it&gt;</blockquote>\n\n<i>2 more</i>"
     )
+
+
+def test_telegram_card_renders_premium_emoji_markup() -> None:
+    card = telegram_card("Expired", "Renew it", emoji="[🚫](emoji:5872829476143894491)")
+
+    assert card == (
+        '<b><tg-emoji emoji-id="5872829476143894491">🚫</tg-emoji> Expired</b>\n\n'
+        "<blockquote>Renew it</blockquote>"
+    )

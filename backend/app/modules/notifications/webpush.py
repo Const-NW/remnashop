@@ -9,6 +9,7 @@ from pywebpush import WebPushException, webpush
 from app.core.constants import TTL_1D
 from app.core.db.uow import UnitOfWork
 from app.core.enums import SessionAudience
+from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.modules.notifications.dto import PushMessage, PushSubscriptionDto
 from app.modules.notifications.repository import NotificationRepository
 
@@ -37,8 +38,8 @@ class WebPushSender:
         private_key = settings.vapid_private_key.get_secret_value()
         contact = settings.vapid_contact
         fields = {
-            "title": message.title,
-            "body": message.body,
+            "title": premium_emoji_glyphs(message.title),
+            "body": premium_emoji_glyphs(message.body),
             "url": message.url,
             "tag": message.tag,
         }

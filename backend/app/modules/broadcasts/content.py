@@ -3,7 +3,7 @@ import re
 from collections.abc import Mapping
 from typing import Final
 
-from app.core.utils.telegram_text import PREMIUM_EMOJI_RE
+from app.core.utils.telegram_text import premium_emoji_html
 
 VARIABLE_RE: Final[re.Pattern[str]] = re.compile(r"\{\s*\$([a-z_]+)\s*\}")
 BROADCAST_VARIABLES: Final[frozenset[str]] = frozenset(
@@ -45,7 +45,7 @@ def _fit(name: str, value: str) -> str:
 
 
 def render_text(text: str, values: Mapping[str, str]) -> str:
-    rendered = PREMIUM_EMOJI_RE.sub(r'<tg-emoji emoji-id="\2">\1</tg-emoji>', text)
+    rendered = premium_emoji_html(text)
     return VARIABLE_RE.sub(
         lambda m: html.escape(_fit(m.group(1), values.get(m.group(1)) or EMPTY_VALUE)), rendered
     )

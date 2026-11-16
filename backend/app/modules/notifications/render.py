@@ -7,6 +7,7 @@ from fluent_compiler.bundle import FluentBundle
 from loguru import logger
 
 from app.core.enums import Locale
+from app.core.utils.telegram_text import premium_emoji_html
 
 # rendered by the test push; message_id() turns it into ntf-test
 TEST_EVENT_TYPE: Final[str] = "Test"
@@ -75,7 +76,7 @@ def telegram_card(
         lines += ["", f"<blockquote>{html.escape(quote)}</blockquote>"]
     if footer:
         lines += ["", f"<i>{html.escape(footer)}</i>"]
-    return "\n".join(lines)
+    return premium_emoji_html("\n".join(lines))
 
 
 def notification_args(

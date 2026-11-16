@@ -4,6 +4,7 @@ from dishka import FromDishka
 from fluentogram import TranslatorHub
 from loguru import logger
 
+from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.modules.transactions import (
     ConfirmStarsPaymentDispatch,
     ConfirmStarsPaymentUseCase,
@@ -36,7 +37,9 @@ async def on_pre_checkout(
     code = (query.from_user.language_code or "").split("-")[0].lower()
     locale = code if code in i18n.translators_map else i18n.root_locale
     runner = i18n.get_translator_by_locale(locale)
-    await query.answer(ok=False, error_message=runner.get("ntf-purchase.stars-rejected"))
+    await query.answer(
+        ok=False, error_message=premium_emoji_glyphs(runner.get("ntf-purchase.stars-rejected"))
+    )
 
 
 @router.message(F.successful_payment)

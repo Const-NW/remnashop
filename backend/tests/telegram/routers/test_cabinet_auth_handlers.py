@@ -38,7 +38,9 @@ class _Message:
         )
         self.sent: list[dict[str, Any]] = []
 
-    async def answer(self, text: str, reply_markup: Optional[Any] = None) -> dict[str, Any]:
+    async def answer(
+        self, text: str, reply_markup: Optional[Any] = None, parse_mode: Optional[str] = None
+    ) -> dict[str, Any]:
         sent = {"text": text, "markup": reply_markup}
         self.sent.append(sent)
         return sent

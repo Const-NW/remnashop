@@ -1,4 +1,5 @@
 from aiogram import Bot, F, Router
+from aiogram.enums import ParseMode
 from aiogram.types import (
     InlineKeyboardMarkup,
     InlineQuery,
@@ -9,6 +10,7 @@ from dishka import FromDishka
 from fluentogram import TranslatorHub
 
 from app.core.constants import INLINE_INVITE_QUERY
+from app.core.utils.telegram_text import plain_to_html, premium_emoji_glyphs
 from app.modules.referrals import GetOwnReferralStatsUseCase, GetReferralSettingsUseCase
 from app.modules.users import FindTelegramUserUseCase
 from app.telegram.dialogs.rendering import label_with_icon
@@ -43,10 +45,13 @@ async def on_invite_query(
         [
             InlineQueryResultArticle(
                 id=stats.referral_code,
-                title=runner.get("inline-invite.title"),
-                description=runner.get("inline-invite.description"),
+                title=premium_emoji_glyphs(runner.get("inline-invite.title")),
+                description=premium_emoji_glyphs(runner.get("inline-invite.description")),
                 input_message_content=InputTextMessageContent(
-                    message_text=runner.get("inline-invite.message", bot_name=me.first_name)
+                    message_text=plain_to_html(
+                        runner.get("inline-invite.message", bot_name=me.first_name)
+                    ),
+                    parse_mode=ParseMode.HTML,
                 ),
                 reply_markup=InlineKeyboardMarkup(
                     inline_keyboard=[

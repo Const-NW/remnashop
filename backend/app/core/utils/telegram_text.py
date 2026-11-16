@@ -31,6 +31,24 @@ _URL_SCHEMES: Final[tuple[str, ...]] = ("https://", "http://", "tg://")
 _TAG_RE: Final[re.Pattern[str]] = re.compile(r"<[^<>]*>")
 
 
+def premium_emoji_html(text: str) -> str:
+    return PREMIUM_EMOJI_RE.sub(r'<tg-emoji emoji-id="\2">\1</tg-emoji>', text)
+
+
+def plain_to_html(text: str) -> str:
+    """Plain translation text as Telegram HTML: escaped, premium emoji kept."""
+    return premium_emoji_html(html.escape(text))
+
+
+def premium_emoji_glyphs(text: str) -> str:
+    # alerts, command descriptions and inline titles can't show a premium emoji
+    return PREMIUM_EMOJI_RE.sub(r"\1", text)
+
+
+def html_to_plain(text: str) -> str:
+    return html.unescape(_TAG_RE.sub("", text))
+
+
 def telegram_length(text: str) -> int:
     # Telegram counts UTF-16 code units; premium emoji markup is sent as its glyph
     sent = PREMIUM_EMOJI_RE.sub(r"\1", text)
@@ -63,7 +81,7 @@ def compose_button_text(
 
 
 def html_text_length(text: str) -> int:
-    return telegram_length(html.unescape(_TAG_RE.sub("", text)))
+    return telegram_length(html_to_plain(text))
 
 
 class _TagChecker(HTMLParser):

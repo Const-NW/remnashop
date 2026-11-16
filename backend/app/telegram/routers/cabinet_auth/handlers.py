@@ -1,6 +1,7 @@
 from typing import Final, Optional
 
 from aiogram import F, Router
+from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, Message
 from dishka import FromDishka
@@ -10,6 +11,7 @@ from loguru import logger
 from app.core.config import AppConfig
 from app.core.constants import TTL_5M, WEBAUTH_START_PREFIX
 from app.core.enums import Locale
+from app.core.utils.telegram_text import plain_to_html
 from app.modules.cabinet_auth import IssueBotSignInLinkUseCase, TelegramProfileDto
 from app.modules.users import UserDto
 from app.telegram.dialogs.rendering import label_with_icon
@@ -58,7 +60,8 @@ async def on_start_webauth(
         return
     prefix = "cabinet-link" if link.is_link else "cabinet-login"
     sent = await message.answer(
-        runner.get(f"ntf-{prefix}.link"),
+        plain_to_html(runner.get(f"ntf-{prefix}.link")),
+        parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [label_with_icon(runner, f"btn-{prefix}.open").inline_button(url=link.url)]

@@ -183,6 +183,7 @@ Search the module and `app/core` first. Often re-implemented: `subscriptions.get
 ### Telegram bot
 
 - Never append to `render_window_text`'s result: that skips HTML validation and the 1024-character caption limit. Extra blocks are `frg-*` variables of the window.
+- Translation text never goes to Telegram as `runner.get(...)` alone, or a premium emoji's `[x](emoji:id)` shows literally: a message is `render_window_text` (`msg-*`), `answer_notice` or `plain_to_html` with `parse_mode=HTML`; an alert, inline title or command description is `premium_emoji_glyphs`; a notification card is `telegram_card` (`tests/telegram/test_translation_sends.py`). Every other channel shows the glyph: `WebPushSender` and `render_email` turn the markup into it themselves; a new non-Telegram output of translation text (feed, payment provider) calls `premium_emoji_glyphs`.
 - A window's buttons go through the dialog catalog (`ConfigKeyboard`) so the shop owner can edit them. A button the bot builds in code (list items, flow steps, `/terms`) takes its label from a `btn-*` key through `telegram/dialogs/rendering.py`'s `label_with_icon` (`style=LabelIcon(...)` in a dialog), so the translations page edits its text and icon; never a literal label.
 
 ### Dashboard code
