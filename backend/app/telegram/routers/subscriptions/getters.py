@@ -49,9 +49,10 @@ def _subscription_label(
 ) -> ButtonLabel:
     snapshot = subscription.plan_snapshot
     name = snapshot.display_name(user.language)
-    label = label_with_icon(
+    return label_with_icon(
         runner,
         "btn-subscriptions.item",
+        default_icon_id=snapshot.icon_emoji_id,
         # an active unlimited one has no date to read "until"
         status="UNLIMITED"
         if subscription.status is SubscriptionStatus.ACTIVE and subscription.is_unlimited
@@ -62,10 +63,6 @@ def _subscription_label(
         else name,
         expire_at=format_expiry(runner, subscription.expire_at),
     )
-    # an icon picked for the item itself wins
-    if label.icon_custom_emoji_id is None and snapshot.icon_emoji_id:
-        return ButtonLabel(text=label.text, icon_custom_emoji_id=snapshot.icon_emoji_id)
-    return label
 
 
 @inject
