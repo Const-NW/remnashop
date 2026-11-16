@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -5,7 +6,7 @@ from aiogram_dialog.widgets.kbd import Button
 from aiogram_dialog.widgets.text import Format
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.core.enums import DialogFlow, Locale
+from app.core.enums import ButtonLinkType, DialogFlow, Locale
 from app.core.utils.telegram_text import TELEGRAM_CAPTION_LIMIT
 from app.modules.dialogs import catalog
 from app.modules.dialogs.repository import DialogRepository
@@ -448,3 +449,51 @@ async def test_label_with_icon_sends_a_premium_icon_instead_of_the_glyph() -> No
     assert button.icon_custom_emoji_id == "5368324170671202286"
     plain = data["cancel_text"].inline_button(url="https://example.com")
     assert (plain.text, plain.icon_custom_emoji_id) == ("Cancel", "5368324170671202286")
+
+
+class _OneWindowCache:
+    def __init__(self, *buttons: SimpleNamespace) -> None:
+        self._window = SimpleNamespace(buttons=list(buttons))
+
+    async def get_window(self, key: str) -> SimpleNamespace:
+        return self._window
+
+
+def _web_app_button(url: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=1,
+        row=0,
+        column=0,
+        text_key="btn-menu.web-cabinet",
+        style=None,
+        is_hidden=False,
+        visibility_condition=None,
+        link_type=ButtonLinkType.WEB_APP,
+        action_key=None,
+        target_window_key=None,
+        url_value=url,
+    )
+
+
+@pytest.mark.parametrize(
+    ("url", "cabinet_webapp", "expected"),
+    [
+        ("https://cab.example.com/", True, ButtonLinkType.WEB_APP),
+        ("https://cab.example.com/", False, ButtonLinkType.URL),
+        # someone else's Mini App stays one
+        ("https://other.example.com/", False, ButtonLinkType.WEB_APP),
+    ],
+)
+async def test_cabinet_web_app_button_opens_in_browser_without_mini_app_sign_in(
+    url: str, cabinet_webapp: bool, expected: ButtonLinkType
+) -> None:
+    data = {"cabinet_url": "https://cab.example.com", "cabinet_webapp": cabinet_webapp}
+
+    rows = await render_dialog_buttons(
+        "menu.main",
+        _OneWindowCache(_web_app_button(url)),  # type: ignore[arg-type]
+        _FakeRunner(),  # type: ignore[arg-type]
+        data,
+    )
+
+    assert rows[0][0]["link_type"] == expected

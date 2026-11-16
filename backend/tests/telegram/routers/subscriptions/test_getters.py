@@ -7,6 +7,7 @@ from app.core.constants import USER_KEY
 from app.core.enums import Locale, SubscriptionStatus
 from app.modules.dialogs import catalog
 from app.modules.dialogs.flows.menu import register_menu_metadata
+from app.modules.settings import CabinetAuthSettingsDto
 from app.telegram.dialogs.context import (
     SELECTED_SUBSCRIPTION_KEY,
     build_condition_data,
@@ -163,19 +164,29 @@ async def test_device_confirm_getter_routes_message_text_through_resolve_variabl
 
 
 @pytest.mark.parametrize(
-    ("cabinet_url", "telegram_enabled", "visible"),
-    [("https://cab", True, True), ("https://cab", False, False), ("", True, False)],
+    ("cabinet_url", "methods", "visible", "webapp"),
+    [
+        ("https://cab", {"telegram_enabled": True}, True, True),
+        ("https://cab", {"telegram_oauth_enabled": True}, True, False),
+        ("https://cab", {"telegram_deeplink_enabled": True}, True, False),
+        ("https://cab", {"google_enabled": True}, True, False),
+        ("https://cab", {"yandex_enabled": True}, True, False),
+        ("https://cab", {"email_enabled": True}, True, False),
+        ("https://cab", {}, False, False),
+        ("", {"telegram_enabled": True}, False, False),
+    ],
 )
-async def test_cabinet_button_needs_mini_app_sign_in(
-    cabinet_url: str, telegram_enabled: bool, visible: bool
+async def test_cabinet_button_needs_a_sign_in_method(
+    cabinet_url: str, methods: dict[str, bool], visible: bool, webapp: bool
 ) -> None:
     trial = AsyncMock(return_value=MagicMock(is_trial_available=False, plan=None))
     cabinet_auth = MagicMock()
-    cabinet_auth.system = AsyncMock(return_value=MagicMock(telegram_enabled=telegram_enabled))
+    cabinet_auth.system = AsyncMock(return_value=CabinetAuthSettingsDto(id=1, **methods))
 
     data = await build_condition_data(_user(), [], trial, cabinet_auth, cabinet_url=cabinet_url)
 
     assert catalog.get_condition("cabinet_available")(data) is visible
+    assert data["cabinet_webapp"] is webapp
 
 
 async def test_a_trial_is_not_offered_to_an_owner_of_a_subscription() -> None:

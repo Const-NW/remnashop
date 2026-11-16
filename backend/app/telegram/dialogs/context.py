@@ -62,6 +62,7 @@ async def build_condition_data(
     # the discount checkout applies next: transactions' pricing takes the
     # largest of the three, capped at 100
     discount = min(max(user.personal_discount, user.purchase_discount, user.loyalty_discount), 100)
+    cabinet_auth = await get_cabinet_auth_settings.system() if cabinet_url else None
     return {
         "name": user.name,
         # a string, so Fluent doesn't group the digits
@@ -90,7 +91,9 @@ async def build_condition_data(
         "has_device_limit": subscription is not None and subscription.effective_device_limit != 0,
         "connect_url": subscription.url if subscription is not None else "",
         "cabinet_url": cabinet_url,
-        # the cabinet button opens it as a Mini App, which signs in only with this on
-        "cabinet_webapp": bool(cabinet_url)
-        and (await get_cabinet_auth_settings.system()).telegram_enabled,
+        # reachable with any sign-in method: the Mini App's, or the browser's
+        "cabinet_available": cabinet_auth is not None
+        and (cabinet_auth.telegram_enabled or cabinet_auth.has_browser_sign_in),
+        # inside a Mini App only initData signs in; otherwise the cabinet opens in the browser
+        "cabinet_webapp": cabinet_auth is not None and cabinet_auth.telegram_enabled,
     }

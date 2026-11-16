@@ -73,7 +73,9 @@ def register_menu_metadata() -> None:
     )
     catalog.register_condition("referral_enabled", lambda data: bool(data.get("referral_enabled")))
     catalog.register_condition("legal_available", lambda data: bool(data.get("legal_available")))
-    catalog.register_condition("cabinet_available", lambda data: bool(data.get("cabinet_webapp")))
+    catalog.register_condition(
+        "cabinet_available", lambda data: bool(data.get("cabinet_available"))
+    )
     catalog.register_condition("support_available", lambda data: bool(data.get("support_url")))
 
     # the first active subscription's; a user with several gets that one
