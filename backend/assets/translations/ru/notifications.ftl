@@ -178,10 +178,7 @@ ntf-customer-cabinet-new-device-sign-in = Кто-то вошёл в ваш ли�
 ntf-customer-accounts-merged = Подписки, платежи и способы входа другого аккаунта теперь здесь. Если это были не вы — напишите в поддержку.
     .title = Аккаунты объединены
     .emoji = 🔗
-ntf-customer-referral-reward-issued = { $has_name ->
-        [yes] Пользователь { $name } совершил платёж —{" "}
-       *[no] {""}
-    }вам начислено { $amount } { $reward_type ->
+ntf-customer-referral-reward-issued = Приглашённый совершил платёж — вам начислено { $amount } { $reward_type ->
         [EXTRA_DAYS] { $amount ->
             [one] бонусный день
             [few] бонусных дня
@@ -506,7 +503,7 @@ ntf-subscription-device-removed = { $user } удалил устройство.
     .title = Пользователь удалил устройство!
 ntf-promocode-activated = { $user } активировал промокод.
     .title = Активация промокода!
-ntf-customer-referral-attached = Пользователь { $name } присоединился по вашей пригласительной ссылке.{ $rewarded ->
+ntf-customer-referral-attached = Пользователь присоединился по вашей пригласительной ссылке.{ $rewarded ->
         [yes] { " " }Награду вы получите, когда он оплатит подписку.
        *[no] {""}
     }

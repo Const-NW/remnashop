@@ -154,8 +154,6 @@ async def _dispatch(event: BaseEvent) -> AsyncMock:
             {
                 "reward_type": ReferralRewardType.EXTRA_DAYS,
                 "amount": 5,
-                "name": "",
-                "has_name": "no",
             },
         ),
         (
@@ -166,8 +164,6 @@ async def _dispatch(event: BaseEvent) -> AsyncMock:
             {
                 "reward_type": ReferralRewardType.POINTS,
                 "amount": "12.50",
-                "name": "",
-                "has_name": "no",
             },
         ),
         (SubscriptionNotConnectedEvent(user=_user(7), hours=24, **_SUB), 7, {"hours": 24}),
@@ -367,22 +363,7 @@ async def test_the_referrer_hears_about_the_friend_who_joined(rewarded: bool) ->
         user_id=7,
         event_type="ReferralAttachedEvent",
         outbox_id=5,
-        args={"name": friend.name, "rewarded": "yes" if rewarded else "no"},
+        args={"rewarded": "yes" if rewarded else "no"},
         payment_key=None,
         subscription_id=None,
     )
-
-
-async def test_a_reward_names_the_invitee_who_paid() -> None:
-    event = ReferralRewardIssuedEvent(
-        user=_user(7),
-        level=1,
-        reward_type=ReferralRewardType.EXTRA_DAYS,
-        amount="5",
-        invitee_name="Ivan",
-    )
-
-    kiq = await _dispatch(event)
-
-    assert kiq.await_args.kwargs["args"]["name"] == "Ivan"
-    assert kiq.await_args.kwargs["args"]["has_name"] == "yes"

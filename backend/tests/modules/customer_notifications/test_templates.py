@@ -50,13 +50,8 @@ _ARGS: dict[str, dict[str, Union[str, int]]] = {
     "PromocodeDiscountExpiringEvent": {"percent": 10, "code": "SALE", "hours": 1},
     "PaymentsRestored": {},
     "TorrentBlockerReportEvent": {"block_unit": "minute", "block_span": 30},
-    "ReferralRewardIssuedEvent": {
-        "reward_type": "EXTRA_DAYS",
-        "amount": 7,
-        "name": "Иван",
-        "has_name": "yes",
-    },
-    "ReferralAttachedEvent": {"name": "Иван", "rewarded": "yes"},
+    "ReferralRewardIssuedEvent": {"reward_type": "EXTRA_DAYS", "amount": 7},
+    "ReferralAttachedEvent": {"rewarded": "yes"},
 }
 
 
@@ -217,21 +212,21 @@ def test_changed_template_renders(locale: Locale, event_type: str) -> None:
         (
             Locale.RU,
             "ReferralRewardIssuedEvent",
-            {"reward_type": "EXTRA_DAYS", "amount": 7, "name": "Иван", "has_name": "yes"},
-            "Пользователь Иван совершил платёж — вам начислено 7 бонусных дней. "
+            {"reward_type": "EXTRA_DAYS", "amount": 7},
+            "Приглашённый совершил платёж — вам начислено 7 бонусных дней. "
             "Спасибо, что пригласили!",
         ),
         (
             Locale.RU,
             "ReferralRewardIssuedEvent",
-            {"reward_type": "POINTS", "amount": 2, "name": "", "has_name": "no"},
-            "вам начислено 2 балла. Спасибо, что пригласили!",
+            {"reward_type": "POINTS", "amount": 2},
+            "Приглашённый совершил платёж — вам начислено 2 балла. Спасибо, что пригласили!",
         ),
         (
             Locale.RU,
             "ReferralAttachedEvent",
-            {"name": "Иван", "rewarded": "no"},
-            "Пользователь Иван присоединился по вашей пригласительной ссылке.",
+            {"rewarded": "no"},
+            "Пользователь присоединился по вашей пригласительной ссылке.",
         ),
         (
             Locale.EN,

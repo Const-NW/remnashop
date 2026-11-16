@@ -2,7 +2,6 @@ import math
 from datetime import datetime
 from typing import Any, Final, Optional, Union, cast
 
-from app.core.actor import Actor
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
 from app.modules.account_merge import AccountsMergedEvent
@@ -71,10 +70,6 @@ async def _notify(
 
 def _yes(flag: bool) -> str:
     return "yes" if flag else "no"
-
-
-def _display_name(user: Actor) -> str:
-    return user.name or f"#{user.id}"
 
 
 async def _on_paid(
@@ -204,17 +199,16 @@ async def _on_discount_expiring(event: PromocodeDiscountExpiringEvent, entry: St
 async def _on_reward(
     event: Union[ReferralRewardIssuedEvent, InviteeRewardIssuedEvent], entry: StoredEvent
 ) -> None:
-    args: dict[str, Any] = {"reward_type": event.reward_type, "amount": _amount(event.amount)}
-    if isinstance(event, ReferralRewardIssuedEvent):
-        args.update(name=event.invitee_name or "", has_name=_yes(bool(event.invitee_name)))
-    await _notify(entry, event.user.id, args)
+    await _notify(
+        entry, event.user.id, {"reward_type": event.reward_type, "amount": _amount(event.amount)}
+    )
 
 
 async def _on_referral_attached(event: ReferralAttachedEvent, entry: StoredEvent) -> None:
     await _notify(
         entry,
         event.referrer_id,
-        {"name": _display_name(event.user), "rewarded": _yes(event.rewarded)},
+        {"rewarded": _yes(event.rewarded)},
     )
 
 
