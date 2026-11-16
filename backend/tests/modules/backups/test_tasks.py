@@ -228,7 +228,7 @@ async def test_run_backup_rotates_old_files_beyond_max_files(
                 RunBackupDto(kind=BackupKind.DATABASE, run_id=run.id)
             )
 
-    remaining, total = await backup_repository.list_runs(
+    _, total = await backup_repository.list_runs(
         kind=BackupKind.DATABASE, status=BackupRunStatus.COMPLETED
     )
     assert total == 1

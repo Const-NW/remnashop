@@ -166,7 +166,7 @@ async def test_sweep_processes_good_rows_even_when_a_sibling_row_fails(
     assert bad_row.processed_at is None
     assert bad_row.attempts == 1
     assert bad_row.last_error == "boom"
-    items, total = await event_log_repository.list()
+    _, total = await event_log_repository.list()
     assert total == 2  # both rows' audit entries persist; bad row just isn't marked processed
 
 
@@ -243,7 +243,7 @@ async def test_process_outbox_entry_retry_succeeds_without_doubling_the_audit_ro
         entry.id
     )
 
-    items, total = await event_log_repository.list()
+    _, total = await event_log_repository.list()
     assert total == 1  # idempotent on outbox_id, the retry doesn't double it
     processed = await session.get(EventOutboxEntry, entry.id)
     await session.refresh(processed)

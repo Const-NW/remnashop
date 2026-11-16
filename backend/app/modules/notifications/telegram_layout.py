@@ -384,11 +384,12 @@ def _plan(card: _Card) -> Optional[CardBlock]:
         # a plan change shows what changed: "old → new"
         values = [
             new if old in ("", new) else f"{old} → {new}"
-            for old, new in zip(_plan_values(card, previous), values)
+            for old, new in zip(_plan_values(card, previous), values, strict=True)
         ]
     labels = ("plan", "type", "traffic-limit", "device-limit", "duration")
     rows: list[CardRow] = [
-        (card.label(label), value, label == "plan") for label, value in zip(labels, values)
+        (card.label(label), value, label == "plan")
+        for label, value in zip(labels, values, strict=True)
     ]
     if plan.is_trial:
         return "🎁", card.label("trial-plan"), rows

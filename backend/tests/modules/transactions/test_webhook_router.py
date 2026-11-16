@@ -1,7 +1,7 @@
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
-from typing import AsyncIterator, Optional
+from typing import AsyncIterator, Final, Optional
 
 import httpx
 import pytest
@@ -35,6 +35,7 @@ from tests.modules.subscriptions.factories import make_plan_snapshot
 _CONFIRMED = ProviderPayment(
     paid=True, amount=Decimal("500"), reference="order-ref", provider_payment_id="yk-2"
 )
+_ACK: Final[WebhookAck] = WebhookAck()
 
 
 class _StubGateway:
@@ -47,7 +48,7 @@ class _StubGateway:
         payment: Optional[ProviderPayment] = _CONFIRMED,
         confirm_exc: Optional[BaseException] = None,
         parse_exc: Optional[BaseException] = None,
-        ack: WebhookAck = WebhookAck(),
+        ack: WebhookAck = _ACK,
         reported_confirmed: bool = True,
     ) -> None:
         self._signal = signal

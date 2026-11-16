@@ -61,7 +61,7 @@ class RecallBroadcastBatchUseCase(UseCase[int, None]):
                 *(_delete(client, r.telegram_id, r.telegram_message_id) for r in group)
             )
             async with self._uow:
-                for r, result in zip(group, results):
+                for r, result in zip(group, results, strict=True):
                     if result.outcome in _DONE:
                         await self._broadcast_repository.mark_recipient(
                             r.id, BroadcastRecipientStatus.RECALLED

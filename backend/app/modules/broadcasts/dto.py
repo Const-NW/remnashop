@@ -74,7 +74,7 @@ class BroadcastDto(BaseDto, TimestampMixin):
     post_to_channel: bool = False
     delivery: BroadcastDelivery = BroadcastDelivery.TELEGRAM
     email_fallback: bool = False
-    email_contents: dict[Locale, BroadcastEmailContentDto] = {}
+    email_contents: dict[Locale, BroadcastEmailContentDto] = Field(default_factory=dict)
     channel_chat_id: Optional[int] = None
     channel_message_id: Optional[int] = None
     media_type: Optional[BroadcastMediaType] = None

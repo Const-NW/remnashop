@@ -1,5 +1,5 @@
 from contextlib import suppress
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, Awaitable, Callable, ClassVar, cast
 
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import Message, TelegramObject
@@ -12,7 +12,7 @@ class GarbageMiddleware(EventTypedMiddleware):
     """The chat is the bot's menu: what a customer types is removed once a
     handler takes it. /start and payment receipts stay."""
 
-    __event_types__ = [MiddlewareEventType.MESSAGE]
+    __event_types__: ClassVar[list[MiddlewareEventType]] = [MiddlewareEventType.MESSAGE]
 
     async def middleware_logic(
         self,

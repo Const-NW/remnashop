@@ -109,7 +109,7 @@ async def test_list_recent_paid_returns_newest_first(
         ]
     for order in orders[:3]:
         await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
-    for order, hours in zip(orders[:3], (3, 2, 1)):
+    for order, hours in zip(orders[:3], (3, 2, 1), strict=True):
         await session.execute(
             update(Transaction)
             .where(Transaction.id == order.id)
@@ -222,7 +222,7 @@ async def test_sql_coverage_matches_the_python_reference(
     expected_points = {u for u, at in points.items() if is_covered(coverage[u], at)}
     assert await stats.users_covered_at_their_points(points, now) == expected_points
 
-    payers, days = await stats.total_covered_days(now)
+    payers, _ = await stats.total_covered_days(now)
     assert payers >= len(history)
 
 

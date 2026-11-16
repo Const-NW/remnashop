@@ -1013,7 +1013,7 @@ async def test_an_admin_can_neither_see_nor_touch_the_owners_own_subscription(
         await get(admin, subscription.id)
     with pytest.raises(NotFoundError):
         await delete(admin, subscription.id)
-    items, total = await listing(admin, ListSubscriptionsDto())
+    items, _ = await listing(admin, ListSubscriptionsDto())
 
     assert hidden.value.code is ErrorCode.SUBSCRIPTION_NOT_FOUND
     assert subscription.id not in [item.subscription.id for item in items]

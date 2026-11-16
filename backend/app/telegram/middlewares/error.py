@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, cast
+from typing import Any, Awaitable, Callable, ClassVar, cast
 
 from aiogram.types import ErrorEvent as AiogramErrorEvent
 from aiogram.types import TelegramObject
@@ -9,7 +9,7 @@ from app.telegram.middlewares.base import EventTypedMiddleware
 
 
 class ErrorMiddleware(EventTypedMiddleware):
-    __event_types__ = [MiddlewareEventType.ERROR]
+    __event_types__: ClassVar[list[MiddlewareEventType]] = [MiddlewareEventType.ERROR]
 
     async def middleware_logic(
         self,

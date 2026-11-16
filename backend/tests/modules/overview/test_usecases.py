@@ -3,6 +3,7 @@ import time
 from dataclasses import replace
 from datetime import datetime, timedelta
 from decimal import Decimal
+from itertools import pairwise
 
 import pytest
 from redis.asyncio import Redis
@@ -309,7 +310,7 @@ async def test_all_time_period_starts_at_first_registration_and_buckets_by_month
     assert all(m.day == 1 for m in month_starts)
     assert (datetime_now().date() - month_starts[0]).days >= 199
     # dense: every bucket is the first of the month after the previous one
-    for earlier, later in zip(month_starts, month_starts[1:]):
+    for earlier, later in pairwise(month_starts):
         assert later == (earlier.replace(day=28) + timedelta(days=4)).replace(day=1)
 
 

@@ -1,6 +1,7 @@
 import calendar
 from datetime import datetime
 from decimal import Decimal
+from itertools import pairwise
 from typing import Final, Optional
 
 from app.core.error_codes import ErrorCode
@@ -35,7 +36,7 @@ def validate_tiers(tiers: list[LoyaltyTierDto], window_months: Optional[int]) ->
                 "A tier needs a positive threshold and a 1-100 percent",
                 code=ErrorCode.LOYALTY_TIERS_INVALID,
             )
-    for lower, upper in zip(tiers, tiers[1:]):
+    for lower, upper in pairwise(tiers):
         if upper.threshold <= lower.threshold or upper.percent <= lower.percent:
             raise ValidationError(
                 "Tier thresholds and percents must both increase",

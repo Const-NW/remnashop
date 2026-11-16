@@ -1,4 +1,5 @@
 import pathlib
+from dataclasses import FrozenInstanceError
 from decimal import Decimal
 from typing import Optional
 
@@ -68,7 +69,7 @@ def test_payment_intent_rejects_non_https_confirmation_url(url: str) -> None:
 
 def test_dataclasses_are_frozen() -> None:
     intent = PaymentIntent(confirmation_url="https://pay", provider_payment_id="p1")
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         intent.confirmation_url = "mutated"  # type: ignore[misc]
     assert _SIGNAL.provider_payment_id is None
     assert WebhookAck().body == ""

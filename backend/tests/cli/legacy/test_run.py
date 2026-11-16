@@ -164,7 +164,7 @@ async def test_failed_preflight_leaves_no_dump(
 
     dumps: list[Path] = []
     _stub_run(monkeypatch, tmp_path, dumps, preflight=failing)
-    with pytest.raises(LegacyMigrationError, match="3.x"):
+    with pytest.raises(LegacyMigrationError, match=r"3\.x"):
         await run_migration(_pointed(config, legacy_engine))
     assert dumps == []
 

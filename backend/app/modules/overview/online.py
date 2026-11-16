@@ -46,7 +46,7 @@ async def read_daily_online_peaks(redis: Redis, days: list[date]) -> list[tuple[
     if not days:
         return []
     scores = await redis.zmscore(_DAILY_PEAK_KEY, [d.isoformat() for d in days])
-    return [(day, int(score)) for day, score in zip(days, scores) if score is not None]
+    return [(day, int(score)) for day, score in zip(days, scores, strict=True) if score is not None]
 
 
 async def read_hourly_online_peaks(redis: Redis, hours: list[datetime]) -> list[Optional[int]]:

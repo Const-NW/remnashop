@@ -141,7 +141,7 @@ async def test_feed_renders_in_user_language_and_marks_read(
 async def test_feed_is_own_only(
     client: httpx.AsyncClient, make_user, session: AsyncSession, uow: UnitOfWork
 ) -> None:
-    mine, my_headers = await make_user("mine", 910_002)
+    _, my_headers = await make_user("mine", 910_002)
     other, other_headers = await make_user("other", 910_003)
     await _add(CustomerNotificationRepository(session), uow, other.id, 1)
 

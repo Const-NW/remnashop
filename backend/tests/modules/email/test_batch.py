@@ -1,6 +1,6 @@
 from dataclasses import replace
 from email import message_from_bytes
-from typing import Any
+from typing import Any, ClassVar
 
 import aiosmtplib
 import pytest
@@ -36,10 +36,10 @@ def _email(to: str = "a@example.com") -> OutgoingEmailDto:
 
 
 class FakeSmtp:
-    instances: list["FakeSmtp"] = []
+    instances: ClassVar[list["FakeSmtp"]] = []
     connect_error: Any = None
     login_error: Any = None
-    send_errors: dict[str, Exception] = {}
+    send_errors: ClassVar[dict[str, Exception]] = {}
 
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
