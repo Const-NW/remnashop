@@ -29,7 +29,11 @@ from app.core.enums import (
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import BotSignals
 from app.core.usecase import UseCase
-from app.core.utils.telegram_text import compose_button_text
+from app.core.utils.telegram_text import (
+    compose_button_text,
+    premium_emoji_glyphs,
+    premium_emoji_html,
+)
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.dispatch import SendCustomerTelegramDispatch
 from app.modules.customer_notifications.dto import NotifyCustomerDto
@@ -322,7 +326,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             )
             text = (
                 # a one-line notice, like the bot's own "payments are off"
-                f"<i>{escape(f'{emoji} {body}')}</i>"
+                premium_emoji_html(f"<i>{escape(f'{emoji} {body}')}</i>")
                 if data.event_type == PAYMENTS_RESTORED
                 else telegram_card(title, body, emoji=emoji, blocks=blocks)
             )
@@ -367,7 +371,9 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             cabinet_url=self._config.cabinet.url or None,
             button=renderer.text(user.language, "ntf-customer-open-cabinet"),
         )
-        await self._send_email.kiq(to=user.email, subject=title, text=text, html=html)
+        await self._send_email.kiq(
+            to=user.email, subject=premium_emoji_glyphs(title), text=text, html=html
+        )
 
     async def _telegram_buttons(
         self,

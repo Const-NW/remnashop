@@ -182,7 +182,6 @@ async def on_legal_accept(
                 runner, "msg-legal-gate-update" if pending.is_update else "msg-legal-gate"
             ),
             legal_gate_keyboard(runner, pending),
-            parse_mode=ParseMode.HTML,
         )
         return
     requirements = await get_requirements.system()

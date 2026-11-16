@@ -4,6 +4,7 @@ from functools import partial
 from typing import Final, Optional
 
 from aiogram import Bot, Dispatcher, F, Router
+from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram_dialog import DialogManager, ShowMode, StartMode
@@ -11,6 +12,7 @@ from dishka import FromDishka
 from fluentogram import TranslatorHub, TranslatorRunner
 
 from app.core.constants import INT32_MAX
+from app.core.utils.telegram_text import plain_to_html, premium_emoji_glyphs
 from app.modules.broadcasts import GetBroadcastPromocodeUseCase
 from app.modules.promocodes import ListPromocodeTargetsUseCase, ValidatePromocodeUseCase
 from app.modules.users import SetMarketingOptOutDto, SetMarketingOptOutUseCase, UserDto
@@ -54,7 +56,9 @@ def parse_start_broadcast_id(payload: str) -> Optional[int]:
 # the user middleware skips bots and callbacks without a chat
 async def _answer_unknown_user(callback: CallbackQuery, i18n: TranslatorHub) -> None:
     runner = i18n.get_translator_by_locale(i18n.root_locale)
-    await callback.answer(runner.get("ntf-broadcast.start-required"), show_alert=True)
+    await callback.answer(
+        premium_emoji_glyphs(runner.get("ntf-broadcast.start-required")), show_alert=True
+    )
 
 
 async def _open_promocode(
@@ -156,7 +160,8 @@ async def on_broadcast_unsubscribe(
     await callback.answer()
     await bot.send_message(
         callback.from_user.id,
-        runner.get("ntf-broadcast.unsubscribed"),
+        plain_to_html(runner.get("ntf-broadcast.unsubscribed")),
+        parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [

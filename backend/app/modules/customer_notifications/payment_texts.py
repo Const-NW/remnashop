@@ -2,6 +2,7 @@ from typing import Final
 
 from app.core.config import AppConfig
 from app.core.enums import Locale
+from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.core.utils.time import period_parts
 from app.modules.notifications import NotificationRenderer, NotificationRendererFactory
 from app.modules.transactions import PaymentTextDto, TransactionDto
@@ -36,13 +37,13 @@ class PaymentTextRenderer:
             period = source.render_message(target, _PERIOD_KEY, {"unit": unit, "value": value})
             text = source.render_message(target, _DESCRIPTION_KEY, {"plan": name, "period": period})
             # a key broken in the translations editor must not leave a provider an empty text
-            return text.strip() or name
+            return premium_emoji_glyphs(text).strip() or name
 
         russian = renderer if renderer.has_locale(Locale.RU) else self._shipped_russian()
         return PaymentTextDto(
             # the fiscal receipt is in Russian whatever the customer reads
             description=render(russian, Locale.RU),
-            title=snapshot.display_name(locale),
+            title=premium_emoji_glyphs(snapshot.display_name(locale)),
             localized_description=render(renderer, locale),
         )
 

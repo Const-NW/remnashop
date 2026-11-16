@@ -1,4 +1,5 @@
 from aiogram import Bot, Dispatcher, F, Router
+from aiogram.enums import ParseMode
 from aiogram.filters import JOIN_TRANSITION, LEAVE_TRANSITION, ChatMemberUpdatedFilter
 from aiogram.types import CallbackQuery, ChatMemberUpdated, Message
 from aiogram_dialog import DialogManager, ShowMode, StartMode
@@ -6,6 +7,7 @@ from dishka import FromDishka
 from fluentogram import TranslatorHub
 from redis.asyncio import Redis
 
+from app.core.utils.telegram_text import plain_to_html
 from app.modules.settings import (
     BotRequirementsDto,
     GetBotRequirementsUseCase,
@@ -82,7 +84,9 @@ async def continue_requirements(
         if isinstance(callback.message, Message):
             await callback.message.delete()
         await ask_requirement(
-            callback, runner.get("ntf-requirements.channel"), channel_keyboard(runner, requirements)
+            callback,
+            plain_to_html(runner.get("ntf-requirements.channel")),
+            channel_keyboard(runner, requirements),
         )
         return
     await callback.answer()
@@ -131,11 +135,16 @@ async def _on_membership(
         return
     runner = get_translator(i18n, user)
     if joined:
-        await bot.send_message(telegram_id, runner.get("ntf-requirements.trial-resumed"))
+        await bot.send_message(
+            telegram_id,
+            plain_to_html(runner.get("ntf-requirements.trial-resumed")),
+            parse_mode=ParseMode.HTML,
+        )
         return
     await bot.send_message(
         telegram_id,
-        runner.get("ntf-requirements.trial-paused"),
+        plain_to_html(runner.get("ntf-requirements.trial-paused")),
+        parse_mode=ParseMode.HTML,
         reply_markup=channel_keyboard(runner, await get_requirements.system()),
     )
 

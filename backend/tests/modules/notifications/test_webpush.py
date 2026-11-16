@@ -198,7 +198,7 @@ async def test_revoked_session_stops_its_pushes(
     )
 
 
-async def test_send_includes_icon_when_set(
+async def test_send_includes_icon_and_premium_emoji_glyphs(
     subscribed: UserDto,
     notification_repository: NotificationRepository,
     uow: UnitOfWork,
@@ -225,12 +225,13 @@ async def test_send_includes_icon_when_set(
 
     await sender.send(
         subscribed.id,
-        PushMessage(title="t", body="b", url="/", tag="x", icon=icon),
+        PushMessage(title="[🚫](emoji:1) t", body="b", url="/", tag="x", icon=icon),
         SessionAudience.CABINET,
     )
     await sender.send(subscribed.id, MESSAGE, SessionAudience.CABINET)
 
     assert payloads[0]["icon"] == icon
+    assert payloads[0]["title"] == "🚫 t"
     assert "icon" not in payloads[1]
 
 

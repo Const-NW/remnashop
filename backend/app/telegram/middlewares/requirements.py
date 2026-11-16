@@ -21,6 +21,7 @@ from app.core.constants import (
     USER_KEY,
 )
 from app.core.enums import MiddlewareEventType, PurchaseChannel
+from app.core.utils.telegram_text import html_to_plain, plain_to_html
 from app.modules.legal import GetPendingLegalDocumentsUseCase
 from app.modules.settings import (
     BotRequirementsDto,
@@ -133,7 +134,6 @@ class RequirementsMiddleware(EventTypedMiddleware):
                     runner, "msg-legal-gate-update" if pending.is_update else "msg-legal-gate"
                 ),
                 legal_gate_keyboard(runner, pending),
-                parse_mode=ParseMode.HTML,
             )
             return None
 
@@ -153,7 +153,7 @@ class RequirementsMiddleware(EventTypedMiddleware):
                 await _remember_stopped(event, user, redis)
                 await ask_requirement(
                     event,
-                    runner.get("ntf-requirements.channel"),
+                    plain_to_html(runner.get("ntf-requirements.channel")),
                     channel_keyboard(runner, requirements),
                 )
                 return None
@@ -170,15 +170,15 @@ async def ask_requirement(
     event: TelegramObject,
     text: str,
     keyboard: InlineKeyboardMarkup,
-    parse_mode: Optional[str] = None,
 ) -> None:
+    """`text` is Telegram HTML."""
     if isinstance(event, Message):
-        await event.answer(text, reply_markup=keyboard, parse_mode=parse_mode)
+        await event.answer(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
     elif isinstance(event, CallbackQuery):
         if event.message is None:
-            await event.answer(text, show_alert=True)
+            await event.answer(html_to_plain(text), show_alert=True)
             return
-        await event.message.answer(text, reply_markup=keyboard, parse_mode=parse_mode)
+        await event.message.answer(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         await event.answer()
 
 

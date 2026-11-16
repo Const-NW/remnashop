@@ -12,10 +12,10 @@ from fluentogram.exceptions import KeyNotFoundError
 from loguru import logger
 
 from app.core.utils.telegram_text import (
-    PREMIUM_EMOJI_RE,
     TELEGRAM_CAPTION_LIMIT,
     compose_button_text,
     html_text_length,
+    premium_emoji_html,
 )
 from app.modules.dialogs import catalog
 from app.modules.translations import strip_serializer_escapes
@@ -113,7 +113,7 @@ def render_window_text(runner: TranslatorRunner, key: str, **kwargs: Any) -> str
         prepared = {name: "" if value == _EMPTY else value for name, value in prepared.items()}
         text = strip_serializer_escapes(runner.get(key, **prepared))
     text = text.replace(_VALUE_NEWLINE, "\n")
-    return PREMIUM_EMOJI_RE.sub(r'<tg-emoji emoji-id="\2">\1</tg-emoji>', text)
+    return premium_emoji_html(text)
 
 
 def fits_caption(text: str) -> bool:

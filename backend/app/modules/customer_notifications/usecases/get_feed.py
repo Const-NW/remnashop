@@ -1,6 +1,7 @@
 from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.core.utils.time import datetime_now
 from app.modules.customer_notifications.dto import (
     FEED_LIMIT,
@@ -47,8 +48,8 @@ class GetCustomerFeedUseCase(UseCase[None, CustomerFeedDto, UserDto]):
                 CustomerFeedItemDto(
                     id=row.id,
                     event_type=row.event_type,
-                    title=title,
-                    body=body,
+                    title=premium_emoji_glyphs(title),
+                    body=premium_emoji_glyphs(body),
                     url=customer_url(row.event_type, row.subscription_id, row.args),
                     created_at=row.created_at,
                     read=row.read_at is not None,

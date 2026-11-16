@@ -76,3 +76,17 @@ async def test_brand_takes_the_cabinet_and_falls_back_to_the_dashboard(
     assert await load_email_brand(settings_repository) == EmailBrandDto(
         brand="Shop", color="#111111", has_logo=False
     )
+
+
+def test_premium_emoji_markup_becomes_its_glyph() -> None:
+    text, html = render_email(
+        brand="S",
+        color=None,
+        has_logo=False,
+        title="[🚫](emoji:1) Expired",
+        body="Renew [🚀](emoji:2)",
+        cabinet_url="https://cabinet.example.com",
+        button="[👉](emoji:3) Open",
+    )
+    assert "emoji:" not in text and "emoji:" not in html
+    assert "🚫 Expired" in html and "Renew 🚀" in html and "👉 Open" in html
