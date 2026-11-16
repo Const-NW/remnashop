@@ -314,6 +314,7 @@ async def test_a_dashboard_checkout_keeps_the_old_return_address(
 async def test_own_transactions_list_and_detail(
     client: httpx.AsyncClient,
     plan: PlanDto,
+    plan_repository: PlanRepository,
     gateway_repository: GatewayRepository,
     user_repository: UserRepository,
     session_repository: SessionRepository,
@@ -349,9 +350,11 @@ async def test_own_transactions_list_and_detail(
     assert (item["plan_discount_percent"], item["discount_percent"]) == (0, 0)
     assert item["discount_source"] == "NONE"
 
-    assert (
-        await client.get(f"{API_V1}/transactions/me/{own_order}", headers=mine)
-    ).status_code == 200
+    # a plan renamed after the purchase reads the same in the history as in the catalog
+    await plan_repository.update(UpdatePlanDto(plan_id=plan.id, name="Renamed"))
+    detail = await client.get(f"{API_V1}/transactions/me/{own_order}", headers=mine)
+    assert detail.status_code == 200
+    assert detail.json()["plan_name"] == "Renamed"
     foreign = await client.get(f"{API_V1}/transactions/me/{foreign_order}", headers=mine)
     assert foreign.status_code == 404
     assert foreign.json()["code"] == "PAYMENT_ORDER_NOT_FOUND"
