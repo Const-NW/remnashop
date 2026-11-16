@@ -105,7 +105,7 @@ export function NodesCard({ state }: { state: AsyncState<NodesOverview | null> }
         <EmptyState text={t("dashboard.nodes.empty")} />
       )}
       {data?.available && rows.length > 0 && (
-        <div className="-mb-4 -mr-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 pr-[calc(1rem-var(--scrollbar-size))] [scrollbar-gutter:stable] pt-2">
+        <div className="-mb-4 -mr-4 min-h-0 flex-1 overflow-y-scroll overscroll-contain pb-4 pr-[calc(1rem-var(--scrollbar-size))] pt-2">
           {view === "nodes" ? <NodeRows nodes={data.nodes} /> : <CountryRows countries={data.countries} />}
         </div>
       )}

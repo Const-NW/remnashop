@@ -68,7 +68,7 @@ export const PAGE_TOOLBAR_CLASS = `glass-panel flex shrink-0 flex-wrap items-cen
 /** The search in a toolbar: takes the free space, never narrower than 256px on desktop so it outweighs a filter. */
 export const PAGE_TOOLBAR_SEARCH_CLASS = "flex min-w-40 flex-1 md:min-w-64";
 const PAGE_SCROLL_BASE_CLASS =
-  "scroll-fade-y scroll-fade-gap page-scroll md:min-h-0 md:flex-1 md:overflow-y-auto [--fade-bottom-size:0px] [scrollbar-gutter:stable] max-md:[scrollbar-gutter:auto] max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden md:-mr-5 md:pb-5 md:pr-[calc(1.25rem-var(--scrollbar-size))]";
+  "scroll-fade-y scroll-fade-gap page-scroll md:min-h-0 md:flex-1 md:overflow-y-scroll [--fade-bottom-size:0px] max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden md:-mr-5 md:pb-5 md:pr-[calc(1.25rem-var(--scrollbar-size))]";
 /** Scroller under PAGE_BAR_CLASS: a 20px gap under the bar, where the top fade sits (from 48px); content starts at 68px. */
 export const PAGE_SCROLL_UNDER_BAR_CLASS = `${PAGE_SCROLL_BASE_CLASS} mt-1 pt-2 md:mt-0 md:pt-[68px] md:scroll-pt-[68px] [--fade-rest-start:48px]`;
 /** Scroller of a page without a bar (data-under-header): the header's 20px padding moves in here. */

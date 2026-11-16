@@ -151,7 +151,7 @@ function DashboardShell({ onLogout, isLeaving, onLeft }: DashboardShellProps) {
           <Header onLogout={onLogout} />
           {/* the stable gutter (--scrollbar-size) comes out of the right padding: 20px either side, the scrollbar inside it */}
           {/* a page with its own scroller (data-fills-main) takes the gutter for its scrollbar */}
-          <main className="scroll-fade-top page-scroll flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable] has-[[data-fills-main]]:[scrollbar-gutter:auto] max-md:[scrollbar-gutter:auto] max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden pb-[calc(1rem+env(safe-area-inset-bottom))] px-4 pt-[calc(88px+env(safe-area-inset-top))] md:pb-5 md:pl-5 md:pr-[calc(1.25rem-var(--scrollbar-size))] md:pt-0">
+          <main className="scroll-fade-top page-scroll flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-y-scroll md:has-[[data-fills-main]]:overflow-y-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden pb-[calc(1rem+env(safe-area-inset-bottom))] px-4 pt-[calc(88px+env(safe-area-inset-top))] md:pb-5 md:pl-5 md:pr-[calc(1.25rem-var(--scrollbar-size))] md:pt-0">
             <AnimatedOutlet />
           </main>
           {/* dialogs portal here, not into `main` (see DialogPortal) */}
