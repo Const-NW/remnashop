@@ -18,7 +18,12 @@ const PANEL_CLIP_RADIUS = "round var(--radius-dialog)";
 
 // The parent panel becomes an empty "ghost" resizing between the two boxes while the
 // nested panel's content is clipped to it: one box morphing, like the tab height animation.
-async function morphPanels(parent: HTMLElement, child: HTMLElement, direction: "in" | "out"): Promise<void> {
+async function morphPanels(
+  parent: HTMLElement,
+  child: HTMLElement,
+  direction: "in" | "out",
+  signal?: AbortSignal,
+): Promise<void> {
   const from = parent.getBoundingClientRect();
   const to = child.getBoundingClientRect();
   const parentClip = `inset(${[from.top - to.top, to.right - from.right, to.bottom - from.bottom, from.left - to.left]
@@ -38,7 +43,10 @@ async function morphPanels(parent: HTMLElement, child: HTMLElement, direction: "
   parent.dataset.morphGhost = "";
   child.dataset.morphing = "";
   const animations = [parent.animate(boxes, MORPH_OPTIONS), child.animate(clips, MORPH_OPTIONS)];
+  signal?.addEventListener("abort", () => animations.forEach((animation) => animation.cancel()));
   await Promise.all(animations.map((animation) => animation.finished)).catch(() => {});
+  // a superseded morph must not hide or unmark panels another morph is still animating
+  if (signal?.aborted) return;
 
   // swap before dropping the held last frame, so neither box flashes at its own size
   if (direction === "in") parent.style.visibility = "hidden";
@@ -46,6 +54,11 @@ async function morphPanels(parent: HTMLElement, child: HTMLElement, direction: "
   delete parent.dataset.morphGhost;
   delete child.dataset.morphing;
   animations.forEach((animation) => animation.cancel());
+
+  // Safari can keep painting the clip of the morph's first frame on the panel; a clip change a frame later
+  // repaints it. Negative inset: a clip at the border box would cut the panel's shadow for those frames.
+  child.style.clipPath = "inset(-100vmax)";
+  requestAnimationFrame(() => requestAnimationFrame(() => (child.style.clipPath = "")));
 }
 
 interface ModalProps {
@@ -78,6 +91,7 @@ export function Modal({
   const isNested = parentPanelRef !== null;
   const panelRef = useRef<HTMLDivElement>(null);
   const isClosingRef = useRef(false);
+  const openMorphRef = useRef<AbortController | null>(null);
 
   const requestClose = useCallback(() => {
     const parentPanel = parentPanelRef?.current;
@@ -88,6 +102,7 @@ export function Modal({
     }
     if (isClosingRef.current) return;
     isClosingRef.current = true;
+    openMorphRef.current?.abort();
     void morphPanels(parentPanel, panel, "out").then(() => setOpen(false));
   }, [parentPanelRef]);
 
@@ -97,8 +112,11 @@ export function Modal({
     const parentPanel = parentPanelRef?.current;
     const panel = panelRef.current;
     if (!parentPanel || !panel) return;
-    void morphPanels(parentPanel, panel, "in");
+    const controller = new AbortController();
+    openMorphRef.current = controller;
+    void morphPanels(parentPanel, panel, "in", controller.signal);
     return () => {
+      controller.abort();
       parentPanel.style.visibility = "";
       delete parentPanel.dataset.morphGhost;
     };
