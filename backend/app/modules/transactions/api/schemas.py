@@ -195,6 +195,8 @@ class OwnTransactionResponse(BaseModel):
     purchase_type: PurchaseType
     gateway_type: PaymentGatewayType
     plan_name: str
+    plan_icon_emoji_id: Optional[str]
+    plan_icon_emoji_fallback: Optional[str]
     duration_days: int
     created_at: Optional[datetime]
     # what a failed payment's "try again" reopens: the plan, and the subscription
@@ -217,6 +219,8 @@ class OwnTransactionResponse(BaseModel):
             purchase_type=order.purchase_type,
             gateway_type=order.gateway_type,
             plan_name=order.plan_snapshot.display_name(locale),
+            plan_icon_emoji_id=order.plan_snapshot.icon_emoji_id,
+            plan_icon_emoji_fallback=order.plan_snapshot.icon_emoji_fallback,
             duration_days=order.duration_days,
             created_at=order.created_at,
             plan_id=order.plan_snapshot.plan_id,

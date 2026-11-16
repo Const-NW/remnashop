@@ -164,6 +164,8 @@ class PublicPlanResponse(BaseModel):
     durations: list[PublicPlanDurationResponse]
     discount_percent: int = 0
     discount_ends_at: Optional[datetime] = None
+    icon_emoji_id: Optional[str] = None
+    icon_emoji_fallback: Optional[str] = None
 
     # the cabinet can't draw a Telegram premium emoji: its glyph stands in
     @field_validator("description", mode="before")
@@ -189,6 +191,8 @@ class OwnSubscriptionResponse(BaseModel):
     effective_device_limit: int
     traffic_limit_strategy: TrafficLimitStrategy
     plan_name: str
+    plan_icon_emoji_id: Optional[str] = None
+    plan_icon_emoji_fallback: Optional[str] = None
     plan_id: int
     # the terms it was sold with: a renewal moves it to the plan's current ones
     plan_traffic_limit: int
@@ -215,6 +219,8 @@ class OwnSubscriptionResponse(BaseModel):
                 **subscription.model_dump(),
                 "is_unlimited": subscription.is_unlimited,
                 "plan_name": subscription.plan_snapshot.display_name(locale),
+                "plan_icon_emoji_id": subscription.plan_snapshot.icon_emoji_id,
+                "plan_icon_emoji_fallback": subscription.plan_snapshot.icon_emoji_fallback,
                 "plan_id": subscription.plan_snapshot.plan_id,
                 "plan_traffic_limit": subscription.plan_snapshot.traffic_limit,
                 "plan_device_limit": subscription.plan_snapshot.device_limit,
