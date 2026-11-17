@@ -14,6 +14,7 @@ from app.modules.settings.usecases.get_public_appearance import GetPublicAppeara
 from app.modules.settings.usecases.get_public_appearance_image import (
     GetPublicAppearanceImageUseCase,
 )
+from app.modules.settings.usecases.get_public_tab_icon import GetPublicTabIconUseCase
 from app.modules.settings.usecases.get_shop_settings import GetShopSettingsUseCase
 from app.modules.settings.usecases.remove_bot_proxy import RemoveBotProxyUseCase
 from app.modules.settings.usecases.report_bot_status import ReportBotStatusUseCase
@@ -51,6 +52,7 @@ __all__ = [
     "GetOAuthSettingsUseCase",
     "GetPublicAppearanceImageUseCase",
     "GetPublicAppearanceUseCase",
+    "GetPublicTabIconUseCase",
     "GetShopSettingsUseCase",
     "RemoveBotProxyUseCase",
     "ReportBotStatusUseCase",

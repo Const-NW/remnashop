@@ -244,6 +244,34 @@ async def test_cabinet_logo_is_separate_from_dashboard(
     assert dashboard.json()["has_logo"] is False
 
 
+async def test_tab_icon_redirects_to_the_default_when_unset(client: httpx.AsyncClient) -> None:
+    for target in ("dashboard", "cabinet"):
+        response = await client.get(f"{API_V1}/appearance/{target}/tab-icon")
+
+        assert response.status_code == 307
+        assert response.headers["location"] == "/favicon.svg"
+        assert response.headers["cache-control"] == "no-cache"
+
+
+async def test_cabinet_tab_icon_falls_back_to_the_dashboard_favicon(
+    client: httpx.AsyncClient, owner_headers: dict[str, str]
+) -> None:
+    upload = await client.put(
+        f"{API_V1}/settings/appearance/dashboard/favicon",
+        files={"file": ("favicon.svg", _SVG_LOGO, "image/svg+xml")},
+        headers=owner_headers,
+    )
+    assert upload.status_code == 200
+
+    for target in ("dashboard", "cabinet"):
+        response = await client.get(f"{API_V1}/appearance/{target}/tab-icon")
+
+        assert response.status_code == 200
+        assert response.content == _SVG_LOGO
+        assert response.headers["cache-control"] == "no-cache"
+        assert "sandbox" in response.headers["content-security-policy"]
+
+
 @pytest.mark.parametrize(
     "path",
     [

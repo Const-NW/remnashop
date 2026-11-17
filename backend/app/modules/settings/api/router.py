@@ -3,7 +3,8 @@ from typing import Final
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import RedirectResponse
 
 from app.api.dependencies.public import get_current_user
 from app.api.errors import error_responses
@@ -14,6 +15,7 @@ from app.modules.settings.usecases import (
     GetCabinetSettingsUseCase,
     GetPublicAppearanceImageUseCase,
     GetPublicAppearanceUseCase,
+    GetPublicTabIconUseCase,
 )
 from app.modules.users import UserDto
 
@@ -25,6 +27,9 @@ _IMAGE_HEADERS: Final[dict[str, str]] = {
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
     "X-Content-Type-Options": "nosniff",
 }
+
+# both frontends ship it in public/
+_DEFAULT_FAVICON_PATH: Final[str] = "/favicon.svg"
 
 
 @router.get("/cabinet/manifest.webmanifest")
@@ -66,6 +71,24 @@ async def get_appearance_favicon(
 ) -> Response:
     image = await use_case.execute(target, AppearanceImageKind.FAVICON)
     return Response(content=image.data, media_type=image.content_type, headers=_IMAGE_HEADERS)
+
+
+# Linked from index.html: Safari takes the tab icon from the page as loaded and
+# ignores a <link rel="icon"> changed by a script.
+@router.get("/{target}/tab-icon")
+@inject
+async def get_appearance_tab_icon(
+    target: AppearanceTarget, use_case: FromDishka[GetPublicTabIconUseCase]
+) -> Response:
+    image = await use_case.execute(target)
+    no_cache = {"Cache-Control": "no-cache"}
+    if image is None:
+        return RedirectResponse(
+            _DEFAULT_FAVICON_PATH, status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers=no_cache
+        )
+    return Response(
+        content=image.data, media_type=image.content_type, headers={**_IMAGE_HEADERS, **no_cache}
+    )
 
 
 shop_router = APIRouter(prefix="/shop", tags=["shop"])
