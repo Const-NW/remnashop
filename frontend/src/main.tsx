@@ -34,6 +34,16 @@ document.documentElement.style.setProperty(
 );
 scrollbarProbe.remove();
 
+// iOS zooms in on a field under 16px as it takes focus; maximum-scale stops that, and iOS still lets a pinch zoom
+// (Android would lose it, so only here). iPadOS Safari claims to be a Mac: only the touch points tell them apart.
+if (
+  /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+  (/macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+) {
+  const viewport = document.querySelector('meta[name="viewport"]');
+  viewport?.setAttribute("content", `${viewport.getAttribute("content")}, maximum-scale=1`);
+}
+
 installFormValidationMessages();
 registerServiceWorker();
 
