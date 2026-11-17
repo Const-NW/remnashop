@@ -6,18 +6,23 @@ from app.modules.settings.dto import AppearanceSettingsDto
 _DEFAULT_NAME: Final[str] = "Remnashop"
 _DEFAULT_COLOR: Final[str] = "#111111"
 _SVG: Final[str] = "image/svg+xml"
+# the browser sees the cabinet's API under /api (its nginx rewrites to /api/v1)
+_CABINET_API: Final[str] = "/api"
+_DASHBOARD_API: Final[str] = "/api/v1"
+_DASHBOARD_START_URL: Final[str] = "/dashboard"
+_DEFAULT_ICONS: Final[list[dict[str, str]]] = [
+    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+]
+
+_Sources = list[tuple[AppearanceTarget, AppearanceSettingsDto]]
 
 
-def _raster_images(
-    cabinet: AppearanceSettingsDto, dashboard: AppearanceSettingsDto
-) -> list[tuple[str, str]]:
-    """(path, content type) of non-SVG branding images, favicons first, cabinet first."""
+def _raster_images(sources: _Sources, api_prefix: str) -> list[tuple[str, str]]:
+    """(path, content type) of non-SVG branding images, favicons first, in source order."""
     images: list[tuple[str, str]] = []
     for kind in (AppearanceImageKind.FAVICON, AppearanceImageKind.LOGO):
-        for target, dto in (
-            (AppearanceTarget.CABINET, cabinet),
-            (AppearanceTarget.DASHBOARD, dashboard),
-        ):
+        for target, dto in sources:
             content_type = (
                 dto.favicon_content_type
                 if kind is AppearanceImageKind.FAVICON
@@ -26,35 +31,43 @@ def _raster_images(
             if content_type is None or content_type == _SVG or dto.updated_at is None:
                 continue
             version = int(dto.updated_at.timestamp())
-            images.append((f"/api/appearance/{target}/{kind}?v={version}", content_type))
+            images.append((f"{api_prefix}/appearance/{target}/{kind}?v={version}", content_type))
     return images
 
 
 def push_icon_path(
     cabinet: AppearanceSettingsDto, dashboard: AppearanceSettingsDto
 ) -> Optional[str]:
-    images = _raster_images(cabinet, dashboard)
+    sources = [(AppearanceTarget.CABINET, cabinet), (AppearanceTarget.DASHBOARD, dashboard)]
+    images = _raster_images(sources, _CABINET_API)
     return images[0][0] if images else None
 
 
-def cabinet_manifest(
-    cabinet: AppearanceSettingsDto, dashboard: AppearanceSettingsDto
+def appearance_manifest(
+    target: AppearanceTarget, cabinet: AppearanceSettingsDto, dashboard: AppearanceSettingsDto
 ) -> dict[str, Any]:
-    name = cabinet.brand_name or dashboard.brand_name or _DEFAULT_NAME
+    """Web app manifest; what the cabinet leaves unset comes from the dashboard."""
+    if target is AppearanceTarget.CABINET:
+        sources = [(AppearanceTarget.CABINET, cabinet), (AppearanceTarget.DASHBOARD, dashboard)]
+        api_prefix, start_url = _CABINET_API, "/"
+    else:
+        sources = [(AppearanceTarget.DASHBOARD, dashboard)]
+        api_prefix, start_url = _DASHBOARD_API, _DASHBOARD_START_URL
+    name = next((dto.brand_name for _, dto in sources if dto.brand_name), _DEFAULT_NAME)
+    color = next((dto.primary_color for _, dto in sources if dto.primary_color), _DEFAULT_COLOR)
     return {
         "name": name,
         "short_name": name,
-        "start_url": "/",
+        "start_url": start_url,
         "scope": "/",
         "display": "standalone",
         "background_color": _DEFAULT_COLOR,
-        "theme_color": cabinet.primary_color or dashboard.primary_color or _DEFAULT_COLOR,
+        "theme_color": color,
         "icons": [
             *(
                 {"src": path, "sizes": "any", "type": ct}
-                for path, ct in _raster_images(cabinet, dashboard)
+                for path, ct in _raster_images(sources, api_prefix)
             ),
-            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
-            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+            *_DEFAULT_ICONS,
         ],
     }

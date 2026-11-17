@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from app.core.enums import AppearanceTarget
 from app.modules.settings import AppearanceSettingsDto
-from app.modules.settings.branding import cabinet_manifest, push_icon_path
+from app.modules.settings.branding import appearance_manifest, push_icon_path
 
 _AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 _V = int(_AT.timestamp())
@@ -54,7 +55,7 @@ def test_icon_none_when_only_svg() -> None:
 
 
 def test_manifest_defaults_without_appearance() -> None:
-    manifest = cabinet_manifest(_dto(), _dto())
+    manifest = appearance_manifest(AppearanceTarget.CABINET, _dto(), _dto())
 
     assert manifest["name"] == manifest["short_name"] == "Remnashop"
     assert manifest["theme_color"] == "#111111"
@@ -68,7 +69,7 @@ def test_manifest_uses_brand_and_color() -> None:
     cabinet = _dto(brand_name="Acme", primary_color="#ff0000", favicon="image/webp")
     dashboard = _dto(brand_name="Panel", primary_color="#00ff00", logo="image/png")
 
-    manifest = cabinet_manifest(cabinet, dashboard)
+    manifest = appearance_manifest(AppearanceTarget.CABINET, cabinet, dashboard)
 
     assert manifest["name"] == manifest["short_name"] == "Acme"
     assert manifest["theme_color"] == "#ff0000"
@@ -89,7 +90,32 @@ def test_manifest_uses_brand_and_color() -> None:
 
 
 def test_manifest_falls_back_to_dashboard_brand() -> None:
-    manifest = cabinet_manifest(_dto(), _dto(brand_name="Panel", primary_color="#00ff00"))
+    manifest = appearance_manifest(
+        AppearanceTarget.CABINET, _dto(), _dto(brand_name="Panel", primary_color="#00ff00")
+    )
 
     assert manifest["name"] == "Panel"
     assert manifest["theme_color"] == "#00ff00"
+
+
+def test_dashboard_manifest_ignores_cabinet_branding() -> None:
+    cabinet = _dto(brand_name="Acme", primary_color="#ff0000", favicon="image/png")
+    dashboard = _dto(brand_name="Panel", primary_color="#00ff00", logo="image/png")
+
+    manifest = appearance_manifest(AppearanceTarget.DASHBOARD, cabinet, dashboard)
+
+    assert manifest["name"] == "Panel"
+    assert manifest["theme_color"] == "#00ff00"
+    assert manifest["start_url"] == "/dashboard"
+    assert [i["src"] for i in manifest["icons"]] == [
+        f"/api/v1/appearance/dashboard/logo?v={_V}",
+        "/icon-192.png",
+        "/icon-512.png",
+    ]
+
+
+def test_dashboard_manifest_defaults() -> None:
+    manifest = appearance_manifest(AppearanceTarget.DASHBOARD, _dto(), _dto())
+
+    assert manifest["name"] == "Remnashop"
+    assert manifest["theme_color"] == "#111111"

@@ -10,7 +10,7 @@ from app.api.dependencies.public import get_current_user
 from app.api.errors import error_responses
 from app.core.enums import AppearanceImageKind, AppearanceTarget
 from app.modules.settings.api.schemas import AppearanceResponse, CabinetSettingsResponse
-from app.modules.settings.branding import cabinet_manifest
+from app.modules.settings.branding import appearance_manifest
 from app.modules.settings.usecases import (
     GetCabinetSettingsUseCase,
     GetPublicAppearanceImageUseCase,
@@ -32,10 +32,13 @@ _IMAGE_HEADERS: Final[dict[str, str]] = {
 _DEFAULT_FAVICON_PATH: Final[str] = "/favicon.svg"
 
 
-@router.get("/cabinet/manifest.webmanifest")
+@router.get("/{target}/manifest.webmanifest")
 @inject
-async def get_cabinet_manifest(use_case: FromDishka[GetPublicAppearanceUseCase]) -> Response:
-    manifest = cabinet_manifest(
+async def get_appearance_manifest(
+    target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceUseCase]
+) -> Response:
+    manifest = appearance_manifest(
+        target,
         await use_case.execute(AppearanceTarget.CABINET),
         await use_case.execute(AppearanceTarget.DASHBOARD),
     )
