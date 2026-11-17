@@ -28,20 +28,24 @@ def _dto(
     )
 
 
-def test_push_icon_prefers_favicon() -> None:
-    cabinet = _dto(favicon="image/png", logo="image/png")
-
-    assert push_icon_path(cabinet) == f"/api/appearance/cabinet/favicon?v={_V}"
-
-
-def test_push_icon_skips_svg() -> None:
+def test_push_icon_prefers_favicon_of_any_format() -> None:
     cabinet = _dto(favicon="image/svg+xml", logo="image/png")
 
-    assert push_icon_path(cabinet) == f"/api/appearance/cabinet/logo?v={_V}"
+    assert (
+        push_icon_path(AppearanceTarget.CABINET, cabinet)
+        == f"/api/appearance/cabinet/favicon?v={_V}"
+    )
 
 
-def test_push_icon_none_when_only_svg() -> None:
-    assert push_icon_path(_dto(favicon="image/svg+xml", logo="image/svg+xml")) is None
+def test_push_icon_falls_back_to_logo() -> None:
+    assert (
+        push_icon_path(AppearanceTarget.DASHBOARD, _dto(logo="image/png"))
+        == f"/api/v1/appearance/dashboard/logo?v={_V}"
+    )
+
+
+def test_push_icon_none_without_images() -> None:
+    assert push_icon_path(AppearanceTarget.CABINET, _dto()) is None
 
 
 def test_manifest_defaults_without_appearance() -> None:

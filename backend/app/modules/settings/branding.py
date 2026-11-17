@@ -5,7 +5,6 @@ from app.modules.settings.dto import AppearanceSettingsDto
 
 _DEFAULT_NAME: Final[str] = "Remnashop"
 _DEFAULT_COLOR: Final[str] = "#111111"
-_SVG: Final[str] = "image/svg+xml"
 # the browser sees the cabinet's API under /api (its nginx rewrites to /api/v1)
 _API_PREFIX: Final[dict[AppearanceTarget, str]] = {
     AppearanceTarget.CABINET: "/api",
@@ -28,14 +27,11 @@ def _image_path(
     return f"{_API_PREFIX[target]}/appearance/{target}/{kind}?v={version}"
 
 
-def push_icon_path(cabinet: AppearanceSettingsDto) -> Optional[str]:
-    # notifications don't render SVG
-    for kind, content_type in (
-        (AppearanceImageKind.FAVICON, cabinet.favicon_content_type),
-        (AppearanceImageKind.LOGO, cabinet.logo_content_type),
-    ):
-        if content_type is not None and content_type != _SVG:
-            return _image_path(AppearanceTarget.CABINET, kind, cabinet)
+def push_icon_path(target: AppearanceTarget, settings: AppearanceSettingsDto) -> Optional[str]:
+    if settings.favicon_content_type is not None:
+        return _image_path(target, AppearanceImageKind.FAVICON, settings)
+    if settings.logo_content_type is not None:
+        return _image_path(target, AppearanceImageKind.LOGO, settings)
     return None
 
 
