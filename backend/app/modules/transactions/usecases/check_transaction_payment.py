@@ -25,6 +25,13 @@ from app.modules.users import UserRepository
 _CHECKABLE: Final[frozenset[TransactionStatus]] = UNPAID_FINAL | {TransactionStatus.PENDING}
 
 
+def _not_checkable(order_id: int) -> ConflictError:
+    return ConflictError(
+        f"Transaction '{order_id}' can't be checked with its gateway",
+        code=ErrorCode.PAYMENT_ORDER_NOT_CHECKABLE,
+    )
+
+
 class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, PaymentCheckResultDto]):
     required_permission = Permission.TRANSACTIONS_PAYMENT_CHECK
 
@@ -52,18 +59,19 @@ class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, Payment
         async with self._uow:
             order = await self._transaction_repository.get_by_id(data.transaction_id)
             user = await self._user_repository.find_by_id(order.user_id)
-            settings = await self._gateway_repository.get_raw_settings(order.gateway_type)
-        gateway = self._gateway_factory.build(order.gateway_type, settings)
+            gateway_type = order.gateway_type
+            # a free order went through no gateway: there is nothing to ask
+            if gateway_type is None:
+                raise _not_checkable(order.id)
+            settings = await self._gateway_repository.get_raw_settings(gateway_type)
+        gateway = self._gateway_factory.build(gateway_type, settings)
         if (
             order.status not in _CHECKABLE
             or not gateway.supports_status_check
             or user is None
             or user.deleted_at is not None
         ):
-            raise ConflictError(
-                f"Transaction '{order.id}' can't be checked with its gateway",
-                code=ErrorCode.PAYMENT_ORDER_NOT_CHECKABLE,
-            )
+            raise _not_checkable(order.id)
 
         try:
             payment = await gateway.check_payment(order)
@@ -97,7 +105,7 @@ class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, Payment
                             target=user,
                             order_id=current.id,
                             previous_status=current.status,
-                            gateway_type=current.gateway_type,
+                            gateway_type=gateway_type,
                             ip_address=data.client_ip,
                         )
                     )
@@ -107,7 +115,7 @@ class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, Payment
                         )
                     logger.info(
                         f"{actor.log} Confirmed payment of transaction '{current.id}' "
-                        f"({current.status.value}) with {current.gateway_type.value}"
+                        f"({current.status.value}) with {gateway_type.value}"
                     )
 
         async with self._uow:

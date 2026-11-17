@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.models.payment_gateway import PaymentGateway
 from app.core.enums import PaymentGatewayType
-from app.modules.gateways.dto import PaymentGatewayDto
+from app.modules.gateways.dto import PaymentGatewayDto, default_telegram_enabled
 from app.modules.gateways.field_catalog import gateway_flags, is_gateway_configured
 
 
@@ -26,6 +26,8 @@ class GatewayRepository:
             is_active=row.is_active,
             is_configured=is_gateway_configured(row.type, values),
             flags=gateway_flags(row.type, values),
+            telegram_enabled=row.telegram_enabled,
+            cabinet_enabled=row.cabinet_enabled,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -37,7 +39,18 @@ class GatewayRepository:
             is_active=False,
             is_configured=is_gateway_configured(gateway_type, {}),
             flags=gateway_flags(gateway_type, {}),
+            telegram_enabled=default_telegram_enabled(gateway_type),
         )
+
+    def _new_row(self, gateway_type: PaymentGatewayType) -> PaymentGateway:
+        row = PaymentGateway(
+            type=gateway_type,
+            order_index=self._default_order_index(gateway_type),
+            telegram_enabled=default_telegram_enabled(gateway_type),
+            cabinet_enabled=True,
+        )
+        self.session.add(row)
+        return row
 
     async def _get_row(self, gateway_type: PaymentGatewayType) -> Optional[PaymentGateway]:
         row: Optional[PaymentGateway] = await self.session.scalar(
@@ -71,10 +84,7 @@ class GatewayRepository:
     ) -> PaymentGatewayDto:
         row = await self._get_row(gateway_type)
         if row is None:
-            row = PaymentGateway(
-                type=gateway_type, order_index=self._default_order_index(gateway_type)
-            )
-            self.session.add(row)
+            row = self._new_row(gateway_type)
 
         current: dict[str, str] = json.loads(row.settings) if row.settings else {}
         current.update(values)
@@ -89,12 +99,27 @@ class GatewayRepository:
     ) -> PaymentGatewayDto:
         row = await self._get_row(gateway_type)
         if row is None:
-            row = PaymentGateway(
-                type=gateway_type, order_index=self._default_order_index(gateway_type)
-            )
-            self.session.add(row)
+            row = self._new_row(gateway_type)
 
         row.is_active = is_active
+
+        await self.session.flush()
+        await self.session.refresh(row)
+        return self._to_dto(row)
+
+    async def set_channels(
+        self,
+        gateway_type: PaymentGatewayType,
+        telegram_enabled: Optional[bool],
+        cabinet_enabled: Optional[bool],
+    ) -> PaymentGatewayDto:
+        row = await self._get_row(gateway_type)
+        if row is None:
+            row = self._new_row(gateway_type)
+        if telegram_enabled is not None:
+            row.telegram_enabled = telegram_enabled
+        if cabinet_enabled is not None:
+            row.cabinet_enabled = cabinet_enabled
 
         await self.session.flush()
         await self.session.refresh(row)
@@ -107,8 +132,7 @@ class GatewayRepository:
         for index, gateway_type in enumerate(ordered_types):
             row = rows_by_type.get(gateway_type)
             if row is None:
-                row = PaymentGateway(type=gateway_type)
-                self.session.add(row)
+                row = self._new_row(gateway_type)
             row.order_index = index
 
         await self.session.flush()

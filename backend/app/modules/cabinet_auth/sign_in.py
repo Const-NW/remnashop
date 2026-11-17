@@ -127,6 +127,7 @@ class CabinetSignIn:
         session_ttl: int = TTL_30D,
         legal_locale: Optional[Locale] = None,
         alert_new_device: bool = True,
+        telegram_mini_app: bool = False,
     ) -> tuple[UserDto, IssuedSession]:
         if user.is_blocked:
             raise PermissionDeniedError("User is blocked", code=ErrorCode.USER_BLOCKED)
@@ -136,6 +137,7 @@ class CabinetSignIn:
             user_agent,
             audience=SessionAudience.CABINET,
             ttl_seconds=session_ttl,
+            telegram_mini_app=telegram_mini_app,
         )
         try:
             await self._record_sign_in(user, method, client_ip, legal_locale)
@@ -189,6 +191,7 @@ class CabinetSignIn:
         source: RegistrationSource = RegistrationSource.CABINET_TELEGRAM,
         legal_locale: Optional[Locale] = None,
     ) -> tuple[UserDto, IssuedSession]:
+        mini_app = source is RegistrationSource.CABINET_MINI_APP
         # blacklisted: the register usecase stores a blocked row, issue_for refuses it
         async with self._uow:
             blacklisted = await self._blacklist_repository.is_blacklisted_telegram_id(
@@ -225,7 +228,8 @@ class CabinetSignIn:
             session_ttl,
             legal_locale,
             # the Mini App opens inside the customer's own signed-in Telegram
-            alert_new_device=source is not RegistrationSource.CABINET_MINI_APP,
+            alert_new_device=not mini_app,
+            telegram_mini_app=mini_app,
         )
 
     async def email(

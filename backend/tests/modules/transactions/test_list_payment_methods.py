@@ -5,11 +5,15 @@ from app.core.enums import Currency, PaymentGatewayType, TransactionStatus
 from app.modules.gateways.repository import GatewayRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.transactions.dto import ListPaymentMethodsDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.usecases import ListPaymentMethodsUseCase
 from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from tests.modules.transactions.test_repository import _order_dto
+
+_IN_CABINET = ListPaymentMethodsDto(in_telegram=False)
+_IN_TELEGRAM = ListPaymentMethodsDto(in_telegram=True)
 
 
 @pytest.fixture
@@ -72,7 +76,7 @@ async def paid_yookassa_order(
 async def test_lists_only_active_configured_gateways(
     use_case: ListPaymentMethodsUseCase, actor: UserDto, active_yookassa: None
 ) -> None:
-    methods = await use_case(actor)
+    methods = await use_case(actor, _IN_CABINET)
 
     assert [m.gateway_type for m in methods] == [PaymentGatewayType.YOOKASSA]
     assert methods[0].currency is Currency.RUB
@@ -82,7 +86,7 @@ async def test_lists_only_active_configured_gateways(
 async def test_flags_a_gateway_that_needs_an_email(
     use_case: ListPaymentMethodsUseCase, actor: UserDto, receipt_yookassa: None
 ) -> None:
-    methods = await use_case(actor)
+    methods = await use_case(actor, _IN_CABINET)
 
     assert [(m.gateway_type, m.requires_email) for m in methods] == [
         (PaymentGatewayType.YOOKASSA, True)
@@ -103,13 +107,15 @@ async def test_shop_payment_email_means_no_email_is_asked(
             )
         )
 
-    assert [(m.requires_email, m.asks_email) for m in await use_case(actor)] == [(False, False)]
+    assert [(m.requires_email, m.asks_email) for m in await use_case(actor, _IN_CABINET)] == [
+        (False, False)
+    ]
 
 
 async def test_stars_hidden_until_a_paid_purchase(
     use_case: ListPaymentMethodsUseCase, actor: UserDto, active_stars_paid_only: None
 ) -> None:
-    assert await use_case(actor) == []
+    assert await use_case(actor, _IN_CABINET) == []
 
 
 async def test_stars_shown_after_a_paid_purchase(
@@ -118,4 +124,42 @@ async def test_stars_shown_after_a_paid_purchase(
     active_stars_paid_only: None,
     paid_yookassa_order: None,
 ) -> None:
-    assert [m.gateway_type for m in await use_case(actor)] == [PaymentGatewayType.TELEGRAM_STARS]
+    assert [m.gateway_type for m in await use_case(actor, _IN_CABINET)] == [
+        PaymentGatewayType.TELEGRAM_STARS
+    ]
+
+
+@pytest.fixture
+async def active_stars(gateway_repository: GatewayRepository, uow: UnitOfWork) -> None:
+    async with uow:
+        await gateway_repository.set_active(PaymentGatewayType.TELEGRAM_STARS, True)
+
+
+async def test_telegram_offers_only_stars_by_default(
+    use_case: ListPaymentMethodsUseCase, actor: UserDto, active_yookassa: None, active_stars: None
+) -> None:
+    assert [m.gateway_type for m in await use_case(actor, _IN_TELEGRAM)] == [
+        PaymentGatewayType.TELEGRAM_STARS
+    ]
+    assert {m.gateway_type for m in await use_case(actor, _IN_CABINET)} == {
+        PaymentGatewayType.TELEGRAM_STARS,
+        PaymentGatewayType.YOOKASSA,
+    }
+
+
+async def test_channel_flags_decide_where_a_gateway_is_offered(
+    use_case: ListPaymentMethodsUseCase,
+    gateway_repository: GatewayRepository,
+    uow: UnitOfWork,
+    actor: UserDto,
+    active_yookassa: None,
+) -> None:
+    async with uow:
+        await gateway_repository.set_channels(
+            PaymentGatewayType.YOOKASSA, telegram_enabled=True, cabinet_enabled=False
+        )
+
+    assert [m.gateway_type for m in await use_case(actor, _IN_TELEGRAM)] == [
+        PaymentGatewayType.YOOKASSA
+    ]
+    assert await use_case(actor, _IN_CABINET) == []

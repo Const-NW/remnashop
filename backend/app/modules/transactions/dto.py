@@ -44,6 +44,12 @@ class PriceQuote:
 
 
 @dataclass(frozen=True, kw_only=True)
+class ListPaymentMethodsDto:
+    # the bot or a Mini App session, where Telegram's payment rules apply
+    in_telegram: bool
+
+
+@dataclass(frozen=True, kw_only=True)
 class PaymentMethodDto:
     gateway_type: PaymentGatewayType
     currency: Currency
@@ -62,7 +68,8 @@ class TransactionDto(BaseDto, TimestampMixin):
     purchase_type: PurchaseType
     channel: PurchaseChannel
     target_subscription_id: Optional[int] = None
-    gateway_type: PaymentGatewayType
+    # None: a free order, nothing was paid through a gateway
+    gateway_type: Optional[PaymentGatewayType] = None
     external_payment_id: Optional[str] = None
     status: TransactionStatus = TransactionStatus.PENDING
     base_price: Decimal
@@ -99,7 +106,7 @@ class CreateTransactionDto:
     purchase_type: PurchaseType
     channel: PurchaseChannel
     target_subscription_id: Optional[int]
-    gateway_type: PaymentGatewayType
+    gateway_type: Optional[PaymentGatewayType]
     base_price: Decimal
     discount_percent: int
     discount_source: DiscountSource
@@ -141,7 +148,10 @@ class CreateCheckoutDto:
     currency: Currency
     purchase_type: PurchaseType
     channel: PurchaseChannel
-    gateway_type: PaymentGatewayType
+    # None: only for an order that turns out free, recorded without a gateway
+    gateway_type: Optional[PaymentGatewayType]
+    # the bot or a Mini App session, where Telegram's payment rules apply
+    in_telegram: bool
     target_subscription_id: Optional[int] = None
     customer_email: Optional[str] = None
     # required for a LINK plan: the link's code is what grants access to it
@@ -277,7 +287,8 @@ class PaidTransactionDto:
     plan_id: Optional[int]
     plan_name: str
     duration_days: int
-    gateway_type: PaymentGatewayType
+    # None: a free order
+    gateway_type: Optional[PaymentGatewayType]
     channel: PurchaseChannel
 
     @property

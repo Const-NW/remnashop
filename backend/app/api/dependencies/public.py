@@ -32,6 +32,7 @@ class AuthContext:
     # None for an API token, which has no session behind it
     session_id: Optional[int] = None
     audience: Optional[SessionAudience] = None
+    telegram_mini_app: bool = False
 
 
 async def _resolve_api_token_actor(
@@ -130,7 +131,12 @@ async def get_auth_context(
             code=ErrorCode.IP_NOT_ALLOWED,
         )
 
-    return AuthContext(actor=actor, session_id=session_id, audience=session.audience)
+    return AuthContext(
+        actor=actor,
+        session_id=session_id,
+        audience=session.audience,
+        telegram_mini_app=session.telegram_mini_app,
+    )
 
 
 def get_current_actor(auth: AuthContext = Depends(get_auth_context)) -> Actor:

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
 from typing import Final, Optional
@@ -9,6 +10,7 @@ from app.core.config import AppConfig
 from app.core.constants import T_ME, ZERO_AMOUNT
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
+    Currency,
     DiscountSource,
     LegalAcceptanceTrigger,
     LegalDocumentKind,
@@ -62,6 +64,18 @@ from app.modules.transactions.waitlist_repository import WaitlistRepository
 from app.modules.users import UserDto, UserRepository
 
 _ORDER_TTL: Final[timedelta] = timedelta(minutes=30)
+
+
+@dataclass(frozen=True, kw_only=True)
+class _OrderTerms:
+    """What the order is recorded with: a paid one as the customer chose, a free one
+    in the anchor currency and without a gateway."""
+
+    gateway_type: Optional[PaymentGatewayType]
+    gateway_settings: dict[str, str]
+    currency: Currency
+    quote: PriceQuote
+    customer_email: Optional[str]
 
 
 class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDto]):
@@ -118,15 +132,22 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             return None
         return f"{cabinet_url}/payment/result?order_id={order_id}"
 
-    async def _resolve_customer_email(
-        self, data: CreateCheckoutDto, user: UserDto, gateway_settings: dict[str, str]
-    ) -> Optional[str]:
+    async def _customer_email(self, data: CreateCheckoutDto, user: UserDto) -> Optional[str]:
         shop_settings = await self._settings_repository.get_shop_settings()
-        customer_email = shop_settings.payment_email or user.email or data.customer_email
-        gateway_class = GATEWAY_REGISTRY[data.gateway_type]
+        return shop_settings.payment_email or user.email or data.customer_email
+
+    async def _resolve_customer_email(
+        self,
+        data: CreateCheckoutDto,
+        user: UserDto,
+        gateway_type: PaymentGatewayType,
+        gateway_settings: dict[str, str],
+    ) -> Optional[str]:
+        customer_email = await self._customer_email(data, user)
+        gateway_class = GATEWAY_REGISTRY[gateway_type]
         if customer_email is None and gateway_class.requires_customer_email(gateway_settings):
             raise ValidationError(
-                f"Gateway '{data.gateway_type.value}' requires a customer email",
+                f"Gateway '{gateway_type.value}' requires a customer email",
                 code=ErrorCode.GATEWAY_EMAIL_REQUIRED,
             )
         return customer_email
@@ -175,36 +196,24 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         replaced_order_id = await self._cancel_replaced(actor.id, data.replaces_order_id)
 
         async with self._uow:
-            gateway_settings = await self._load_gateway_settings(actor.id, data)
             plan, user = await self._pricer.load_purchasable_plan(
                 actor.id,
                 data.plan_id,
                 data.plan_code,
                 data.target_subscription_id if data.purchase_type is PurchaseType.RENEW else None,
             )
-            customer_email = await self._resolve_customer_email(data, user, gateway_settings)
 
         previous_plan = await self._validate_provisioning_preconditions(actor.id, data)
         user = await self._pricer.drop_dead_promocode_discounts(user)
-        change_credit = (
-            await self._pricer.change_credit(
-                actor.id, data.target_subscription_id, data.duration_days, data.currency
-            )
-            if data.purchase_type is PurchaseType.CHANGE
-            else ZERO_AMOUNT
-        )
-        quote = await self._pricer.quote(
-            plan, data.duration_days, data.currency, user, change_credit=change_credit
-        )
+        quote = await self._quote(actor.id, plan, data, user, data.currency)
         if data.expected_price is not None and quote.final_price != data.expected_price:
             raise ConflictError(
                 f"Price changed from {data.expected_price} to {quote.final_price}",
                 code=ErrorCode.PRICE_CHANGED,
             )
-
+        terms = await self._order_terms(actor.id, plan, data, user, quote)
+        quote = terms.quote
         is_free = quote.final_price == 0
-        if not is_free:
-            await self._validate_gateway_availability(data.gateway_type)
 
         async with self._uow:
             # rechecked under the per-user lock, counting orders not yet
@@ -229,9 +238,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             # the one-shot discount is spent in the same transaction as the
             # order, so a racing checkout finds it gone and re-quotes
             await self._spend_purchase_discount(quote, user)
-            order = await self._create_order(
-                actor.id, data, plan, quote, customer_email, previous_plan
-            )
+            order = await self._create_order(actor.id, data, terms, plan, previous_plan)
             # paying accepts the offer on either channel; the client's locale only picks
             # the revision, the customer's language when it sends none
             await self._legal_recorder.record(
@@ -263,8 +270,12 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 )
                 return CheckoutResultDto(order_id=order.id, confirmation_url=None)
 
+        # a free order returned above; a paid one always carries its gateway
+        assert terms.gateway_type is not None
         return_url = await self._return_url(data, order.id)
-        gateway = self._gateway_factory.build(data.gateway_type, gateway_settings, return_url)
+        gateway = self._gateway_factory.build(
+            terms.gateway_type, terms.gateway_settings, return_url
+        )
         try:
             text = await self._payment_texts.describe(order, actor.language)
             intent = await gateway.create_payment(order, text)
@@ -281,7 +292,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             # the provider's answer stays in the log: it can name the merchant
             # account or the request, which is not the customer's business
             logger.exception(
-                f"Gateway '{data.gateway_type}' failed to create a payment for order {order.id}"
+                f"Gateway '{terms.gateway_type}' failed to create a payment for order {order.id}"
             )
             code = (
                 error.code
@@ -301,26 +312,101 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
 
         return CheckoutResultDto(order_id=order.id, confirmation_url=intent.confirmation_url)
 
-    async def _load_gateway_settings(self, user_id: int, data: CreateCheckoutDto) -> dict[str, str]:
-        if data.gateway_type not in GATEWAY_REGISTRY:
+    async def _quote(
+        self,
+        user_id: int,
+        plan: PlanDto,
+        data: CreateCheckoutDto,
+        user: UserDto,
+        currency: Currency,
+    ) -> PriceQuote:
+        change_credit = (
+            await self._pricer.change_credit(
+                user_id, data.target_subscription_id, data.duration_days, currency
+            )
+            if data.purchase_type is PurchaseType.CHANGE
+            else ZERO_AMOUNT
+        )
+        return await self._pricer.quote(
+            plan, data.duration_days, currency, user, change_credit=change_credit
+        )
+
+    async def _order_terms(
+        self,
+        user_id: int,
+        plan: PlanDto,
+        data: CreateCheckoutDto,
+        user: UserDto,
+        quote: PriceQuote,
+    ) -> _OrderTerms:
+        if quote.final_price == 0:
+            return await self._free_order_terms(user_id, plan, data, user, quote)
+        gateway_type = await self._validate_gateway_availability(
+            data.gateway_type, data.in_telegram
+        )
+        async with self._uow:
+            gateway_settings = await self._load_gateway_settings(user_id, gateway_type, data)
+            customer_email = await self._resolve_customer_email(
+                data, user, gateway_type, gateway_settings
+            )
+        return _OrderTerms(
+            gateway_type=gateway_type,
+            gateway_settings=gateway_settings,
+            currency=data.currency,
+            quote=quote,
+            customer_email=customer_email,
+        )
+
+    async def _free_order_terms(
+        self,
+        user_id: int,
+        plan: PlanDto,
+        data: CreateCheckoutDto,
+        user: UserDto,
+        quote: PriceQuote,
+    ) -> _OrderTerms:
+        """Nothing is paid, so no method is chosen: whatever the client sent, the order
+        goes in the anchor currency and without a gateway."""
+        currency = await self._pricer.anchor_currency()
+        if currency is not data.currency:
+            anchor_quote = await self._quote(user_id, plan, data, user, currency)
+            # prices set apart per currency may leave the anchor's above zero
+            if anchor_quote.final_price == 0:
+                quote = anchor_quote
+            else:
+                currency = data.currency
+        async with self._uow:
+            customer_email = await self._customer_email(data, user)
+        return _OrderTerms(
+            gateway_type=None,
+            gateway_settings={},
+            currency=currency,
+            quote=quote,
+            customer_email=customer_email,
+        )
+
+    async def _load_gateway_settings(
+        self, user_id: int, gateway_type: PaymentGatewayType, data: CreateCheckoutDto
+    ) -> dict[str, str]:
+        if gateway_type not in GATEWAY_REGISTRY:
             raise ValidationError(
-                f"Gateway '{data.gateway_type.value}' is not yet supported",
+                f"Gateway '{gateway_type.value}' is not yet supported",
                 code=ErrorCode.GATEWAY_NOT_SUPPORTED,
             )
-        gateway_settings = await self._gateway_repository.get_raw_settings(data.gateway_type)
-        if data.currency is not gateway_currency(data.gateway_type, gateway_settings):
+        gateway_settings = await self._gateway_repository.get_raw_settings(gateway_type)
+        if data.currency is not gateway_currency(gateway_type, gateway_settings):
             raise ValidationError(
-                f"Gateway '{data.gateway_type.value}' does not settle '{data.currency.value}'",
+                f"Gateway '{gateway_type.value}' does not settle '{data.currency.value}'",
                 code=ErrorCode.GATEWAY_CURRENCY_UNSUPPORTED,
             )
-        if data.gateway_type is PaymentGatewayType.TELEGRAM_STARS:
+        if gateway_type is PaymentGatewayType.TELEGRAM_STARS:
             bot_settings = await self._settings_repository.get_bot_settings()
             # without the webhook the bot never sees pre_checkout_query, so the link is dead
             if not bot_settings.is_configured or bot_settings.token is None:
                 raise ValidationError(
                     "The bot is not configured", code=ErrorCode.GATEWAY_NOT_AVAILABLE
                 )
-            if gateway_flags(data.gateway_type, gateway_settings).get(
+            if gateway_flags(gateway_type, gateway_settings).get(
                 REQUIRE_PAID_PURCHASE_FIELD_KEY, False
             ) and not await self._transaction_repository.has_paid_purchase(user_id):
                 raise ValidationError(
@@ -336,11 +422,11 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
         self,
         user_id: int,
         data: CreateCheckoutDto,
+        terms: _OrderTerms,
         plan: PlanDto,
-        quote: PriceQuote,
-        customer_email: Optional[str],
         previous_plan: Optional[PlanSnapshot],
     ) -> TransactionDto:
+        quote = terms.quote
         return await self._transaction_repository.create(
             CreateTransactionDto(
                 user_id=user_id,
@@ -348,15 +434,15 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 plan_snapshot=PlanSnapshot.from_plan(
                     plan,
                     price_paid=quote.final_price,
-                    currency=data.currency,
+                    currency=terms.currency,
                     duration_days=data.duration_days,
                 ),
                 duration_days=data.duration_days,
-                currency=data.currency,
+                currency=terms.currency,
                 purchase_type=data.purchase_type,
                 channel=data.channel,
                 target_subscription_id=data.target_subscription_id,
-                gateway_type=data.gateway_type,
+                gateway_type=terms.gateway_type,
                 base_price=quote.base_price,
                 discount_percent=quote.discount_percent,
                 discount_source=quote.discount_source,
@@ -370,7 +456,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                     quote.discount_promocode_id is not None
                     and quote.discount_source is DiscountSource.PURCHASE
                 ),
-                customer_email=customer_email,
+                customer_email=terms.customer_email,
                 previous_plan_snapshot=previous_plan,
                 idempotency_key=uuid4().hex,
                 expires_at=datetime_now() + _ORDER_TTL,
@@ -386,14 +472,25 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 code=ErrorCode.PURCHASE_DISCOUNT_USED,
             )
 
-    async def _validate_gateway_availability(self, gateway_type: PaymentGatewayType) -> None:
+    async def _validate_gateway_availability(
+        self, gateway_type: Optional[PaymentGatewayType], in_telegram: bool
+    ) -> PaymentGatewayType:
+        if gateway_type is None:
+            raise ValidationError(
+                "A paid order needs a payment method", code=ErrorCode.GATEWAY_REQUIRED
+            )
         async with self._uow:
             gateway_config = await self._gateway_repository.get_by_type(gateway_type)
-            if not gateway_config.is_active or not gateway_config.is_configured:
+            if (
+                not gateway_config.is_active
+                or not gateway_config.is_configured
+                or not gateway_config.offered_in(in_telegram=in_telegram)
+            ):
                 raise ValidationError(
                     f"Gateway '{gateway_type.value}' is not available",
                     code=ErrorCode.GATEWAY_NOT_AVAILABLE,
                 )
+        return gateway_type
 
     async def _validate_provisioning_preconditions(
         self, user_id: int, data: CreateCheckoutDto

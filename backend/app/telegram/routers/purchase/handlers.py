@@ -31,6 +31,7 @@ from app.modules.transactions import (
     CreateCheckoutDto,
     CreateCheckoutUseCase,
     JoinPaymentWaitlistUseCase,
+    ListPaymentMethodsDto,
     ListPaymentMethodsUseCase,
     PaymentMethodDto,
     PriceQuote,
@@ -52,6 +53,7 @@ RETRY_DURATION_KEY: Final[str] = "retry_duration_days"
 # typed in the bot for a gateway that sends a receipt, used for this purchase only
 CUSTOMER_EMAIL_KEY: Final[str] = "customer_email"
 _EMAIL_ADAPTER: Final[TypeAdapter[str]] = TypeAdapter(EmailStr)
+_IN_BOT: Final[ListPaymentMethodsDto] = ListPaymentMethodsDto(in_telegram=True)
 # the link offered renew-or-new, so its back buttons return there
 LINK_CHOICE_KEY: Final[str] = "link_choice"
 _ERROR_KEYS: Final[dict[ErrorCode, str]] = {
@@ -216,20 +218,28 @@ async def select_duration(
     methods: list[PaymentMethodDto],
     quote: Quoter,
 ) -> Optional[str]:
-    """Returns a notification key when the duration can't be bought."""
+    """Returns a notification key when the duration can't be bought. An order that
+    costs nothing has no method to choose: checkout records it in the anchor currency."""
     plan = selected_plan(catalog, manager.dialog_data)
     duration = next((d for d in plan.durations if d.days == days), None) if plan else None
     if plan is None or duration is None:
         return "ntf-purchase.plan-unavailable"
-    if not methods:
-        return "ntf-purchase.no-methods"
     try:
-        quotes = {
-            currency: await quote(days, currency)
-            for currency in dict.fromkeys(method.currency for method in methods)
-        }
+        anchor = await quote(days, catalog.anchor_currency)
+        free = anchor.final_price == 0
+        if not free and not methods:
+            return "ntf-purchase.no-methods"
+        quotes = (
+            {catalog.anchor_currency: anchor}
+            if free
+            else {
+                currency: await quote(days, currency)
+                for currency in dict.fromkeys(method.currency for method in methods)
+            }
+        )
     except AppError:
         return "ntf-purchase.plan-unavailable"
+    first = next(iter(quotes.values()))
     data = manager.dialog_data
     data.pop(PAYMENT_URL_KEY, None)
     data["duration_days"] = days
@@ -241,21 +251,23 @@ async def select_duration(
     data["prices"] = {c.value: str(q.final_price) for c, q in quotes.items()}
     data["base_prices"] = {c.value: str(q.base_price - q.change_credit) for c, q in quotes.items()}
     # the same discount whatever the currency
-    first = quotes[methods[0].currency]
     data["discount_percent"] = first.discount_percent
     data["discount_source"] = first.discount_source.value
     data["change_credit"] = first.change_credit > 0
     data["change_credit_days"] = first.change_credit_days
-    data["methods"] = [
-        {
-            "gateway_type": m.gateway_type.value,
-            "currency": m.currency.value,
-            "requires_email": m.requires_email,
-        }
-        for m in methods
-    ]
-    # checkout validates the gateway even for a free order, so one is picked silently
-    data["method_skipped"] = len(methods) == 1 or quotes[methods[0].currency].final_price == 0
+    data["methods"] = (
+        [{"gateway_type": None, "currency": catalog.anchor_currency.value, "requires_email": False}]
+        if free
+        else [
+            {
+                "gateway_type": m.gateway_type.value,
+                "currency": m.currency.value,
+                "requires_email": m.requires_email,
+            }
+            for m in methods
+        ]
+    )
+    data["method_skipped"] = len(data["methods"]) == 1
     if data["method_skipped"]:
         _store_method(data, data["methods"][0])
         await _after_method(manager)
@@ -322,7 +334,7 @@ async def on_purchase_start(
         # nothing to renew into (an imported or switched-off plan): a plan change stands for it
         manager.dialog_data["purchase_type"] = PurchaseType.CHANGE.value
         catalog = await list_active_plans(user, catalog_query(manager))
-    methods = await list_payment_methods(user) if retry else None
+    methods = await list_payment_methods(user, _IN_BOT) if retry else None
     key = await start_purchase_steps(
         manager, catalog, subscriptions, methods, checkout_quoter(user, manager, quote_checkout)
     )
@@ -361,7 +373,7 @@ async def on_duration_selected(
         dialog_manager,
         await list_active_plans(user, catalog_query(dialog_manager)),
         int(dialog_manager.item_id),  # type: ignore[attr-defined]
-        await list_payment_methods(user),
+        await list_payment_methods(user, _IN_BOT),
         checkout_quoter(user, dialog_manager, quote_checkout),
     )
     if key is not None:
@@ -466,7 +478,10 @@ async def on_confirm(
                 currency=Currency(data["currency"]),
                 purchase_type=purchase_type,
                 channel=PurchaseChannel.BOT,
-                gateway_type=PaymentGatewayType(data["gateway_type"]),
+                gateway_type=PaymentGatewayType(data["gateway_type"])
+                if data["gateway_type"]
+                else None,
+                in_telegram=True,
                 target_subscription_id=None
                 if purchase_type is PurchaseType.NEW
                 else selected_subscription_id(dialog_manager),

@@ -174,7 +174,8 @@ class RefundTransactionUseCase(UseCase[RefundTransactionDto, RefundResultDto]):
                         order_id=order.id,
                         user_id=order.user_id,
                         payment_key=order.idempotency_key,
-                        gateway_type=order.gateway_type,
+                        # only Stars orders are refunded here
+                        gateway_type=PaymentGatewayType.TELEGRAM_STARS,
                         amount=str(order.final_price),
                         currency=order.currency,
                     )

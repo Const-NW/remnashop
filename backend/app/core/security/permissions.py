@@ -116,6 +116,7 @@ class Permission(UpperStrEnum):
     GATEWAYS_VIEW = auto()
     GATEWAYS_UPDATE = auto()
     GATEWAYS_ACTIVE_SET = auto()
+    GATEWAYS_CHANNELS_UPDATE = auto()
     GATEWAYS_REORDER = auto()
     GATEWAYS_TEST = auto()
     GATEWAYS_TEST_VIEW = auto()
@@ -365,6 +366,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.GATEWAYS_VIEW: PermissionMeta(resource="gateways", kind="read"),
     Permission.GATEWAYS_UPDATE: PermissionMeta(resource="gateways", kind="write"),
     Permission.GATEWAYS_ACTIVE_SET: PermissionMeta(resource="gateways", kind="write"),
+    Permission.GATEWAYS_CHANNELS_UPDATE: PermissionMeta(resource="gateways", kind="write"),
     Permission.GATEWAYS_REORDER: PermissionMeta(resource="gateways", kind="write"),
     Permission.GATEWAYS_TEST: PermissionMeta(resource="gateways", kind="write"),
     Permission.GATEWAYS_TEST_VIEW: PermissionMeta(resource="gateways", kind="read"),
@@ -551,6 +553,8 @@ _TOKEN_EXCLUDED_PERMISSIONS: Final[frozenset[Permission]] = frozenset(
         # merchant credentials: payments land in another account
         Permission.GATEWAYS_UPDATE,
         Permission.GATEWAYS_ACTIVE_SET,
+        # a gateway other than Stars offered in Telegram can get the bot blocked
+        Permission.GATEWAYS_CHANNELS_UPDATE,
         # provisions an order nobody was paid for
         Permission.TRANSACTIONS_FULFILL,
         # sends money back

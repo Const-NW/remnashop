@@ -213,6 +213,28 @@ async def test_rotate_updates_hash_and_last_used_at(
     assert found_by_new.id == created.id
 
 
+async def test_rotate_keeps_the_mini_app_mark(
+    session_repository: SessionRepository, user_repository: UserRepository, uow: UnitOfWork
+) -> None:
+    user = await _create_user(user_repository, uow, "owner")
+    created = await session_repository.create(
+        CreateSessionDto(
+            user_id=user.id,
+            refresh_token_hash=hash_refresh_token("mini-app-token"),
+            ip_address="203.0.113.1",
+            user_agent="pytest",
+            expires_at=_future(7 * 24 * 3600),
+            audience=SessionAudience.CABINET,
+            telegram_mini_app=True,
+        )
+    )
+
+    await session_repository.rotate(created.id, hash_refresh_token("rotated-token"))
+
+    found = await session_repository.find_active_by_id(created.id)
+    assert found is not None and found.telegram_mini_app
+
+
 async def test_list_active_by_user_excludes_revoked(
     session_repository: SessionRepository, user_repository: UserRepository, uow: UnitOfWork
 ) -> None:

@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut } from "@shared/api/http";
+import { apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 import type { ListResponse } from "@shared/api/http";
 
 export interface Gateway {
@@ -8,7 +8,13 @@ export interface Gateway {
   is_configured: boolean;
   /** current state of the gateway's boolean settings, the only readable ones */
   flags: Record<string, boolean>;
+  /** offered in the bot and Mini App sessions */
+  telegram_enabled: boolean;
+  /** offered in the cabinet opened in a browser */
+  cabinet_enabled: boolean;
 }
+
+export type GatewayChannels = Partial<Pick<Gateway, "telegram_enabled" | "cabinet_enabled">>;
 
 export type GatewayFieldKind = "text" | "secret" | "number" | "boolean";
 
@@ -46,6 +52,10 @@ export function updateGatewaySettings(
   return apiPut<Gateway, { values: Record<string, string> }>(`/gateways/${type}/settings`, {
     values,
   });
+}
+
+export function updateGatewayChannels(type: string, channels: GatewayChannels): Promise<Gateway> {
+  return apiPatch<Gateway, GatewayChannels>(`/gateways/${type}`, channels);
 }
 
 export function setGatewayActive(type: string, active: boolean): Promise<Gateway> {

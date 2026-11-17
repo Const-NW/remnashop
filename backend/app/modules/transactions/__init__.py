@@ -2,6 +2,7 @@ from app.modules.transactions.di import get_transactions_providers
 from app.modules.transactions.dispatch import ConfirmStarsPaymentDispatch
 from app.modules.transactions.dto import (
     CreateCheckoutDto,
+    ListPaymentMethodsDto,
     PaidTotalsDto,
     PaidTransactionDto,
     PayerSummaryDto,
@@ -45,6 +46,7 @@ __all__ = [
     "CreateCheckoutUseCase",
     "GetOwnTransactionUseCase",
     "JoinPaymentWaitlistUseCase",
+    "ListPaymentMethodsDto",
     "ListPaymentMethodsUseCase",
     "PaidOrderNotFulfilledEvent",
     "PaidTotalsDto",

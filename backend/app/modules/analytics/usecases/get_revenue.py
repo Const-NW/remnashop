@@ -125,6 +125,9 @@ def _build_revenue(
         by_plan.setdefault(row.plan_name, []).append(amount[id(row)])
         by_duration.setdefault(str(row.duration_days), []).append(amount[id(row)])
         by_channel.setdefault(row.channel.value, []).append(amount[id(row)])
+        # a free order went through no gateway
+        if row.gateway_type is None:
+            continue
         stats = gateways.setdefault(row.gateway_type, _Gateway())
         stats.paid += 1
         stats.revenue += amount[id(row)]

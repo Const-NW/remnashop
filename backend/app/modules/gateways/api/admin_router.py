@@ -14,11 +14,13 @@ from app.modules.gateways.api.schemas import (
     GatewayListResponse,
     GatewayResponse,
     ReorderGatewaysRequest,
+    UpdateGatewayRequest,
     UpdateGatewaySettingsRequest,
 )
 from app.modules.gateways.dto import (
     ReorderGatewaysDto,
     SetGatewayActiveDto,
+    UpdateGatewayChannelsDto,
     UpdateGatewaySettingsDto,
 )
 from app.modules.gateways.field_catalog import GATEWAY_FIELD_CATALOG
@@ -26,6 +28,7 @@ from app.modules.gateways.usecases import (
     ListGatewaysUseCase,
     ReorderGatewaysUseCase,
     SetGatewayActiveUseCase,
+    UpdateGatewayChannelsUseCase,
     UpdateGatewaySettingsUseCase,
 )
 from app.modules.users import UserDto
@@ -87,6 +90,25 @@ async def update_gateway_settings(
 ) -> GatewayResponse:
     gateway = await use_case(
         actor, UpdateGatewaySettingsDto(type=gateway_type, values=payload.values)
+    )
+    return GatewayResponse.model_validate(gateway, from_attributes=True)
+
+
+@router.patch("/{gateway_type}", response_model=GatewayResponse)
+@inject
+async def update_gateway(
+    gateway_type: PaymentGatewayType,
+    payload: UpdateGatewayRequest,
+    use_case: FromDishka[UpdateGatewayChannelsUseCase],
+    actor: Actor = Depends(require_admin),
+) -> GatewayResponse:
+    gateway = await use_case(
+        actor,
+        UpdateGatewayChannelsDto(
+            type=gateway_type,
+            telegram_enabled=payload.telegram_enabled,
+            cabinet_enabled=payload.cabinet_enabled,
+        ),
     )
     return GatewayResponse.model_validate(gateway, from_attributes=True)
 

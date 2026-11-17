@@ -49,7 +49,7 @@ class RecentPaymentResponse(BaseModel):
     name: str
     plan_name: str
     duration_days: int
-    gateway_type: PaymentGatewayType
+    gateway_type: Optional[PaymentGatewayType]  # None: a free order
     purchase_type: PurchaseType
     amount: Decimal
     currency: Currency

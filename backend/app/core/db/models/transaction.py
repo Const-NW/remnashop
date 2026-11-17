@@ -58,7 +58,8 @@ class Transaction(BaseSql, TimestampMixin):
         ForeignKey("subscriptions.id"), index=True
     )
 
-    gateway_type: Mapped[PaymentGatewayType]
+    # None: a free order, nothing was paid through a gateway
+    gateway_type: Mapped[Optional[PaymentGatewayType]]
     external_payment_id: Mapped[Optional[str]] = mapped_column(String(128))
     status: Mapped[TransactionStatus] = mapped_column(
         default=TransactionStatus.PENDING, server_default="PENDING"

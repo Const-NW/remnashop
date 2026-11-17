@@ -34,7 +34,7 @@ class PaidOrderNotFulfilledEvent(SystemEvent):
     order_id: int
     user_id: int
     payment_key: str
-    gateway_type: PaymentGatewayType
+    gateway_type: Optional[PaymentGatewayType]
     amount: str
     currency: Currency
 
@@ -72,7 +72,7 @@ class GatewayTestPaymentCreatedEvent(ActorEvent):
 class CheckoutCreatedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.PAYMENT
     order_id: int
-    gateway_type: PaymentGatewayType
+    gateway_type: Optional[PaymentGatewayType]
     amount: str
     currency: Currency
     # the unpaid order this one canceled in its place

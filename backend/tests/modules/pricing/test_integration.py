@@ -190,6 +190,7 @@ async def test_rate_change_moves_catalog_but_not_existing_order(
         user,
         CreateCheckoutDto(
             channel=PurchaseChannel.CABINET,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
