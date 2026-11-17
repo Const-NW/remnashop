@@ -17,7 +17,7 @@ _START_URL: Final[dict[AppearanceTarget, str]] = {
 }
 # both frontends ship it in public/
 _DEFAULT_ICONS: Final[list[dict[str, str]]] = [
-    {"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml"},
+    {"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml"},
 ]
 
 
