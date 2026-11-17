@@ -10,6 +10,7 @@ from app.core.enums import Locale, Role, SmtpSecurity
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError, RetryableTaskError, ValidationError
 from app.modules.email import EmailBrandDto, read_smtp_failure
+from app.modules.email.batch import InlineImageDto, OutgoingEmailDto, build_mime
 from app.modules.email.dto import EmailMessageDto, SendTestEmailDto
 from app.modules.email.sender import EmailSendError, SmtpSender
 from app.modules.email.templates import render_link_code, render_login_code
@@ -144,6 +145,36 @@ async def test_sender_uses_tls_flags(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert calls["use_tls"] is True and calls["start_tls"] is False
     assert calls["hostname"] == "smtp.example.com" and calls["to"] == "a@b.c"
+
+
+# without an inline disposition Gmail lists the logo as a "noname" attachment
+async def test_inline_images_are_inline(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[Any] = []
+
+    async def fake_send(message: Any, **kwargs: Any) -> None:
+        sent.append(message)
+
+    monkeypatch.setattr("app.modules.email.sender.aiosmtplib.send", fake_send)
+    html = '<img src="cid:logo">'
+    await SmtpSender().send(
+        _CONFIGURED.profile(bulk=False),
+        EmailMessageDto(to="a@b.c", subject="s", text="t", html=html),
+        AppearanceImageDto(data=b"png", content_type="image/png"),
+    )
+    batch = build_mime(
+        _CONFIGURED.profile(bulk=True),
+        OutgoingEmailDto(
+            to="a@b.c",
+            subject="s",
+            text="t",
+            html=html,
+            images=[InlineImageDto(cid="logo", data=b"png", content_type="image/png")],
+        ),
+    )
+
+    for mime in (sent[0], batch):
+        images = [part for part in mime.walk() if part.get_content_maintype() == "image"]
+        assert [part.get_content_disposition() for part in images] == ["inline"]
 
 
 async def test_sender_envelope_is_the_validated_address(monkeypatch: pytest.MonkeyPatch) -> None:
