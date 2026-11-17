@@ -3,8 +3,8 @@ from decimal import Decimal
 
 import pytest
 
-from app.core.enums import PlanType
-from app.modules.plans.dto import PlanDto, PlanDurationDto
+from app.core.enums import Currency, PlanType
+from app.modules.plans.dto import PlanDto, PlanDurationDto, PlanPriceOverrideDto
 from app.modules.subscriptions.dto import PlanSnapshot
 from app.modules.subscriptions.unlimited import expiry_after, is_unlimited_expiry
 from tests.modules.subscriptions.factories import make_plan_snapshot, make_subscription_dto
@@ -73,16 +73,37 @@ def test_subscription_dto_is_unlimited() -> None:
     ).is_unlimited
 
 
-def test_a_trial_never_offers_an_unlimited_duration() -> None:
-    trial = PlanDto(
-        public_code="trial",
-        name="Trial",
+def _plan(*, is_trial: bool, durations: list[PlanDurationDto]) -> PlanDto:
+    return PlanDto(
+        public_code="plan",
+        name="Plan",
         type=PlanType.BOTH,
         traffic_limit=1,
         device_limit=1,
-        is_trial=True,
-        durations=[PlanDurationDto(id=1, days=0, base_price=Decimal("0"))],
+        is_trial=is_trial,
+        durations=durations,
     )
 
-    assert trial.sellable_durations() == []
-    assert trial.free_trial_duration() is None
+
+def test_a_trial_offers_its_unlimited_duration_for_free() -> None:
+    forever = PlanDurationDto(id=1, days=0, base_price=Decimal("0"))
+    trial = _plan(is_trial=True, durations=[forever])
+
+    assert trial.sellable_durations() == [forever]
+    assert trial.free_trial_duration() == forever
+
+
+def test_a_free_duration_is_sold_but_never_renewed() -> None:
+    free = PlanDurationDto(id=1, days=30, base_price=Decimal("0"))
+    paid = PlanDurationDto(id=2, days=90, base_price=Decimal("300"))
+    # a migrated duration without an anchor price: free in the anchor, paid elsewhere
+    unpriced = PlanDurationDto(
+        id=3,
+        days=180,
+        base_price=Decimal("0"),
+        overrides=[PlanPriceOverrideDto(currency=Currency.RUB, price=Decimal("500"))],
+    )
+    plan = _plan(is_trial=False, durations=[free, paid, unpriced])
+
+    assert plan.sellable_durations() == [free, paid]
+    assert plan.renewable_durations() == [paid]

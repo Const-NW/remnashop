@@ -155,7 +155,7 @@ def test_leading_emoji_stripped_and_default_icon_set() -> None:
     assert "plans: leading emoji removed from 4 plan names" in report.notes
 
 
-def test_trial_with_unlimited_duration_is_reported() -> None:
+def test_trial_with_unlimited_duration_is_kept_unlimited() -> None:
     report = MigrationReport()
     trial = PLAN | {"id": 4, "name": "Trial", "is_trial": True}
     rows = transform_plans(
@@ -168,4 +168,4 @@ def test_trial_with_unlimited_duration_is_reported() -> None:
     )
 
     assert [row["days"] for row in rows.durations if row["plan_id"] == 4] == [0]
-    assert any("Trial" in note and "unlimited" in note for note in report.notes)
+    assert not any("unlimited" in note for note in report.notes)

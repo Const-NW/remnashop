@@ -93,11 +93,20 @@ async def test_duration_labels_carry_the_quoted_price_and_the_period() -> None:
             period=_get("time-unit.month", value=1),
             price="2.25",
             currency_symbol="$",
+            is_free=0,
         )
     )
     assert "frg-purchase-discount" in data["window_text"]
     assert "'percent': 10" in data["window_text"]
     assert data["back_text"].text.endswith(" btn-purchase.back-plans")
+
+
+async def test_a_free_duration_is_labelled_free() -> None:
+    catalog = PlanCatalogDto(plans=[_plan(id=10)], anchor_currency=Currency.USD)
+
+    data = await _durations({"plan_id": 10, "purchase_type": "NEW"}, catalog, _quote("0"))
+
+    assert "'is_free': 1" in data["durations"][0]["label"].text
 
 
 async def test_duration_falls_back_to_the_list_price_when_the_quote_fails() -> None:

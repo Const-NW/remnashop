@@ -592,7 +592,7 @@ function PlanEditDialogBody({
                         {days}
                       </PresetButton>
                     ))}
-                    {!isTrial && !usedDays.has(0) && (
+                    {!usedDays.has(0) && (
                       <PresetButton onClick={() => addDuration("0")}>∞</PresetButton>
                     )}
                   </div>

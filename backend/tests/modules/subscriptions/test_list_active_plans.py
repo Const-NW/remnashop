@@ -470,6 +470,44 @@ async def test_renewal_catalog_offers_the_owned_plan_its_availability_no_longer_
     assert (await use_case(stranger, renew)).plans == []
 
 
+async def test_renewal_catalog_leaves_out_a_free_duration(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+) -> None:
+    free_id = await _plan_with_access(plan_repository, "freeRenew", PlanAvailability.ALL)
+    await plan_repository.set_durations(
+        SetPlanDurationsDto(
+            plan_id=free_id,
+            durations=[
+                SetPlanDurationDto(days=30, order_index=0, base_price=Decimal("0")),
+                SetPlanDurationDto(days=90, order_index=1, base_price=Decimal("9.99")),
+            ],
+        )
+    )
+    owner = await user_repository.create(CreateUserDto(name="Free", telegram_id=923))
+    subscription = await subscription_repository.create(
+        CreateSubscriptionDto(
+            user_id=owner.id,
+            remnawave_user_id=923_001,
+            status=SubscriptionStatus.ACTIVE,
+            traffic_limit=100,
+            device_limit=3,
+            expire_at=datetime_now(),
+            url="https://example.com/sub/923",
+            plan_snapshot=make_plan_snapshot(plan_id=free_id),
+        )
+    )
+    use_case = _use_case(plan_repository, uow)
+
+    catalog = await use_case(owner)
+    renewal = await use_case(owner, ListActivePlansDto(renew_subscription_id=subscription.id))
+
+    assert [d.days for d in catalog.plans[0].durations] == [30, 90]
+    assert [d.days for d in renewal.plans[0].durations] == [90]
+
+
 async def test_catalog_carries_the_running_promotion(
     plan_repository: PlanRepository,
     uow: UnitOfWork,

@@ -38,6 +38,10 @@ class PlanDurationDto(BaseDto):
     base_price: Decimal
     overrides: list[PlanPriceOverrideDto] = Field(default_factory=list)
 
+    @property
+    def is_free(self) -> bool:
+        return self.base_price == 0 and all(o.price == 0 for o in self.overrides)
+
 
 @dataclass(frozen=True, kw_only=True)
 class PlanTranslationDto:
@@ -92,12 +96,15 @@ class PlanDto(BaseDto, TimestampMixin):
         return {item.locale: item.name for item in self.translations}
 
     def sellable_durations(self) -> list[PlanDurationDto]:
-        # a trial plan offers only its one duration, free at 0, never unlimited (one
-        # migrated so is kept but not offered); anywhere else a 0 price is a leftover
-        # from a plan that stopped being a trial
+        # a trial plan offers only its one duration; a 0 base price with a pinned price
+        # (a migrated duration without an anchor price) would sell free in the anchor
         if self.is_trial:
-            return [duration for duration in self.durations if duration.days > 0][:1]
-        return [duration for duration in self.durations if duration.base_price > 0]
+            return self.durations[:1]
+        return [d for d in self.durations if d.base_price > 0 or d.is_free]
+
+    def renewable_durations(self) -> list[PlanDurationDto]:
+        # renewing a free duration would extend it for nothing, again and again
+        return [d for d in self.sellable_durations() if not d.is_free]
 
     def free_trial_duration(self) -> Optional[PlanDurationDto]:
         # what a "get trial" button activates; a paid trial is bought at checkout

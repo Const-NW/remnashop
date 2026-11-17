@@ -69,12 +69,7 @@ class CreatePromocodeUseCase(UseCase[CreatePromocodeDto, PromocodeDto]):
                 "for reward type 'SUBSCRIPTION'",
                 code=ErrorCode.PROMOCODE_REWARD_PLAN_REQUIRED,
             )
-        plan = await self._plan_repository.get_by_id(data.reward_plan_id)
-        if plan.is_trial and data.reward_duration_days == 0:
-            raise ValidationError(
-                "A trial plan can't be unlimited",
-                code=ErrorCode.PLAN_TRIAL_UNLIMITED_DURATION,
-            )
+        await self._plan_repository.get_by_id(data.reward_plan_id)
 
     async def _validate_reward(self, data: CreatePromocodeDto) -> None:
         if data.reward_type is PromocodeRewardType.DURATION:
