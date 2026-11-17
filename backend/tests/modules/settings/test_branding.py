@@ -119,3 +119,13 @@ def test_dashboard_manifest_defaults() -> None:
 
     assert manifest["name"] == "Remnashop"
     assert manifest["theme_color"] == "#111111"
+
+
+def test_manifest_keeps_svg_icons() -> None:
+    manifest = appearance_manifest(AppearanceTarget.CABINET, _dto(favicon="image/svg+xml"), _dto())
+
+    assert manifest["icons"][0] == {
+        "src": f"/api/appearance/cabinet/favicon?v={_V}",
+        "sizes": "any",
+        "type": "image/svg+xml",
+    }

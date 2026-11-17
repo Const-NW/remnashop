@@ -18,8 +18,8 @@ _DEFAULT_ICONS: Final[list[dict[str, str]]] = [
 _Sources = list[tuple[AppearanceTarget, AppearanceSettingsDto]]
 
 
-def _raster_images(sources: _Sources, api_prefix: str) -> list[tuple[str, str]]:
-    """(path, content type) of non-SVG branding images, favicons first, in source order."""
+def _images(sources: _Sources, api_prefix: str, *, svg: bool) -> list[tuple[str, str]]:
+    """(path, content type) of branding images, favicons first, in source order."""
     images: list[tuple[str, str]] = []
     for kind in (AppearanceImageKind.FAVICON, AppearanceImageKind.LOGO):
         for target, dto in sources:
@@ -28,7 +28,7 @@ def _raster_images(sources: _Sources, api_prefix: str) -> list[tuple[str, str]]:
                 if kind is AppearanceImageKind.FAVICON
                 else dto.logo_content_type
             )
-            if content_type is None or content_type == _SVG or dto.updated_at is None:
+            if content_type is None or (content_type == _SVG and not svg) or dto.updated_at is None:
                 continue
             version = int(dto.updated_at.timestamp())
             images.append((f"{api_prefix}/appearance/{target}/{kind}?v={version}", content_type))
@@ -39,7 +39,8 @@ def push_icon_path(
     cabinet: AppearanceSettingsDto, dashboard: AppearanceSettingsDto
 ) -> Optional[str]:
     sources = [(AppearanceTarget.CABINET, cabinet), (AppearanceTarget.DASHBOARD, dashboard)]
-    images = _raster_images(sources, _CABINET_API)
+    # notifications don't render SVG
+    images = _images(sources, _CABINET_API, svg=False)
     return images[0][0] if images else None
 
 
@@ -66,7 +67,7 @@ def appearance_manifest(
         "icons": [
             *(
                 {"src": path, "sizes": "any", "type": ct}
-                for path, ct in _raster_images(sources, api_prefix)
+                for path, ct in _images(sources, api_prefix, svg=True)
             ),
             *_DEFAULT_ICONS,
         ],
