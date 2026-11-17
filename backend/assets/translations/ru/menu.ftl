@@ -404,7 +404,10 @@ msg-purchase-confirm =
     • <b>Длительность</b>: { $period }
     • <b>Способ оплаты</b>: { $method }
     • <b>Без скидки</b>: <s>{ $original_price } { $currency_symbol }</s>
-    • <b>К оплате</b>: { $price } { $currency_symbol }
+    • <b>К оплате</b>: { $is_free ->
+        [1] Бесплатно
+       *[0] { $price } { $currency_symbol }
+    }
     </blockquote>
 
     { $type_notice }
@@ -422,7 +425,10 @@ msg-purchase-pay = Заказ создан. Нажмите кнопку ниже
 msg-purchase-link-choice = У вас уже есть подписка { $plan_name }. Продлить её или купить ещё одну?
 
 btn-purchase =
-    .duration = { $period } — { $price } { $currency_symbol }
+    .duration = { $period } — { $is_free ->
+        [1] Бесплатно
+       *[0] { $price } { $currency_symbol }
+    }
     .back-plans = Назад к выбору тарифа
     .back-plans-icon = ⬅️
     .back-duration = Изменить длительность

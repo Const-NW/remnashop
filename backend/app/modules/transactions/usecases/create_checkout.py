@@ -203,6 +203,12 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 data.target_subscription_id if data.purchase_type is PurchaseType.RENEW else None,
             )
 
+        if data.purchase_type is PurchaseType.RENEW and any(
+            d.days == data.duration_days and d.is_free for d in plan.sellable_durations()
+        ):
+            raise ValidationError(
+                "A free duration can't be renewed", code=ErrorCode.FREE_DURATION_NOT_RENEWABLE
+            )
         previous_plan = await self._validate_provisioning_preconditions(actor.id, data)
         user = await self._pricer.drop_dead_promocode_discounts(user)
         quote = await self._quote(actor.id, plan, data, user, data.currency)

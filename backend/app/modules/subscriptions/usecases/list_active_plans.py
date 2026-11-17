@@ -23,7 +23,7 @@ from app.modules.users import UserDto
 
 
 def _to_catalog_plan(
-    plan: PlanDto, rates: CurrencyRateTable, now: datetime, locale: Locale
+    plan: PlanDto, rates: CurrencyRateTable, now: datetime, locale: Locale, *, renewal: bool
 ) -> CatalogPlanDto:
     discount = plan.active_discount(now)
     return CatalogPlanDto(
@@ -53,7 +53,7 @@ def _to_catalog_plan(
                     for currency in Currency
                 ],
             )
-            for duration in plan.sellable_durations()
+            for duration in (plan.renewable_durations() if renewal else plan.sellable_durations())
         ],
         discount_percent=discount,
         discount_ends_at=plan.discount_ends_at if discount else None,
@@ -121,11 +121,12 @@ class ListActivePlansUseCase(UseCase[ListActivePlansDto, PlanCatalogDto, UserDto
                 )
             rates = await self._pricing_repository.get_rate_table()
         now = datetime_now()
+        renewal = renew_id is not None
         return PlanCatalogDto(
             plans=[
-                _to_catalog_plan(plan, rates, now, actor.language)
+                _to_catalog_plan(plan, rates, now, actor.language, renewal=renewal)
                 for plan in purchasable
-                if plan.sellable_durations()
+                if (plan.renewable_durations() if renewal else plan.sellable_durations())
             ],
             anchor_currency=rates.anchor,
         )

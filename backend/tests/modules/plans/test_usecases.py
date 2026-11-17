@@ -230,21 +230,8 @@ async def test_owner_can_set_plan_durations(
     assert [duration.days for duration in updated.durations] == [30]
 
 
-@pytest.mark.parametrize(
-    ("is_trial", "durations", "code"),
-    [
-        (True, [(3, "0"), (7, "0")], ErrorCode.PLAN_TRIAL_SINGLE_DURATION),
-        (False, [(30, "0")], ErrorCode.PLAN_DURATION_PRICE_REQUIRED),
-        (True, [(0, "0")], ErrorCode.PLAN_TRIAL_UNLIMITED_DURATION),
-    ],
-)
-async def test_set_plan_durations_keeps_trial_and_price_rules(
-    plan_repository: PlanRepository,
-    uow: UnitOfWork,
-    event_publisher: EventPublisher,
-    is_trial: bool,
-    durations: list[tuple[int, str]],
-    code: ErrorCode,
+async def test_set_plan_durations_keeps_a_trial_to_one_duration(
+    plan_repository: PlanRepository, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> None:
     created = await plan_repository.create(
         CreatePlanDto(
@@ -253,19 +240,49 @@ async def test_set_plan_durations_keeps_trial_and_price_rules(
             type=PlanType.BOTH,
             traffic_limit=100,
             device_limit=3,
-            is_trial=is_trial,
+            is_trial=True,
         )
     )
     use_case = SetPlanDurationsUseCase(plan_repository, uow, event_publisher)
     items = [
-        SetPlanDurationDto(days=days, order_index=index, base_price=Decimal(price))
-        for index, (days, price) in enumerate(durations)
+        SetPlanDurationDto(days=days, order_index=index, base_price=Decimal("0"))
+        for index, days in enumerate([3, 7])
     ]
 
     with pytest.raises(ValidationError) as error:
         await use_case(OWNER, SetPlanDurationsDto(plan_id=created.id, durations=items))
 
-    assert error.value.code is code
+    assert error.value.code is ErrorCode.PLAN_TRIAL_SINGLE_DURATION
+
+
+@pytest.mark.parametrize(("is_trial", "days"), [(False, 30), (True, 0)])
+async def test_set_plan_durations_accepts_a_free_plan_and_an_unlimited_trial(
+    plan_repository: PlanRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    is_trial: bool,
+    days: int,
+) -> None:
+    created = await plan_repository.create(
+        CreatePlanDto(
+            public_code="free",
+            name="Free",
+            type=PlanType.BOTH,
+            traffic_limit=50,
+            device_limit=3,
+            is_trial=is_trial,
+        )
+    )
+
+    plan = await SetPlanDurationsUseCase(plan_repository, uow, event_publisher)(
+        OWNER,
+        SetPlanDurationsDto(
+            plan_id=created.id,
+            durations=[SetPlanDurationDto(days=days, order_index=0, base_price=Decimal("0"))],
+        ),
+    )
+
+    assert [duration.days for duration in plan.sellable_durations()] == [days]
 
 
 async def test_set_plan_durations_accepts_unlimited_on_paid_plan(
@@ -296,7 +313,7 @@ async def test_set_plan_durations_accepts_unlimited_on_paid_plan(
     assert [duration.days for duration in plan.sellable_durations()] == [0, 30]
 
 
-async def test_update_plan_refuses_trial_with_unlimited_duration(
+async def test_update_plan_turns_an_unlimited_plan_into_a_trial(
     plan_repository: PlanRepository, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> None:
     created = await plan_repository.create(
@@ -315,12 +332,12 @@ async def test_update_plan_refuses_trial_with_unlimited_duration(
         )
     )
 
-    with pytest.raises(ValidationError) as error:
-        await UpdatePlanUseCase(plan_repository, uow, event_publisher)(
-            OWNER, UpdatePlanDto(plan_id=created.id, is_trial=True)
-        )
+    plan = await UpdatePlanUseCase(plan_repository, uow, event_publisher)(
+        OWNER, UpdatePlanDto(plan_id=created.id, is_trial=True)
+    )
 
-    assert error.value.code is ErrorCode.PLAN_TRIAL_UNLIMITED_DURATION
+    assert plan.is_trial
+    assert [duration.days for duration in plan.sellable_durations()] == [0]
 
 
 async def test_regular_user_cannot_set_plan_durations(
@@ -702,7 +719,6 @@ async def test_set_matrix_prices_requires_the_permission_of_each_edit(
 async def test_update_plan_saves_other_edits_of_a_migrated_unlimited_trial(
     plan_repository: PlanRepository, uow: UnitOfWork, event_publisher: EventPublisher
 ) -> None:
-    # the migration report says to replace the duration; renaming meanwhile must still save
     created = await plan_repository.create(
         CreatePlanDto(
             public_code="old-trial",

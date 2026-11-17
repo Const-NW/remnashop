@@ -400,7 +400,10 @@ msg-purchase-confirm =
     • <b>Duration</b>: { $period }
     • <b>Payment method</b>: { $method }
     • <b>Without discount</b>: <s>{ $original_price } { $currency_symbol }</s>
-    • <b>To pay</b>: { $price } { $currency_symbol }
+    • <b>To pay</b>: { $is_free ->
+        [1] Free
+       *[0] { $price } { $currency_symbol }
+    }
     </blockquote>
 
     { $type_notice }
@@ -418,7 +421,10 @@ msg-purchase-pay = Your order is ready. Tap the button below to pay.
 msg-purchase-link-choice = You already have a { $plan_name } subscription. Renew it or buy another one?
 
 btn-purchase =
-    .duration = { $period } — { $price } { $currency_symbol }
+    .duration = { $period } — { $is_free ->
+        [1] Free
+       *[0] { $price } { $currency_symbol }
+    }
     .back-plans = Back to plans
     .back-plans-icon = ⬅️
     .back-duration = Change duration

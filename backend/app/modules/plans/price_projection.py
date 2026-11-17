@@ -37,13 +37,12 @@ def adjusted_base_prices(
     if adjust.scope in (PriceAdjustScope.ALL_PLANS, PriceAdjustScope.SELECTED):
         duration_ids = set(adjust.plan_duration_ids)
         for plan in plans:
-            free_trial = plan.free_trial_duration()
             for duration in plan.durations:
-                # a set price or a ladder would turn a free trial into a paid one; a
+                # a set price or a ladder would turn a free duration into a paid one; a
                 # ladder is priced by days, which an unlimited duration doesn't have
                 unladdered = adjust.mode is PriceAdjustMode.LADDER and duration.days == 0
                 if (
-                    duration is free_trial
+                    duration.base_price == 0
                     or unladdered
                     or (selected and duration.id not in duration_ids)
                 ):
@@ -162,5 +161,5 @@ def _switched_base(
         return scale_base_price(base_price, factor), None
     rest = {o.currency: o.price for o in overrides if o.currency is not new_anchor}
     if base_price == 0:
-        return base_price, rest  # a free trial stays free
+        return base_price, rest  # a free duration stays free
     return max(pinned, MIN_BASE_PRICE), rest

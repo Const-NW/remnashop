@@ -32,8 +32,8 @@ export function PlanDurationPicker({ plans, planId, onPlanChange, duration, onDu
       value: String(item.days),
       label: formatDurationLong(item.days, t),
     })),
-    // an admin may give any plan for good, a trial excepted
-    ...(plan && !plan.is_trial && !plan.durations.some((item) => item.days === 0)
+    // an admin may give any plan for good
+    ...(plan && !plan.durations.some((item) => item.days === 0)
       ? [{ value: "0", label: formatDurationLong(0, t) }]
       : []),
     { value: CUSTOM, label: t("subscriptions.duration.custom") },

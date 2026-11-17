@@ -1507,6 +1507,47 @@ async def test_create_checkout_refuses_to_renew_or_change_a_trial(
     assert error.value.code is ErrorCode.TRIAL_NOT_RENEWABLE
 
 
+async def test_create_checkout_refuses_to_renew_a_free_duration(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    transaction_repository: TransactionRepository,
+) -> None:
+    await plan_repository.set_durations(
+        SetPlanDurationsDto(
+            plan_id=plan.id,
+            durations=[
+                SetPlanDurationDto(days=30, order_index=0, base_price=Decimal("0")),
+                SetPlanDurationDto(days=90, order_index=1, base_price=Decimal("500.00")),
+            ],
+        )
+    )
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_103, plan_id=plan.id
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await create_checkout_use_case(
+            actor,
+            CreateCheckoutDto(
+                channel=PurchaseChannel.CABINET,
+                in_telegram=False,
+                plan_id=plan.id,
+                duration_days=30,
+                currency=Currency.RUB,
+                purchase_type=PurchaseType.RENEW,
+                target_subscription_id=subscription_id,
+                gateway_type=PaymentGatewayType.YOOKASSA,
+            ),
+        )
+
+    assert error.value.code is ErrorCode.FREE_DURATION_NOT_RENEWABLE
+    assert await transaction_repository.count_open_new_orders(actor.id, datetime_now()) == 0
+
+
 def _renew_dto(plan: PlanDto, subscription_id: int) -> CreateCheckoutDto:
     return CreateCheckoutDto(
         channel=PurchaseChannel.BOT,

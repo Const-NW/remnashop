@@ -239,6 +239,7 @@ async def duration_getter(
                     period=format_period(runner, duration.days),
                     price=format_price(price),
                     currency_symbol=currency.symbol,
+                    is_free=int(price == 0),
                 ),
             }
         )
@@ -344,6 +345,7 @@ async def confirm_getter(
             device_limit=device_limit,
             period=format_period(runner, data["duration_days"]),
             price=_price(data["prices"], data["currency"]),
+            is_free=int(Decimal(data["prices"][data["currency"]]) == 0),
             original_price=_original_price(data),
             currency_symbol=Currency(data["currency"]).symbol,
             # a free order has no method to name: the line drops
