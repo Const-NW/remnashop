@@ -26,3 +26,5 @@ class AppearanceSettings(BaseSql, TimestampMixin):
     logo_extension: Mapped[Optional[str]] = mapped_column(String(8))
     favicon_content_type: Mapped[Optional[str]] = mapped_column(String(32))
     favicon_extension: Mapped[Optional[str]] = mapped_column(String(8))
+    app_icon_content_type: Mapped[Optional[str]] = mapped_column(String(32))
+    app_icon_extension: Mapped[Optional[str]] = mapped_column(String(8))

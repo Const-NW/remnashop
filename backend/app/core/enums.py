@@ -454,6 +454,7 @@ class BannerFormat(StrEnum):
 class AppearanceImageKind(StrEnum):
     LOGO = auto()
     FAVICON = auto()
+    APP_ICON = auto()
 
 
 class AppearanceTarget(StrEnum):

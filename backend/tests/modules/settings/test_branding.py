@@ -17,6 +17,7 @@ def _dto(
     *,
     logo: Optional[str] = None,
     favicon: Optional[str] = None,
+    app_icon: Optional[str] = None,
     brand_name: Optional[str] = None,
     primary_color: Optional[str] = None,
 ) -> AppearanceSettingsDto:
@@ -25,8 +26,10 @@ def _dto(
         primary_color=primary_color,
         has_logo=logo is not None,
         has_favicon=favicon is not None,
+        has_app_icon=app_icon is not None,
         logo_content_type=logo,
         favicon_content_type=favicon,
+        app_icon_content_type=app_icon,
         updated_at=_AT,
     )
 
@@ -83,3 +86,17 @@ def test_dashboard_manifest_paths() -> None:
 
     assert manifest["start_url"] == "/dashboard"
     assert manifest["icons"][0]["src"] == f"/api/v1/appearance/dashboard/favicon?v={_V}"
+
+
+def test_manifest_prefers_the_app_icon() -> None:
+    settings = _dto(app_icon="image/png", favicon="image/svg+xml")
+
+    manifest = appearance_manifest(AppearanceTarget.CABINET, settings)
+
+    assert manifest["icons"] == [
+        {"src": f"/api/appearance/cabinet/app-icon?v={_V}", "sizes": "any", "type": "image/png"}
+    ]
+
+
+def test_push_icon_ignores_the_app_icon() -> None:
+    assert push_icon_path(AppearanceTarget.CABINET, _dto(app_icon="image/png")) is None

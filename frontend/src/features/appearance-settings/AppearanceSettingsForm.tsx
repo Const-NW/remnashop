@@ -48,6 +48,13 @@ const ACCEPTED_FILE_TYPES = `image/jpeg,image/png,image/webp,${SVG_MIME_TYPE}`;
 const IMAGE_LIMITS: Record<AppearanceImageKind, { minSide: number; maxSide: number; maxKb: number }> = {
   logo: { minSide: 128, maxSide: 1024, maxKb: 1024 },
   favicon: { minSide: 32, maxSide: 512, maxKb: 256 },
+  "app-icon": { minSide: 512, maxSide: 1024, maxKb: 1024 },
+};
+
+const IMAGE_FLAGS: Record<AppearanceImageKind, "has_logo" | "has_favicon" | "has_app_icon"> = {
+  logo: "has_logo",
+  favicon: "has_favicon",
+  "app-icon": "has_app_icon",
 };
 
 const ACCENT_COLOR_PRESETS: readonly string[] = [
@@ -359,6 +366,9 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
       if (state.kind === "ready" && state.data.has_favicon && permissions.includes("APPEARANCE_FAVICON_DELETE")) {
         await deleteAppearanceImage(target, "favicon");
       }
+      if (state.kind === "ready" && state.data.has_app_icon && permissions.includes("APPEARANCE_APP_ICON_DELETE")) {
+        await deleteAppearanceImage(target, "app-icon");
+      }
       const data = await resetAppearanceSettings(target);
       seedBranding(data);
       seedColors(data);
@@ -374,7 +384,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
 
   const handleImageChanged = (kind: AppearanceImageKind, hasImage: boolean) => {
     if (state.kind !== "ready") return;
-    setData({ ...state.data, [kind === "logo" ? "has_logo" : "has_favicon"]: hasImage });
+    setData({ ...state.data, [IMAGE_FLAGS[kind]]: hasImage });
     reloadAppearance();
   };
 
@@ -383,6 +393,9 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
   const canLogo = permissions.includes("APPEARANCE_LOGO_UPLOAD") || permissions.includes("APPEARANCE_LOGO_DELETE");
   const canFavicon =
     permissions.includes("APPEARANCE_FAVICON_UPLOAD") || permissions.includes("APPEARANCE_FAVICON_DELETE");
+  const canAppIcon =
+    permissions.includes("APPEARANCE_APP_ICON_UPLOAD") || permissions.includes("APPEARANCE_APP_ICON_DELETE");
+  const canImages = canLogo || canFavicon || canAppIcon;
 
   const dirty =
     state.kind === "ready" &&
@@ -420,7 +433,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
 
         {state.kind === "ready" && (
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {(canManage || canLogo || canFavicon) && (
+              {(canManage || canImages) && (
                 <InnerCard>
                   {canManage && (
                     <Field
@@ -437,7 +450,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
                       />
                     </Field>
                   )}
-                  {(canLogo || canFavicon) && (
+                  {canImages && (
                     <div className="flex flex-wrap gap-4">
                       {canLogo && (
                         <div className="min-w-0 flex-1">
@@ -464,6 +477,20 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
                           canUpload={permissions.includes("APPEARANCE_FAVICON_UPLOAD")}
                           canDelete={permissions.includes("APPEARANCE_FAVICON_DELETE")}
                           onChanged={(hasImage) => handleImageChanged("favicon", hasImage)}
+                        />
+                        </div>
+                      )}
+                      {canAppIcon && (
+                        <div className="min-w-0 flex-1">
+                        <ImageSlot
+                          target={target}
+                          kind="app-icon"
+                          hasImage={state.data.has_app_icon}
+                          label={t("settings.appearance.appIconLabel")}
+                          hint={t("settings.appearance.appIconHint")}
+                          canUpload={permissions.includes("APPEARANCE_APP_ICON_UPLOAD")}
+                          canDelete={permissions.includes("APPEARANCE_APP_ICON_DELETE")}
+                          onChanged={(hasImage) => handleImageChanged("app-icon", hasImage)}
                         />
                         </div>
                       )}

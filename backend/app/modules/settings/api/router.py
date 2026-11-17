@@ -72,6 +72,15 @@ async def get_appearance_favicon(
     return Response(content=image.data, media_type=image.content_type, headers=_IMAGE_HEADERS)
 
 
+@router.get("/{target}/app-icon", responses=error_responses(404))
+@inject
+async def get_appearance_app_icon(
+    target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]
+) -> Response:
+    image = await use_case.execute(target, AppearanceImageKind.APP_ICON)
+    return Response(content=image.data, media_type=image.content_type, headers=_IMAGE_HEADERS)
+
+
 # Linked from index.html: Safari takes the tab icon from the page as loaded and
 # ignores a <link rel="icon"> changed by a script.
 @router.get("/{target}/tab-icon")

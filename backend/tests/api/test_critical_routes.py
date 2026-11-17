@@ -203,7 +203,7 @@ async def test_manifest_is_public(client: httpx.AsyncClient, target: str) -> Non
 
 async def test_public_appearance_images_404_when_unset(client: httpx.AsyncClient) -> None:
     for target in ("dashboard", "cabinet"):
-        for kind in ("logo", "favicon"):
+        for kind in ("logo", "favicon", "app-icon"):
             response = await client.get(f"{API_V1}/appearance/{target}/{kind}")
             assert response.status_code == 404
             assert response.json()["detail"] != "Not Found"  # usecase miss, not an unrouted path

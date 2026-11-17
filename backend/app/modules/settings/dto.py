@@ -245,8 +245,10 @@ class AppearanceSettingsDto(BaseDto, TimestampMixin):
     shader_enabled: bool = True
     has_logo: bool = False
     has_favicon: bool = False
+    has_app_icon: bool = False
     logo_content_type: Optional[str] = None
     favicon_content_type: Optional[str] = None
+    app_icon_content_type: Optional[str] = None
 
 
 @dataclass(frozen=True, kw_only=True)

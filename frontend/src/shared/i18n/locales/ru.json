@@ -1090,7 +1090,9 @@
         "logo_upload": "Логотип загружен",
         "logo_delete": "Логотип удалён",
         "favicon_upload": "Фавикон загружен",
-        "favicon_delete": "Фавикон удалён"
+        "favicon_delete": "Фавикон удалён",
+        "app_icon_upload": "Иконка приложения загружена",
+        "app_icon_delete": "Иконка приложения удалена"
       },
       "SubscriptionEditedEvent": {
         "update": "Подписка изменена администратором",
@@ -1555,8 +1557,10 @@
       "shaderTonePinned": "Тон {{number}} · вручную",
       "logoLabel": "Логотип",
       "faviconLabel": "Фавикон",
+      "appIconLabel": "Иконка приложения",
       "logoHint": "SVG, PNG, JPG или WebP · квадрат 128–1024 px · до 1 МБ",
       "faviconHint": "SVG, PNG, JPG или WebP · квадрат 32–512 px · до 256 КБ",
+      "appIconHint": "Для установленного приложения (PWA), иначе берётся фавикон · SVG, PNG, JPG или WebP · квадрат 512–1024 px · до 1 МБ",
       "imageTooLarge": "Файл слишком большой (максимум {{maxKb}} КБ).",
       "imageUnreadable": "Не удалось прочитать изображение.",
       "imageNotSquare": "Изображение должно быть квадратным.",
@@ -2329,6 +2333,8 @@
     "APPEARANCE_LOGO_DELETE": "Удаление логотипа",
     "APPEARANCE_FAVICON_UPLOAD": "Загрузка фавикона",
     "APPEARANCE_FAVICON_DELETE": "Удаление фавикона",
+    "APPEARANCE_APP_ICON_UPLOAD": "Загрузка иконки приложения",
+    "APPEARANCE_APP_ICON_DELETE": "Удаление иконки приложения",
     "GATEWAYS_VIEW": "Просмотр платёжных шлюзов",
     "GATEWAYS_UPDATE": "Изменение настроек шлюзов",
     "GATEWAYS_ACTIVE_SET": "Включение и выключение шлюзов",

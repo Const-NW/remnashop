@@ -26,7 +26,8 @@ def _image_path(
     target: AppearanceTarget, kind: AppearanceImageKind, dto: AppearanceSettingsDto
 ) -> str:
     version = int(dto.updated_at.timestamp()) if dto.updated_at else 0
-    return f"{_API_PREFIX[target]}/appearance/{target}/{kind}?v={version}"
+    segment = str(kind).replace("_", "-")
+    return f"{_API_PREFIX[target]}/appearance/{target}/{segment}?v={version}"
 
 
 def push_icon_path(target: AppearanceTarget, settings: AppearanceSettingsDto) -> Optional[str]:
@@ -40,17 +41,20 @@ def appearance_manifest(
 ) -> dict[str, Any]:
     name = settings.brand_name or _DEFAULT_NAME
     # one icon: iOS picks a sized icon over an uploaded "any" one listed with it
-    icons = (
-        [
-            {
-                "src": _image_path(target, AppearanceImageKind.FAVICON, settings),
-                "sizes": "any",
-                "type": settings.favicon_content_type,
-            }
-        ]
-        if settings.favicon_content_type
-        else _DEFAULT_ICONS
-    )
+    icons = _DEFAULT_ICONS
+    for kind, content_type in (
+        (AppearanceImageKind.APP_ICON, settings.app_icon_content_type),
+        (AppearanceImageKind.FAVICON, settings.favicon_content_type),
+    ):
+        if content_type is not None:
+            icons = [
+                {
+                    "src": _image_path(target, kind, settings),
+                    "sizes": "any",
+                    "type": content_type,
+                }
+            ]
+            break
     return {
         "name": name,
         "short_name": name,

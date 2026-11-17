@@ -1020,7 +1020,9 @@
         "logo_upload": "Logo uploaded",
         "logo_delete": "Logo removed",
         "favicon_upload": "Favicon uploaded",
-        "favicon_delete": "Favicon removed"
+        "favicon_delete": "Favicon removed",
+        "app_icon_upload": "App icon uploaded",
+        "app_icon_delete": "App icon removed"
       },
       "SubscriptionEditedEvent": {
         "update": "Subscription edited by admin",
@@ -1475,8 +1477,10 @@
       "shaderTonePinned": "Tone {{number}} · manual",
       "logoLabel": "Logo",
       "faviconLabel": "Favicon",
+      "appIconLabel": "App icon",
       "logoHint": "SVG, PNG, JPG or WebP · square 128–1024 px · up to 1 MB",
       "faviconHint": "SVG, PNG, JPG or WebP · square 32–512 px · up to 256 KB",
+      "appIconHint": "For the installed app (PWA), the favicon otherwise · SVG, PNG, JPG or WebP · square 512–1024 px · up to 1 MB",
       "imageTooLarge": "File is too large (max {{maxKb}} KB).",
       "imageUnreadable": "Failed to read the image.",
       "imageNotSquare": "The image must be square.",
@@ -2245,6 +2249,8 @@
     "APPEARANCE_LOGO_DELETE": "Delete logo",
     "APPEARANCE_FAVICON_UPLOAD": "Upload favicon",
     "APPEARANCE_FAVICON_DELETE": "Delete favicon",
+    "APPEARANCE_APP_ICON_UPLOAD": "Upload app icon",
+    "APPEARANCE_APP_ICON_DELETE": "Delete app icon",
     "GATEWAYS_VIEW": "View payment gateways",
     "GATEWAYS_UPDATE": "Edit gateway settings",
     "GATEWAYS_ACTIVE_SET": "Enable and disable gateways",

@@ -1,6 +1,6 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiUpload, BASE_URL } from "@shared/api/http";
 
-export type AppearanceImageKind = "logo" | "favicon";
+export type AppearanceImageKind = "logo" | "favicon" | "app-icon";
 
 export type AppearanceTarget = "dashboard" | "cabinet";
 
@@ -14,6 +14,7 @@ export interface AppearanceSettings {
   shader_enabled: boolean;
   has_logo: boolean;
   has_favicon: boolean;
+  has_app_icon: boolean;
 }
 
 export interface UpdateAppearancePayload {

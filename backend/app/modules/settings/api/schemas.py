@@ -198,6 +198,7 @@ class AppearanceResponse(BaseModel):
     shader_enabled: bool
     has_logo: bool
     has_favicon: bool
+    has_app_icon: bool
 
 
 class UpdateAppearanceRequest(BaseModel):

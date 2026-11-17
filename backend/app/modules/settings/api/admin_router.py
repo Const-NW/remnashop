@@ -48,6 +48,7 @@ from app.modules.settings.dto import (
     UploadAppearanceImageDto,
 )
 from app.modules.settings.usecases import (
+    DeleteAppearanceAppIconUseCase,
     DeleteAppearanceFaviconUseCase,
     DeleteAppearanceLogoUseCase,
     GetAccessSettingsUseCase,
@@ -75,6 +76,7 @@ from app.modules.settings.usecases import (
     UpdateEmailSettingsUseCase,
     UpdateOAuthSettingsUseCase,
     UpdateShopSettingsUseCase,
+    UploadAppearanceAppIconUseCase,
     UploadAppearanceFaviconUseCase,
     UploadAppearanceLogoUseCase,
 )
@@ -521,6 +523,41 @@ async def upload_appearance_favicon(
 async def delete_appearance_favicon(
     target: AppearanceTarget,
     use_case: FromDishka[DeleteAppearanceFaviconUseCase],
+    actor: Actor = Depends(require_admin),
+) -> AppearanceResponse:
+    return AppearanceResponse.model_validate(await use_case(actor, target), from_attributes=True)
+
+
+@router.put(
+    "/appearance/{target}/app-icon",
+    response_model=AppearanceResponse,
+    responses=error_responses(400),
+    openapi_extra=MULTIPART_FILE_BODY,
+)
+@inject
+async def upload_appearance_app_icon(
+    target: AppearanceTarget,
+    use_case: FromDishka[UploadAppearanceAppIconUseCase],
+    request: Request,
+    actor: Actor = Depends(require_admin),
+) -> AppearanceResponse:
+    file = await read_form_file(request, MAX_APPEARANCE_IMAGE_SIZE_BYTES)
+    settings = await use_case(
+        actor,
+        UploadAppearanceImageDto(target=target, content_type=file.content_type, data=file.data),
+    )
+    return AppearanceResponse.model_validate(settings, from_attributes=True)
+
+
+@router.delete(
+    "/appearance/{target}/app-icon",
+    response_model=AppearanceResponse,
+    responses=error_responses(404),
+)
+@inject
+async def delete_appearance_app_icon(
+    target: AppearanceTarget,
+    use_case: FromDishka[DeleteAppearanceAppIconUseCase],
     actor: Actor = Depends(require_admin),
 ) -> AppearanceResponse:
     return AppearanceResponse.model_validate(await use_case(actor, target), from_attributes=True)

@@ -26,14 +26,18 @@ class _ImageLimits:
 _UPLOAD_ACTIONS: Final[dict[AppearanceImageKind, AppearanceAction]] = {
     AppearanceImageKind.LOGO: "logo_upload",
     AppearanceImageKind.FAVICON: "favicon_upload",
+    AppearanceImageKind.APP_ICON: "app_icon_upload",
 }
 _DELETE_ACTIONS: Final[dict[AppearanceImageKind, AppearanceAction]] = {
     AppearanceImageKind.LOGO: "logo_delete",
     AppearanceImageKind.FAVICON: "favicon_delete",
+    AppearanceImageKind.APP_ICON: "app_icon_delete",
 }
 _LIMITS_BY_KIND: Final[dict[AppearanceImageKind, _ImageLimits]] = {
     AppearanceImageKind.LOGO: _ImageLimits(min_side=128, max_side=1024, max_bytes=1024 * 1024),
     AppearanceImageKind.FAVICON: _ImageLimits(min_side=32, max_side=512, max_bytes=256 * 1024),
+    # installed apps and push shades scale it up to 512 px
+    AppearanceImageKind.APP_ICON: _ImageLimits(min_side=512, max_side=1024, max_bytes=1024 * 1024),
 }
 
 # Read cap for the upload route; the per-kind limit is enforced below.
