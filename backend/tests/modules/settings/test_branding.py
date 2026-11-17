@@ -7,7 +7,10 @@ from app.modules.settings.branding import appearance_manifest, push_icon_path
 
 _AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 _V = int(_AT.timestamp())
-_DEFAULT_ICONS = [{"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml"}]
+_DEFAULT_ICONS = [
+    {"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+    {"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable"},
+]
 
 
 def _dto(

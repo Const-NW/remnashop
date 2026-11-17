@@ -14,9 +14,11 @@ _START_URL: Final[dict[AppearanceTarget, str]] = {
     AppearanceTarget.CABINET: "/",
     AppearanceTarget.DASHBOARD: "/dashboard",
 }
-# both frontends ship it in public/
+# both frontends ship it in public/; its mark sits inside the maskable safe zone,
+# an uploaded favicon is often edge to edge and would be cropped
 _DEFAULT_ICONS: Final[list[dict[str, str]]] = [
-    {"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml"},
+    {"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+    {"src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable"},
 ]
 
 
