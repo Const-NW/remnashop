@@ -43,6 +43,7 @@ class SessionIssuer:
         user_agent: Optional[str],
         audience: SessionAudience = SessionAudience.DASHBOARD,
         ttl_seconds: int = TTL_30D,
+        telegram_mini_app: bool = False,
     ) -> IssuedSession:
         refresh_token = generate_refresh_token()
         expires_at = datetime_now() + timedelta(seconds=ttl_seconds)
@@ -59,6 +60,7 @@ class SessionIssuer:
                     user_agent=user_agent,
                     expires_at=expires_at,
                     audience=audience,
+                    telegram_mini_app=telegram_mini_app,
                 )
             )
 

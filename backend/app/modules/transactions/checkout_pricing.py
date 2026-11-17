@@ -116,6 +116,10 @@ class CheckoutPricer:
             rates = await self._pricing_repository.get_rate_table()
         return change_credit_for(target, duration_days, currency, rates)
 
+    async def anchor_currency(self) -> Currency:
+        async with self._uow:
+            return (await self._pricing_repository.get_settings()).anchor_currency
+
     async def quote(
         self,
         plan: PlanDto,

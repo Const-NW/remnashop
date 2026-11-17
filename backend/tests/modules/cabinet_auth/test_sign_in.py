@@ -68,6 +68,7 @@ async def test_telegram_creates_client_and_cabinet_session(
     assert issued.access_token
     [cabinet_session] = await session_repository.list_active_by_user(user.id)
     assert cabinet_session.audience is SessionAudience.CABINET
+    assert not cabinet_session.telegram_mini_app
     [event] = await _outbox(session, "CabinetUserRegisteredEvent")
     assert event.payload["method"] == "TELEGRAM"
     assert await _outbox(session, "TelegramUserRegisteredEvent") == []
@@ -76,6 +77,21 @@ async def test_telegram_creates_client_and_cabinet_session(
     assert registration.source is RegistrationSource.CABINET_TELEGRAM
     assert (registration.ip_address, registration.user_agent) == (_IP, "ua")
     assert registration.telegram_language_code == "ru"
+
+
+async def test_mini_app_sign_in_marks_the_session(
+    sign_in: CabinetSignIn, session_repository: SessionRepository
+) -> None:
+    user, _ = await sign_in.telegram(
+        TelegramProfileDto(telegram_id=9002, name="Bo", username=None, language="en"),
+        InviteCodesDto(),
+        _IP,
+        "ua",
+        source=RegistrationSource.CABINET_MINI_APP,
+    )
+
+    [mini_app_session] = await session_repository.list_active_by_user(user.id)
+    assert mini_app_session.telegram_mini_app
 
 
 async def test_a_failed_sign_in_leaves_no_active_session(

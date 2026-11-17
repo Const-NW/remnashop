@@ -73,7 +73,8 @@ export interface RecentPayment {
   name: string;
   plan_name: string;
   duration_days: number;
-  gateway_type: string;
+  /** null: a free order */
+  gateway_type: string | null;
   purchase_type: PurchaseType;
   amount: string;
   currency: string;

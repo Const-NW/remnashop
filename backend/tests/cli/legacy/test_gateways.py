@@ -47,6 +47,14 @@ def test_yookassa_keys_mapped() -> None:
     assert item["type"] is PaymentGatewayType.YOOKASSA
     assert item["is_active"] is True
     assert item["id"] == 1
+    assert (item["telegram_enabled"], item["cabinet_enabled"]) == (False, True)
+
+
+def test_only_stars_is_offered_in_telegram_after_the_move() -> None:
+    item = transform_gateways(
+        [_row("TELEGRAM_STARS", {})], crypt_key=KEY, report=MigrationReport()
+    )[0]
+    assert (item["telegram_enabled"], item["cabinet_enabled"]) == (True, True)
 
 
 def test_currency_goes_to_catalog_field() -> None:

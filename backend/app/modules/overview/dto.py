@@ -62,7 +62,8 @@ class RecentPaymentDto:
     name: str
     plan_name: str
     duration_days: int
-    gateway_type: PaymentGatewayType
+    # None: a free order
+    gateway_type: Optional[PaymentGatewayType]
     purchase_type: PurchaseType
     amount: Decimal
     currency: Currency

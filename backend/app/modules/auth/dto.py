@@ -22,6 +22,7 @@ class SessionDto(BaseDto, TimestampMixin):
     last_used_at: datetime
     expires_at: datetime
     audience: SessionAudience = SessionAudience.DASHBOARD
+    telegram_mini_app: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -32,6 +33,7 @@ class CreateSessionDto:
     user_agent: Optional[str]
     expires_at: datetime
     audience: SessionAudience
+    telegram_mini_app: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

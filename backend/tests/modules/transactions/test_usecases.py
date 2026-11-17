@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import dataclasses
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Final, Optional
@@ -231,6 +232,7 @@ async def test_create_checkout_creates_a_pending_order_and_returns_confirmation_
         actor,
         CreateCheckoutDto(
             channel=PurchaseChannel.CABINET,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -254,6 +256,7 @@ async def test_checkout_stores_channel(
         actor,
         CreateCheckoutDto(
             channel=PurchaseChannel.BOT,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -277,6 +280,7 @@ async def test_create_checkout_publishes_the_new_order(
         actor,
         CreateCheckoutDto(
             channel=PurchaseChannel.CABINET,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -310,6 +314,7 @@ async def test_create_checkout_with_100_percent_discount_skips_the_gateway(
         actor,
         CreateCheckoutDto(
             channel=PurchaseChannel.CABINET,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -378,6 +383,7 @@ async def test_create_checkout_rejects_a_new_purchase_at_the_subscription_cap(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -434,6 +440,7 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
                 buyer,
                 CreateCheckoutDto(
                     channel=PurchaseChannel.CABINET,
+                    in_telegram=False,
                     plan_id=plan_id,
                     duration_days=30,
                     currency=Currency.RUB,
@@ -569,6 +576,7 @@ async def test_a_provisioned_order_awaiting_its_link_is_not_counted_twice(
         await user_repository.update_fields(actor.id, UpdateUserDto(personal_discount=100))
     checkout = CreateCheckoutDto(
         channel=PurchaseChannel.CABINET,
+        in_telegram=False,
         plan_id=plan.id,
         duration_days=30,
         currency=Currency.RUB,
@@ -609,6 +617,7 @@ async def test_an_open_order_counts_as_history_for_a_new_only_plan(
     )
     checkout = CreateCheckoutDto(
         channel=PurchaseChannel.CABINET,
+        in_telegram=False,
         plan_id=plan.id,
         duration_days=30,
         currency=Currency.RUB,
@@ -660,6 +669,7 @@ async def test_create_checkout_link_plan_requires_its_code(
     def checkout(code: Optional[str]) -> CreateCheckoutDto:
         return CreateCheckoutDto(
             channel=PurchaseChannel.CABINET,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -698,6 +708,7 @@ async def test_create_checkout_rejects_an_existing_availability_plan_for_a_fresh
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -735,6 +746,7 @@ async def test_create_checkout_invited_plan_requires_a_referrer(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -752,6 +764,7 @@ async def test_create_checkout_invited_plan_requires_a_referrer(
         actor,
         CreateCheckoutDto(
             channel=PurchaseChannel.CABINET,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -777,6 +790,7 @@ async def test_create_checkout_rejects_an_inactive_plan(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -807,6 +821,7 @@ async def test_create_checkout_renew_rejects_a_target_belonging_to_another_user(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -834,6 +849,7 @@ async def test_checkout_asks_for_an_email_when_the_gateway_needs_a_receipt(
     def _dto(email: Optional[str]) -> CreateCheckoutDto:
         return CreateCheckoutDto(
             channel=PurchaseChannel.CABINET,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -874,6 +890,7 @@ async def test_checkout_sends_the_shop_payment_email_over_the_customer_one(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -903,6 +920,7 @@ async def test_checkout_rejects_an_unimplemented_gateway(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -962,6 +980,7 @@ async def test_a_bot_checkout_returns_the_customer_to_the_bot(
 def _stars_checkout(plan: PlanDto) -> CreateCheckoutDto:
     return CreateCheckoutDto(
         channel=PurchaseChannel.CABINET,
+        in_telegram=False,
         plan_id=plan.id,
         duration_days=30,
         currency=Currency.XTR,
@@ -1026,6 +1045,7 @@ async def test_checkout_rejects_an_inactive_gateway(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -1043,6 +1063,7 @@ async def test_checkout_rejects_a_currency_the_gateway_does_not_settle(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.USD,
@@ -1146,12 +1167,28 @@ async def test_test_payment_rejects_an_unconfigured_gateway(
 def _checkout_dto(actor: UserDto, plan: PlanDto) -> CreateCheckoutDto:
     return CreateCheckoutDto(
         channel=PurchaseChannel.CABINET,
+        in_telegram=False,
         plan_id=plan.id,
         duration_days=30,
         currency=Currency.RUB,
         purchase_type=PurchaseType.NEW,
         gateway_type=PaymentGatewayType.YOOKASSA,
     )
+
+
+async def test_checkout_in_telegram_refuses_a_gateway_off_there(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    fake_gateway: _FakeGateway,
+) -> None:
+    dto = replace(_checkout_dto(actor, plan), channel=PurchaseChannel.BOT, in_telegram=True)
+
+    with pytest.raises(ValidationError) as error:
+        await create_checkout_use_case(actor, dto)
+    assert error.value.code is ErrorCode.GATEWAY_NOT_AVAILABLE
+    assert fake_gateway.create_payment_calls == []
 
 
 async def test_checkout_spends_the_purchase_discount_with_the_order(
@@ -1388,6 +1425,7 @@ async def test_create_checkout_renew_refuses_a_disabled_subscription(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -1422,6 +1460,7 @@ async def test_create_checkout_refuses_to_renew_an_unlimited_subscription(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.CABINET,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -1455,6 +1494,7 @@ async def test_create_checkout_refuses_to_renew_or_change_a_trial(
             actor,
             CreateCheckoutDto(
                 channel=PurchaseChannel.BOT,
+                in_telegram=False,
                 plan_id=plan.id,
                 duration_days=30,
                 currency=Currency.RUB,
@@ -1470,6 +1510,7 @@ async def test_create_checkout_refuses_to_renew_or_change_a_trial(
 def _renew_dto(plan: PlanDto, subscription_id: int) -> CreateCheckoutDto:
     return CreateCheckoutDto(
         channel=PurchaseChannel.BOT,
+        in_telegram=False,
         plan_id=plan.id,
         duration_days=30,
         currency=Currency.RUB,
@@ -1531,6 +1572,7 @@ async def test_create_checkout_keeps_the_previous_plan_on_a_change_order_only(
         actor,
         CreateCheckoutDto(
             channel=PurchaseChannel.BOT,
+            in_telegram=False,
             plan_id=plan.id,
             duration_days=30,
             currency=Currency.RUB,
@@ -1583,6 +1625,7 @@ async def test_checkout_with_payments_off_refuses_and_waitlists_the_buyer(
                 actor,
                 CreateCheckoutDto(
                     channel=PurchaseChannel.CABINET,
+                    in_telegram=False,
                     plan_id=plan.id,
                     duration_days=30,
                     currency=Currency.RUB,
@@ -1699,6 +1742,83 @@ async def test_free_checkout_records_acceptance(
 
     [acceptance] = await legal_repository.list_acceptances(actor.id)
     assert acceptance.transaction_id == result.order_id
+
+
+async def test_a_free_order_is_recorded_without_a_gateway(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    uow: UnitOfWork,
+    actor: UserDto,
+    plan: PlanDto,
+    fake_gateway: _FakeGateway,
+) -> None:
+    async with uow:
+        await user_repository.update_fields(actor.id, UpdateUserDto(personal_discount=100))
+    dto = replace(_checkout_dto(actor, plan), gateway_type=None, in_telegram=True)
+
+    result = await create_checkout_use_case(actor, dto)
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert (order.gateway_type, order.status) == (None, TransactionStatus.PAID)
+    assert fake_gateway.create_payment_calls == []
+
+
+async def test_a_free_order_goes_in_the_anchor_currency_whatever_was_sent(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    uow: UnitOfWork,
+    actor: UserDto,
+    plan: PlanDto,
+) -> None:
+    async with uow:
+        await user_repository.update_fields(actor.id, UpdateUserDto(personal_discount=100))
+    # YooKassa is off in Telegram and settles RUB; the anchor is USD
+    dto = replace(_checkout_dto(actor, plan), in_telegram=True)
+
+    result = await create_checkout_use_case(actor, dto)
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert (order.currency, order.plan_snapshot.currency) == (Currency.USD, Currency.USD)
+    assert order.final_price == 0
+
+
+async def test_a_paid_order_without_a_gateway_is_refused(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    fake_gateway: _FakeGateway,
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        await create_checkout_use_case(
+            actor, replace(_checkout_dto(actor, plan), gateway_type=None)
+        )
+
+    assert error.value.code is ErrorCode.GATEWAY_REQUIRED
+    assert fake_gateway.create_payment_calls == []
+
+
+async def test_a_free_order_needs_no_gateway_enabled(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    uow: UnitOfWork,
+    actor: UserDto,
+    plan: PlanDto,
+) -> None:
+    async with uow:
+        await user_repository.update_fields(actor.id, UpdateUserDto(personal_discount=100))
+
+    result = await create_checkout_use_case(
+        actor, replace(_checkout_dto(actor, plan), gateway_type=None)
+    )
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert (order.gateway_type, order.status) == (None, TransactionStatus.PAID)
 
 
 async def test_failed_gateway_keeps_acceptance_of_failed_order(
@@ -1875,6 +1995,7 @@ async def _make_unlimited(
 def _change_to(plan: PlanDto, subscription_id: int) -> CreateCheckoutDto:
     return CreateCheckoutDto(
         channel=PurchaseChannel.CABINET,
+        in_telegram=False,
         plan_id=plan.id,
         duration_days=0,
         currency=Currency.RUB,

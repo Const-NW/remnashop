@@ -15,6 +15,7 @@ from app.core.enums import (
     Role,
     TransactionStatus,
 )
+from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.utils.time import datetime_now
 from app.modules.gateways.repository import GatewayRepository
@@ -65,7 +66,12 @@ async def admin_actor(user_repository: UserRepository) -> UserDto:
 
 
 async def _order(
-    repository: TransactionRepository, uow: UnitOfWork, *, user_id: int, plan_id: int
+    repository: TransactionRepository,
+    uow: UnitOfWork,
+    *,
+    user_id: int,
+    plan_id: int,
+    gateway_type: Optional[PaymentGatewayType] = PaymentGatewayType.YOOKASSA,
 ) -> TransactionDto:
     async with uow:
         return await repository.create(
@@ -78,7 +84,7 @@ async def _order(
                 currency=Currency.RUB,
                 purchase_type=PurchaseType.NEW,
                 target_subscription_id=None,
-                gateway_type=PaymentGatewayType.YOOKASSA,
+                gateway_type=gateway_type,
                 base_price=Decimal("500"),
                 discount_percent=0,
                 discount_source=DiscountSource.NONE,
@@ -196,3 +202,32 @@ async def test_a_gateway_without_a_status_lookup_is_refused(
         await use_case(
             admin_actor, CheckTransactionPaymentDto(transaction_id=order.id, client_ip="10.0.0.1")
         )
+
+
+async def test_an_order_without_a_gateway_is_refused(
+    session: AsyncSession,
+    transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    admin_actor: UserDto,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    order = await _order(
+        transaction_repository, uow, user_id=user_id, plan_id=plan_id, gateway_type=None
+    )
+    use_case = _use_case(
+        _StubGateway(_PAID),
+        session,
+        transaction_repository,
+        user_repository,
+        uow,
+        RecordingEventPublisher(),
+        RecordingDispatch(),
+    )
+
+    with pytest.raises(ConflictError) as error:
+        await use_case(
+            admin_actor, CheckTransactionPaymentDto(transaction_id=order.id, client_ip="10.0.0.1")
+        )
+    assert error.value.code is ErrorCode.PAYMENT_ORDER_NOT_CHECKABLE

@@ -1,9 +1,9 @@
-import type { ParseKeys } from "i18next";
 import { Receipt } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import type { RecentPayment, RevenueToday } from "@entities/overview/api";
+import { transactionGatewayLabel } from "@entities/transactions/display";
 import { useCanOpenUsers } from "@features/open-user/openable-user";
 import { formatDuration } from "@shared/lib/duration";
 import { useOpenEntity } from "@shared/lib/entity-dialogs";
@@ -80,7 +80,7 @@ export function RecentPaymentsCard({
                   <span className="truncate">{payment.name || t("users.unnamed")}</span>
                   <span className="shrink-0 font-mono">#{payment.user_id}</span>
                   <span className="shrink-0">
-                    &middot; {t(`settings.gateways.types.${payment.gateway_type}` as ParseKeys)}
+                    &middot; {transactionGatewayLabel(payment.gateway_type, t)}
                   </span>
                 </span>
               </span>

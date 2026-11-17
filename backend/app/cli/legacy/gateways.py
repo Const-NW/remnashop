@@ -6,7 +6,11 @@ from cryptography.fernet import Fernet
 
 from app.cli.legacy.report import MigrationReport
 from app.core.enums import Currency, PaymentGatewayType
-from app.modules.gateways import GATEWAY_FIELD_CATALOG, is_gateway_configured
+from app.modules.gateways import (
+    GATEWAY_FIELD_CATALOG,
+    default_telegram_enabled,
+    is_gateway_configured,
+)
 
 _TABLE: Final[str] = "payment_gateways"
 _ENCRYPTED_PREFIX: Final[str] = "enc_"
@@ -77,6 +81,8 @@ def transform_gateways(
                 "type": gateway_type,
                 "order_index": row["order_index"],
                 "is_active": is_active,
+                "telegram_enabled": default_telegram_enabled(gateway_type),
+                "cabinet_enabled": True,
                 "settings": json.dumps(values) if values else None,
             }
         )

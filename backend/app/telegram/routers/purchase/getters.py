@@ -346,7 +346,10 @@ async def confirm_getter(
             price=_price(data["prices"], data["currency"]),
             original_price=_original_price(data),
             currency_symbol=Currency(data["currency"]).symbol,
-            method=runner.get(f"gateway-name.{data['gateway_type']}"),
+            # a free order has no method to name: the line drops
+            method=runner.get(f"gateway-name.{data['gateway_type']}")
+            if data["gateway_type"]
+            else "",
             type_notice=_type_notice(runner, purchase_type, data),
             plan_changed_notice=_plan_changed_notice(runner, plan, renewed) if plan else "",
             terms_notice=terms_notice,

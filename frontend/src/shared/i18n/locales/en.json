@@ -967,7 +967,8 @@
         "enable": "Payment gateway enabled",
         "disable": "Payment gateway disabled",
         "settings": "Payment gateway settings changed",
-        "reorder": "Payment gateways reordered"
+        "reorder": "Payment gateways reordered",
+        "channels": "Payment gateway channels changed"
       },
       "LegalDocumentChangedEvent": {
         "update": "Legal document changed",
@@ -1635,8 +1636,16 @@
         "PAYPALYCH": "Must match the shop currency. Defaults to RUB.",
         "CISPAY": "USD means crypto (USDT) only. Defaults to RUB: the customer picks SBP, card or crypto on the cisPay page."
       },
+      "channels": {
+        "title": "Availability channels",
+        "telegram": "Telegram",
+        "telegramHint": "The bot and the cabinet opened as a Mini App.",
+        "cabinet": "Web cabinet",
+        "cabinetHint": "The cabinet opened in a browser.",
+        "warning": "Telegram allows only Stars for digital goods in bots and Mini Apps and may block a bot that takes other payments."
+      },
       "flagHints": {
-        "require_paid_purchase": "Customers see this payment method only after paying another way at least once.",
+        "require_paid_purchase": "Customers see this payment method only after paying another way at least once. With no other method in Telegram, new customers can’t pay in the bot or the Mini App.",
         "verify_ip": "Accept notifications only from YooKassa addresses. If a proxy in front of the server (e.g. Cloudflare) hides the real IP, set up real IP forwarding (realip) in the reverse proxy; turn off only if that isn’t possible."
       },
       "title": "Payment gateways",
@@ -2239,6 +2248,7 @@
     "GATEWAYS_VIEW": "View payment gateways",
     "GATEWAYS_UPDATE": "Edit gateway settings",
     "GATEWAYS_ACTIVE_SET": "Enable and disable gateways",
+    "GATEWAYS_CHANNELS_UPDATE": "Choose where gateways are offered",
     "GATEWAYS_REORDER": "Reorder gateways",
     "GATEWAYS_TEST": "Create test payments",
     "GATEWAYS_TEST_VIEW": "View test payment status",
@@ -4437,6 +4447,7 @@
     "GATEWAY_NOT_SUPPORTED": "This gateway isn’t supported yet.",
     "GATEWAY_NOT_TESTABLE": "This gateway can’t be tested from the dashboard.",
     "GATEWAY_REORDER_INCOMPLETE": "The new order must include every gateway exactly once.",
+    "GATEWAY_REQUIRED": "Choose a payment method.",
     "HTTP_ERROR": "Request failed.",
     "IDENTITY_BLACKLISTED": "This sign-in method is blocked and can’t be linked.",
     "IMAGE_CONTENT_MISMATCH": "The file doesn’t match its image type.",

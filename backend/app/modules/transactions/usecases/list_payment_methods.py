@@ -3,13 +3,13 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.gateways import REQUIRE_PAID_PURCHASE_FIELD_KEY, GatewayRepository, gateway_flags
 from app.modules.settings import SettingsRepository
-from app.modules.transactions.dto import PaymentMethodDto
+from app.modules.transactions.dto import ListPaymentMethodsDto, PaymentMethodDto
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users import UserDto
 
 
-class ListPaymentMethodsUseCase(UseCase[None, list[PaymentMethodDto], UserDto]):
+class ListPaymentMethodsUseCase(UseCase[ListPaymentMethodsDto, list[PaymentMethodDto], UserDto]):
     required_permission = Permission.PUBLIC
 
     def __init__(
@@ -24,12 +24,16 @@ class ListPaymentMethodsUseCase(UseCase[None, list[PaymentMethodDto], UserDto]):
         self._settings_repository = settings_repository
         self._uow = uow
 
-    async def _execute(self, actor: UserDto, data: None) -> list[PaymentMethodDto]:
+    async def _execute(self, actor: UserDto, data: ListPaymentMethodsDto) -> list[PaymentMethodDto]:
         methods: list[PaymentMethodDto] = []
         async with self._uow:
             shop_settings = await self._settings_repository.get_shop_settings()
             for gateway in await self._gateway_repository.get_all():
-                if not gateway.is_active or not gateway.is_configured:
+                if (
+                    not gateway.is_active
+                    or not gateway.is_configured
+                    or not gateway.offered_in(in_telegram=data.in_telegram)
+                ):
                     continue
                 gateway_class = GATEWAY_REGISTRY.get(gateway.type)
                 if gateway_class is None:

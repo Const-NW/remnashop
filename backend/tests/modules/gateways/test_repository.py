@@ -109,3 +109,28 @@ async def test_reorder_persists_order_and_creates_missing_rows(
     refreshed = await gateway_repository.get_all()
     assert refreshed[0].type == PaymentGatewayType.WATA
     assert refreshed[1].type == PaymentGatewayType.VALUTIX
+
+
+async def test_only_stars_is_offered_in_telegram_by_default(
+    gateway_repository: GatewayRepository,
+) -> None:
+    await gateway_repository.set_active(PaymentGatewayType.YOOKASSA, True)
+
+    gateways = {g.type: g for g in await gateway_repository.get_all()}
+
+    assert [t for t, g in gateways.items() if g.telegram_enabled] == [
+        PaymentGatewayType.TELEGRAM_STARS
+    ]
+    assert all(g.cabinet_enabled for g in gateways.values())
+    assert not gateways[PaymentGatewayType.YOOKASSA].telegram_enabled
+
+
+async def test_set_channels_changes_only_the_given_flags(
+    gateway_repository: GatewayRepository,
+) -> None:
+    await gateway_repository.set_channels(PaymentGatewayType.YOOKASSA, True, None)
+
+    gateway = await gateway_repository.set_channels(PaymentGatewayType.YOOKASSA, None, False)
+
+    assert gateway.telegram_enabled
+    assert not gateway.cabinet_enabled

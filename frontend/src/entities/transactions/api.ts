@@ -31,7 +31,8 @@ export interface TransactionItem {
   target_subscription_id: number | null;
   /** the subscription the order provisioned, once reconciled */
   fulfilled_subscription_id: number | null;
-  gateway_type: string;
+  /** null: a free order */
+  gateway_type: string | null;
   channel: "BOT" | "CABINET";
   external_payment_id: string | null;
   status: TransactionStatus;
@@ -188,7 +189,7 @@ const NO_STATUS_CHECK_GATEWAYS: ReadonlySet<string> = new Set(["TELEGRAM_STARS",
 
 export function canCheckTransactionPayment(order: TransactionItem): boolean {
   const unpaid = order.status === "PENDING" || order.status === "FAILED" || order.status === "CANCELED";
-  return unpaid && !NO_STATUS_CHECK_GATEWAYS.has(order.gateway_type);
+  return unpaid && order.gateway_type !== null && !NO_STATUS_CHECK_GATEWAYS.has(order.gateway_type);
 }
 
 export interface PaymentCheckResult {

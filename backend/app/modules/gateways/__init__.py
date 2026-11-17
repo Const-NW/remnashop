@@ -1,4 +1,5 @@
 from app.modules.gateways.di import get_gateways_providers
+from app.modules.gateways.dto import default_telegram_enabled
 from app.modules.gateways.field_catalog import (
     GATEWAY_FIELD_CATALOG,
     REQUIRE_PAID_PURCHASE_FIELD_KEY,
@@ -65,6 +66,7 @@ __all__ = [
     "WataSettings",
     "YooKassaSettings",
     "YooMoneySettings",
+    "default_telegram_enabled",
     "gateway_flags",
     "get_gateways_providers",
     "is_gateway_configured",

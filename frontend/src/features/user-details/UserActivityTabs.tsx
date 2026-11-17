@@ -71,7 +71,10 @@ function PurchaseKpis({ orders, total, saved }: { orders: TransactionItem[]; tot
   // by the discounts themselves: a plan change's credit also lowers the price and isn't one
   const discounted = paid.filter(hasDiscount);
   const gatewayCounts = new Map<string, number>();
-  for (const order of paid) gatewayCounts.set(order.gateway_type, (gatewayCounts.get(order.gateway_type) ?? 0) + 1);
+  // a free order went through no gateway
+  for (const { gateway_type: gateway } of paid) {
+    if (gateway) gatewayCounts.set(gateway, (gatewayCounts.get(gateway) ?? 0) + 1);
+  }
   const [topGateway, topGatewayCount] = [...gatewayCounts].sort((a, b) => b[1] - a[1])[0] ?? [];
 
   return (

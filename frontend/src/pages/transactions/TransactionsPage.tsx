@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
 import { DEFAULT_PAGE_SIZE, getTransactionSummary, hasDiscount, totalDiscountPercent, PAYMENT_STATUS_BADGE_TONE, PAYMENT_STATUS_DOT_CLASSNAME, PURCHASE_TYPES, listTransactionGateways, listTransactionsAfter, UNFULFILLED_STATUS, type TransactionItem, type TransactionListFilters, type TransactionStatus, type TransactionSummary, type PurchaseType } from "@entities/transactions/api";
+import { transactionGatewayLabel } from "@entities/transactions/display";
 import { userName } from "@entities/user/display";
 import { usePermissions } from "@entities/user/use-current-user";
 import { TransactionDetailsDialog } from "@features/transaction-details/TransactionDetailsDialog";
@@ -332,7 +333,7 @@ export function TransactionsPage() {
                           <Collapse open={!collapsedDays.has(group.key)} className={LIST_BODY_CLASS}>
                             {group.items.map((order) => {
                               const symbol = currencySymbol(order.currency);
-                              const gatewayLabel = t(`settings.gateways.types.${order.gateway_type}` as ParseKeys);
+                              const gatewayLabel = transactionGatewayLabel(order.gateway_type, t);
                               // a free order never reached its gateway (old-version rows still name one)
                               const isFree = Number(order.final_price) === 0;
 

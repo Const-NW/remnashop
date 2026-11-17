@@ -15,6 +15,9 @@ class PaymentGateway(BaseSql, TimestampMixin):
     type: Mapped[PaymentGatewayType] = mapped_column(unique=True)
     order_index: Mapped[int] = mapped_column(default=0, server_default="0")
     is_active: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # bot and Mini App; Telegram's rules allow only Stars there for digital goods
+    telegram_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
+    cabinet_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
 
     # JSON dict[str, str] encrypted as one blob: the field set differs per type
     # (modules/gateways/field_catalog.py) and the admin form saves it whole

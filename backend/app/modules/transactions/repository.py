@@ -582,7 +582,8 @@ class TransactionRepository:
             .distinct()
             .order_by(Transaction.gateway_type)
         )
-        return list(rows)
+        # a free order went through no gateway
+        return [gateway for gateway in rows if gateway is not None]
 
     async def sum_paid_anchor_amount_by_user_ids(self, user_ids: list[int]) -> Decimal:
         total = await self.session.scalar(

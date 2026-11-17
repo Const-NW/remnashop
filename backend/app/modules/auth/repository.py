@@ -33,6 +33,7 @@ class SessionRepository:
             last_used_at=now,
             expires_at=data.expires_at,
             audience=data.audience,
+            telegram_mini_app=data.telegram_mini_app,
         )
         self.session.add(row)
         await self.session.flush()

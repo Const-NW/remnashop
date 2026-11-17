@@ -20,6 +20,7 @@ from app.modules.transactions.api.schemas import (
 from app.modules.transactions.dto import (
     CreateCheckoutDto,
     ListOwnTransactionsDto,
+    ListPaymentMethodsDto,
     QuoteCheckoutDto,
 )
 from app.modules.transactions.usecases import (
@@ -58,6 +59,7 @@ async def create_checkout(
             purchase_type=payload.purchase_type,
             channel=PurchaseChannel.CABINET,
             gateway_type=payload.gateway_type,
+            in_telegram=auth.telegram_mini_app,
             target_subscription_id=payload.target_subscription_id,
             customer_email=payload.customer_email,
             plan_code=payload.plan_code,
@@ -110,8 +112,9 @@ async def quote_checkout(
 async def list_checkout_methods(
     use_case: FromDishka[ListPaymentMethodsUseCase],
     actor: UserDto = Depends(get_current_user),
+    auth: AuthContext = Depends(get_auth_context),
 ) -> PaymentMethodListResponse:
-    methods = await use_case(actor)
+    methods = await use_case(actor, ListPaymentMethodsDto(in_telegram=auth.telegram_mini_app))
     items = [PaymentMethodResponse.model_validate(m, from_attributes=True) for m in methods]
     return PaymentMethodListResponse(items=items, total=len(items))
 

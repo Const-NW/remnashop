@@ -24,6 +24,8 @@ class UserSession(BaseSql, TimestampMixin):
     last_used_at: Mapped[datetime]
     expires_at: Mapped[datetime] = mapped_column(index=True)
     revoked_at: Mapped[Optional[datetime]] = mapped_column(index=True)
+    # signed in with Mini App initData: payments there follow Telegram's rules
+    telegram_mini_app: Mapped[bool] = mapped_column(default=False, server_default="false")
     audience: Mapped[SessionAudience] = mapped_column(
         default=SessionAudience.DASHBOARD, server_default="DASHBOARD"
     )

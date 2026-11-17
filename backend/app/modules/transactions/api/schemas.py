@@ -23,7 +23,8 @@ class CreateCheckoutRequest(BaseModel):
     duration_days: int = Field(ge=0)
     currency: Currency
     purchase_type: PurchaseType
-    gateway_type: PaymentGatewayType
+    # omitted: only for an order that costs nothing, recorded without a gateway
+    gateway_type: Optional[PaymentGatewayType] = None
     target_subscription_id: Optional[int] = None
     customer_email: Optional[EmailStr] = None
     plan_code: Optional[str] = Field(default=None, max_length=64)
@@ -81,7 +82,7 @@ class TransactionResponse(BaseModel):
     purchase_type: PurchaseType
     channel: PurchaseChannel
     target_subscription_id: Optional[int]
-    gateway_type: PaymentGatewayType
+    gateway_type: Optional[PaymentGatewayType]  # None: a free order
     external_payment_id: Optional[str]
     status: TransactionStatus
     base_price: Decimal
@@ -193,7 +194,7 @@ class OwnTransactionResponse(BaseModel):
     discount_source: DiscountSource
     currency: Currency
     purchase_type: PurchaseType
-    gateway_type: PaymentGatewayType
+    gateway_type: Optional[PaymentGatewayType]  # None: a free order
     plan_name: str
     plan_icon_emoji_id: Optional[str]
     plan_icon_emoji_fallback: Optional[str]

@@ -38,6 +38,7 @@ import {
   hasDiscount,
   refundTransaction,
 } from "@entities/transactions/api";
+import { transactionGatewayLabel } from "@entities/transactions/display";
 import { usePermissions } from "@entities/user/use-current-user";
 import { userNameField } from "@entities/user/display";
 import { getErrorMessage } from "@shared/api/http";
@@ -94,7 +95,7 @@ function TransactionDetailsDialogBody({
   const canCheckPayment = permissions.includes("TRANSACTIONS_PAYMENT_CHECK") && canCheckTransactionPayment(order);
   const money = (amount: string) => formatMoney(amount, order.currency, i18n.language, true);
   const symbol = currencySymbol(order.currency);
-  const gatewayLabel = t(`settings.gateways.types.${order.gateway_type}` as ParseKeys);
+  const gatewayLabel = transactionGatewayLabel(order.gateway_type, t);
   const statusLabel = t(`transactions.status.${order.status}`);
   const none = t("common.none");
 

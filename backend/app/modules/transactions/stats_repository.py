@@ -135,6 +135,8 @@ class TransactionStatsRepository:
         return [
             PaymentAttemptDto(gateway_type=g, status=s, anchor_final_price=a)
             for g, s, a in (await self.session.execute(stmt)).tuples().all()
+            # a free order went through no gateway
+            if g is not None
         ]
 
     async def count_failed_by_gateway(self, since: datetime) -> dict[PaymentGatewayType, int]:
@@ -147,7 +149,8 @@ class TransactionStatsRepository:
             )
             .group_by(Transaction.gateway_type)
         )
-        return dict((await self.session.execute(stmt)).tuples().all())
+        rows = (await self.session.execute(stmt)).tuples().all()
+        return {gateway: count for gateway, count in rows if gateway is not None}
 
     async def count_stale_pending(self, created_before: datetime, now: datetime) -> int:
         return int(

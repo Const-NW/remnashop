@@ -316,14 +316,27 @@ async def test_several_methods_open_the_method_step() -> None:
     manager.switch_to.assert_awaited_once_with(Purchase.METHOD)
 
 
-async def test_a_free_duration_picks_the_first_method_silently() -> None:
+async def test_a_free_duration_has_no_method_to_choose() -> None:
     manager = _manager(dialog_data={"plan_id": 10})
     free = _plan(id=10, durations=[_duration(rub="0", usd="0")])
     catalog_dto = PlanCatalogDto(plans=[free], anchor_currency=Currency.RUB)
 
     await select_duration(manager, catalog_dto, 30, [_STARS_METHOD, _RUB_METHOD], _quote("0"))
 
-    assert manager.dialog_data["gateway_type"] == "TELEGRAM_STARS"
+    assert manager.dialog_data["gateway_type"] is None
+    assert manager.dialog_data["currency"] == "RUB"
+    manager.switch_to.assert_awaited_once_with(Purchase.CONFIRM)
+
+
+async def test_a_free_order_goes_through_with_no_method_in_telegram() -> None:
+    manager = _manager(dialog_data={"plan_id": 10})
+    free = _plan(id=10, durations=[_duration(rub="0", usd="0")])
+    catalog_dto = PlanCatalogDto(plans=[free], anchor_currency=Currency.RUB)
+
+    assert await select_duration(manager, catalog_dto, 30, [], _quote("0")) is None
+
+    assert manager.dialog_data["gateway_type"] is None
+    assert manager.dialog_data["currency"] == "RUB"
     manager.switch_to.assert_awaited_once_with(Purchase.CONFIRM)
 
 
@@ -377,6 +390,7 @@ async def test_confirm_with_a_payment_link_opens_the_pay_step() -> None:
         manager.middleware_data[USER_KEY],
         CreateCheckoutDto(
             channel=PurchaseChannel.BOT,
+            in_telegram=True,
             plan_id=10,
             duration_days=30,
             currency=Currency.RUB,

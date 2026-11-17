@@ -5,6 +5,7 @@ from app.modules.gateways.usecases import (
     ListGatewaysUseCase,
     ReorderGatewaysUseCase,
     SetGatewayActiveUseCase,
+    UpdateGatewayChannelsUseCase,
     UpdateGatewaySettingsUseCase,
 )
 
@@ -17,6 +18,7 @@ class GatewaysProvider(Provider):
         ListGatewaysUseCase,
         UpdateGatewaySettingsUseCase,
         SetGatewayActiveUseCase,
+        UpdateGatewayChannelsUseCase,
         ReorderGatewaysUseCase,
     )
 
