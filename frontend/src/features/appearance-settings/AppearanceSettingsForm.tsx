@@ -15,7 +15,12 @@ import {
   uploadAppearanceImage,
 } from "@entities/appearance/api";
 import { getErrorMessage } from "@shared/api/http";
-import { useAppearancePreview, useBrandName, useReloadAppearance } from "@entities/appearance/use-appearance";
+import {
+  DEFAULT_BRAND_NAME,
+  useAppearancePreview,
+  useBrandName,
+  useReloadAppearance,
+} from "@entities/appearance/use-appearance";
 import { DEFAULT_ACCENT_COLOR, HEX_COLOR_PATTERN } from "@shared/lib/color";
 import { DEFAULT_SHADER_BASE, resolveShaderStops, SHADER_TONE_COUNT } from "@shared/lib/shader-palette";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
@@ -210,15 +215,16 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
   const reloadAppearance = useReloadAppearance();
   const { setPreviewColor, setPreviewShaderColors, setPreviewShaderEnabled } = useAppearancePreview();
   const permissions = usePermissions();
-  // null: nothing stored, the name in use applies (the default, for the cabinet the dashboard's)
+  // null: nothing stored, the default name applies
   const [brandName, setBrandName] = useState<string | null>(null);
-  const fallbackBrandName = useBrandName();
+  const dashboardBrandName = useBrandName();
+  const fallbackBrandName = isDashboard ? dashboardBrandName : DEFAULT_BRAND_NAME;
   const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT_COLOR);
   // last non-preset pick, kept as an extra swatch after a preset replaces it
   const [previousColor, setPreviousColor] = useState<string | null>(null);
   const [hexInput, setHexInput] = useState(DEFAULT_ACCENT_COLOR);
   const [colorTouched, setColorTouched] = useState(false);
-  // off: the background follows the accent (the cabinet's: the dashboard's background)
+  // off: the background follows the accent
   const [ownShaderBase, setOwnShaderBase] = useState(false);
   const [shaderBase, setShaderBase] = useState(DEFAULT_SHADER_BASE);
   const [shaderTones, setShaderTones] = useState<(string | null)[]>([...NO_PINNED_TONES]);

@@ -57,7 +57,7 @@ def test_render_email_html_keeps_body_markup_and_footer() -> None:
     assert "Shop" in page
 
 
-async def test_brand_takes_the_cabinet_and_falls_back_to_the_dashboard(
+async def test_brand_takes_only_the_cabinet(
     settings_repository: SettingsRepository,
 ) -> None:
     assert await load_email_brand(settings_repository) == EmailBrandDto(
@@ -74,7 +74,7 @@ async def test_brand_takes_the_cabinet_and_falls_back_to_the_dashboard(
     )
 
     assert await load_email_brand(settings_repository) == EmailBrandDto(
-        brand="Shop", color="#111111", has_logo=False
+        brand="Shop", color=None, has_logo=False
     )
 
 

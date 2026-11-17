@@ -7,7 +7,7 @@ import type { AsyncState } from "@shared/lib/use-async-resource";
 
 import { AppearanceContext, AppearancePreviewContext, AppearanceReloadContext, type AppearancePreview } from "./context";
 
-const DEFAULT_BRAND_NAME = "Remnashop";
+export const DEFAULT_BRAND_NAME = "Remnashop";
 
 export function useAppearance(): AsyncState<AppearanceSettings> {
   const state = useContext(AppearanceContext);

@@ -9,13 +9,13 @@ from fastapi.responses import RedirectResponse
 from app.api.dependencies.public import get_current_user
 from app.api.errors import error_responses
 from app.core.enums import AppearanceImageKind, AppearanceTarget
+from app.core.exceptions import NotFoundError
 from app.modules.settings.api.schemas import AppearanceResponse, CabinetSettingsResponse
 from app.modules.settings.branding import appearance_manifest
 from app.modules.settings.usecases import (
     GetCabinetSettingsUseCase,
     GetPublicAppearanceImageUseCase,
     GetPublicAppearanceUseCase,
-    GetPublicTabIconUseCase,
 )
 from app.modules.users import UserDto
 
@@ -37,11 +37,7 @@ _DEFAULT_FAVICON_PATH: Final[str] = "/favicon.svg"
 async def get_appearance_manifest(
     target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceUseCase]
 ) -> Response:
-    manifest = appearance_manifest(
-        target,
-        await use_case.execute(AppearanceTarget.CABINET),
-        await use_case.execute(AppearanceTarget.DASHBOARD),
-    )
+    manifest = appearance_manifest(target, await use_case.execute(target))
     return Response(
         json.dumps(manifest),
         media_type="application/manifest+json",
@@ -81,11 +77,12 @@ async def get_appearance_favicon(
 @router.get("/{target}/tab-icon")
 @inject
 async def get_appearance_tab_icon(
-    target: AppearanceTarget, use_case: FromDishka[GetPublicTabIconUseCase]
+    target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]
 ) -> Response:
-    image = await use_case.execute(target)
     no_cache = {"Cache-Control": "no-cache"}
-    if image is None:
+    try:
+        image = await use_case.execute(target, AppearanceImageKind.FAVICON)
+    except NotFoundError:
         return RedirectResponse(
             _DEFAULT_FAVICON_PATH, status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers=no_cache
         )

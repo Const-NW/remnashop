@@ -343,9 +343,6 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                 cabinet = await self._settings_repository.get_appearance_settings(
                     AppearanceTarget.CABINET
                 )
-                dashboard = await self._settings_repository.get_appearance_settings(
-                    AppearanceTarget.DASHBOARD
-                )
             # already in the worker: per-device failures are swallowed by the sender
             await self._web_push.send(
                 user.id,
@@ -354,7 +351,7 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                     body=body,
                     url=customer_url(data.event_type, data.subscription_id, data.args),
                     tag=data.event_type,
-                    icon=push_icon_path(cabinet, dashboard),
+                    icon=push_icon_path(cabinet),
                 ),
                 SessionAudience.CABINET,
             )

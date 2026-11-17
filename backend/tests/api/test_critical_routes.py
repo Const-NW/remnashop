@@ -254,7 +254,7 @@ async def test_tab_icon_redirects_to_the_default_when_unset(client: httpx.AsyncC
         assert response.headers["cache-control"] == "no-cache"
 
 
-async def test_cabinet_tab_icon_falls_back_to_the_dashboard_favicon(
+async def test_tab_icon_serves_only_its_own_favicon(
     client: httpx.AsyncClient, owner_headers: dict[str, str]
 ) -> None:
     upload = await client.put(
@@ -264,13 +264,15 @@ async def test_cabinet_tab_icon_falls_back_to_the_dashboard_favicon(
     )
     assert upload.status_code == 200
 
-    for target in ("dashboard", "cabinet"):
-        response = await client.get(f"{API_V1}/appearance/{target}/tab-icon")
+    dashboard = await client.get(f"{API_V1}/appearance/dashboard/tab-icon")
+    cabinet = await client.get(f"{API_V1}/appearance/cabinet/tab-icon")
 
-        assert response.status_code == 200
-        assert response.content == _SVG_LOGO
-        assert response.headers["cache-control"] == "no-cache"
-        assert "sandbox" in response.headers["content-security-policy"]
+    assert dashboard.status_code == 200
+    assert dashboard.content == _SVG_LOGO
+    assert dashboard.headers["cache-control"] == "no-cache"
+    assert "sandbox" in dashboard.headers["content-security-policy"]
+    assert cabinet.status_code == 307
+    assert cabinet.headers["location"] == "/favicon.svg"
 
 
 @pytest.mark.parametrize(
