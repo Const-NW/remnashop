@@ -70,9 +70,8 @@ export function PremiumEmoji({ item, size, still = false }: PremiumEmojiProps) {
       loop: true,
       autoplay: true,
       path: emojiAnimationUrl(emojiId),
-      // dpr defaults to devicePixelRatio, so a 22px emoji rasterizes the whole
-      // vector scene into a 44x44 canvas every frame on a Retina display.
-      rendererSettings: { dpr: 1 },
+      // 1 blurs on Retina; capped at 2 so a 3x phone doesn't rasterize 9x the pixels per frame
+      rendererSettings: { dpr: Math.min(window.devicePixelRatio, 2) },
     });
     // with subframes (the default) the frame number stays fractional, the
     // renderer's "same frame" skip never fires and a 30fps animation redraws
