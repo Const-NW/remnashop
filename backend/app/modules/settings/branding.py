@@ -15,9 +15,9 @@ _START_URL: Final[dict[AppearanceTarget, str]] = {
     AppearanceTarget.CABINET: "/",
     AppearanceTarget.DASHBOARD: "/dashboard",
 }
+# both frontends ship it in public/
 _DEFAULT_ICONS: Final[list[dict[str, str]]] = [
-    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml"},
 ]
 
 
@@ -43,7 +43,7 @@ def appearance_manifest(
     target: AppearanceTarget, settings: AppearanceSettingsDto
 ) -> dict[str, Any]:
     name = settings.brand_name or _DEFAULT_NAME
-    # one icon: listed next to the defaults, iOS picks a sized PNG over an uploaded "any"
+    # one icon: iOS picks a sized icon over an uploaded "any" one listed with it
     icons = (
         [
             {

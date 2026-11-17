@@ -7,10 +7,7 @@ from app.modules.settings.branding import appearance_manifest, push_icon_path
 
 _AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
 _V = int(_AT.timestamp())
-_DEFAULT_ICONS = [
-    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
-    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
-]
+_DEFAULT_ICONS = [{"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml"}]
 
 
 def _dto(
