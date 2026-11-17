@@ -64,11 +64,10 @@ def appearance_manifest(
         "display": "standalone",
         "background_color": _DEFAULT_COLOR,
         "theme_color": color,
+        # iOS picks a sized default PNG over an uploaded "any" icon listed with it
         "icons": [
-            *(
-                {"src": path, "sizes": "any", "type": ct}
-                for path, ct in _images(sources, api_prefix, svg=True)
-            ),
-            *_DEFAULT_ICONS,
-        ],
+            {"src": path, "sizes": "any", "type": ct}
+            for path, ct in _images(sources, api_prefix, svg=True)
+        ]
+        or _DEFAULT_ICONS,
     }

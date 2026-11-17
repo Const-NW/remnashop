@@ -15,6 +15,7 @@ from app.core.db.models.shop_settings import ShopSettings
 from app.core.db.partial_update import apply_partial_update
 from app.core.db.singleton import SINGLETON_ID, get_or_create_singleton
 from app.core.enums import AppearanceImageKind, AppearanceTarget, SmtpSecurity
+from app.core.utils.time import datetime_now
 from app.modules.settings.dto import (
     AccessSettingsDto,
     AppearanceSettingsDto,
@@ -340,6 +341,8 @@ class SettingsRepository:
         else:
             row.favicon_content_type = content_type
             row.favicon_extension = extension
+        # same format again changes no column, and image URLs are versioned by updated_at
+        row.updated_at = datetime_now()
 
         await self.session.flush()
         await self.session.refresh(row)

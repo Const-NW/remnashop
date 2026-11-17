@@ -76,8 +76,6 @@ def test_manifest_uses_brand_and_color() -> None:
     assert [i["src"] for i in manifest["icons"]] == [
         f"/api/appearance/cabinet/favicon?v={_V}",
         f"/api/appearance/dashboard/logo?v={_V}",
-        "/icon-192.png",
-        "/icon-512.png",
     ]
     assert manifest["icons"][0] == {
         "src": f"/api/appearance/cabinet/favicon?v={_V}",
@@ -109,8 +107,6 @@ def test_dashboard_manifest_ignores_cabinet_branding() -> None:
     assert manifest["start_url"] == "/dashboard"
     assert [i["src"] for i in manifest["icons"]] == [
         f"/api/v1/appearance/dashboard/logo?v={_V}",
-        "/icon-192.png",
-        "/icon-512.png",
     ]
 
 
