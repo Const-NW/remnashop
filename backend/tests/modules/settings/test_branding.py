@@ -28,7 +28,7 @@ def _dto(
     )
 
 
-def test_push_icon_prefers_favicon_of_any_format() -> None:
+def test_push_icon_is_the_favicon_of_any_format() -> None:
     cabinet = _dto(favicon="image/svg+xml", logo="image/png")
 
     assert (
@@ -37,11 +37,8 @@ def test_push_icon_prefers_favicon_of_any_format() -> None:
     )
 
 
-def test_push_icon_falls_back_to_logo() -> None:
-    assert (
-        push_icon_path(AppearanceTarget.DASHBOARD, _dto(logo="image/png"))
-        == f"/api/v1/appearance/dashboard/logo?v={_V}"
-    )
+def test_push_icon_ignores_logo() -> None:
+    assert push_icon_path(AppearanceTarget.DASHBOARD, _dto(logo="image/png")) is None
 
 
 def test_push_icon_none_without_images() -> None:

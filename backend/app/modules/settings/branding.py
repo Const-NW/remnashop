@@ -28,11 +28,9 @@ def _image_path(
 
 
 def push_icon_path(target: AppearanceTarget, settings: AppearanceSettingsDto) -> Optional[str]:
-    if settings.favicon_content_type is not None:
-        return _image_path(target, AppearanceImageKind.FAVICON, settings)
-    if settings.logo_content_type is not None:
-        return _image_path(target, AppearanceImageKind.LOGO, settings)
-    return None
+    if settings.favicon_content_type is None:
+        return None
+    return _image_path(target, AppearanceImageKind.FAVICON, settings)
 
 
 def appearance_manifest(
