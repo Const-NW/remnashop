@@ -80,7 +80,11 @@ def build_mime(profile: SmtpProfileDto, email: OutgoingEmailDto) -> EmailMessage
         for image in email.images:
             maintype, subtype = image.content_type.split("/", 1)
             html_part.add_related(
-                image.data, maintype=maintype, subtype=subtype, cid=f"<{image.cid}>"
+                image.data,
+                maintype=maintype,
+                subtype=subtype,
+                cid=f"<{image.cid}>",
+                disposition="inline",
             )
     return mime
 

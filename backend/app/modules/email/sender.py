@@ -70,7 +70,13 @@ class SmtpSender:
             maintype, subtype = logo.content_type.split("/", 1)
             html_part = mime.get_body(("html",))
             if html_part is not None:
-                html_part.add_related(logo.data, maintype=maintype, subtype=subtype, cid="<logo>")
+                html_part.add_related(
+                    logo.data,
+                    maintype=maintype,
+                    subtype=subtype,
+                    cid="<logo>",
+                    disposition="inline",
+                )
         try:
             # the envelope is the validated address itself: re-parsed from the To
             # header, an encoded word in it would decode into another mailbox
