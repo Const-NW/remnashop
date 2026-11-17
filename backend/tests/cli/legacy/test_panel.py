@@ -70,6 +70,7 @@ async def test_fetch_panel_index_keeps_status_and_expiry() -> None:
 
     assert index.status == {1: SubscriptionStatus.EXPIRED}
     assert index.expire_at == {1: datetime(2030, 1, 1, tzinfo=timezone.utc)}
+    assert index.url == {1: store[1]["subscriptionUrl"]}
 
 
 def _index() -> PanelIndex:

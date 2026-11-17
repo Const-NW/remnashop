@@ -186,3 +186,18 @@ def test_live_subscription_takes_panel_state() -> None:
     assert by_id[1]["expire_at"] == NOW
     assert by_id[2]["status"] is SubscriptionStatus.EXPIRED
     assert by_id[2]["expire_at"] == panel_expire
+
+
+def test_subscription_takes_panel_link() -> None:
+    index = PanelIndex(by_username={"rs_1001": 55}, url={55: "https://sub.example.com/new"})
+    result = transform_subscriptions(
+        [_row(1)],
+        users=USERS,
+        current_subscription_ids={1},
+        index=index,
+        plan_codes={3: "pro"},
+        last_payments={},
+        anchor_currency=Currency.USD,
+        report=MigrationReport(),
+    )
+    assert result[0]["url"] == "https://sub.example.com/new"

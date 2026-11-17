@@ -148,6 +148,9 @@ def transform_subscriptions(
                 old_snapshot, public_code=public_code, price_paid=price, currency=currency
             ),
         )
+        # the old link may name a revoked shortUuid when the user was matched by username
+        if panel_id in index.url:
+            item.update(url=index.url[panel_id])
         if status is not SubscriptionStatus.DELETED and panel_id in index.status:
             item.update(status=index.status[panel_id], expire_at=index.expire_at[panel_id])
         result.append(item)
