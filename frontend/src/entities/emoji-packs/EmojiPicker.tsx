@@ -143,7 +143,7 @@ export function EmojiPicker({
       }
       className={CELL_CLASS}
     >
-      <PremiumEmoji item={item} size={22} still />
+      <PremiumEmoji item={item} size={22} />
     </Pressable>
   );
   const standardCell = (glyph: string) => (
