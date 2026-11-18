@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 from remnapy.enums import TrafficLimitStrategy
 
 from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
@@ -153,7 +153,8 @@ class PublicPlanDurationResponse(BaseModel):
 class PublicPlanResponse(BaseModel):
     id: int
     name: str
-    description: Optional[str] = None
+    # `[glyph](emoji:id)` kept, for a cabinet that draws the thumbnails
+    description_markup: Optional[str] = Field(default=None, validation_alias="description")
     badge: Optional[PlanBadge] = None
     type: PlanType
     traffic_limit_strategy: TrafficLimitStrategy
@@ -167,11 +168,13 @@ class PublicPlanResponse(BaseModel):
     icon_emoji_id: Optional[str] = None
     icon_emoji_fallback: Optional[str] = None
 
-    # the cabinet can't draw a Telegram premium emoji: its glyph stands in
-    @field_validator("description", mode="before")
-    @classmethod
-    def _premium_emoji_as_glyph(cls, value: Any) -> Any:
-        return PREMIUM_EMOJI_RE.sub(r"\1", value) if isinstance(value, str) else value
+    # a cabinet that can't draw a Telegram premium emoji shows its glyph
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def description(self) -> Optional[str]:
+        if self.description_markup is None:
+            return None
+        return PREMIUM_EMOJI_RE.sub(r"\1", self.description_markup)
 
 
 class PublicPlanListResponse(BaseModel):
