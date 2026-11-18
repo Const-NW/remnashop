@@ -87,6 +87,8 @@ class TransactionDto(BaseDto, TimestampMixin):
     expires_at: datetime
     fulfilled_at: Optional[datetime] = None
     fulfilled_subscription_id: Optional[int] = None
+    added_days: Optional[int] = None
+    paid_at: Optional[datetime] = None
     is_test: bool = False
 
 
@@ -269,6 +271,7 @@ class ReconcilePaidTransactionsDto:
 class MarkOrderFulfilledDto:
     payment_key: str
     subscription_id: int
+    added_days: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -96,9 +96,9 @@ class PurchaseRollbackService:
 
     async def _pending_renewal(
         self, data: PurchaseRollbackDto
-    ) -> Optional[tuple[SubscriptionDto, datetime]]:
+    ) -> Optional[tuple[SubscriptionDto, datetime, int]]:
         """A renewal whose worker extended the panel and died before the database
-        caught up: the subscription and the expiry pinned for it."""
+        caught up: the subscription, the expiry pinned for it and the days it adds."""
         if (
             data.purchase_type is not PurchaseType.RENEW
             or data.fulfilled_subscription_id is not None
@@ -109,10 +109,11 @@ class PurchaseRollbackService:
         pinned = await self._idempotency.find_pending_renew_expire_at(data.idempotency_key)
         if pinned is None:
             return None
+        added_days = await self._idempotency.find_pending_renew_added_days(data.idempotency_key)
         target = await self._subscription_repository.get_by_id(data.target_subscription_id)
         if target.status is SubscriptionStatus.DELETED:
             return None
-        return target, pinned
+        return target, pinned, added_days if added_days is not None else data.duration_days
 
     async def preview(self, data: PurchaseRollbackDto) -> RollbackPreviewDto:
         old_term_expired = False
@@ -159,7 +160,7 @@ class PurchaseRollbackService:
         logger.info(f"{actor.log} Rolled back subscription '{fulfilled.id}' after a refund")
 
     async def _undo_pending_renewal(
-        self, data: PurchaseRollbackDto, target: SubscriptionDto, pinned: datetime
+        self, data: PurchaseRollbackDto, target: SubscriptionDto, pinned: datetime, added_days: int
     ) -> None:
         # the database never took this renewal, so only the panel has to give it back
         panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
@@ -167,9 +168,7 @@ class PurchaseRollbackService:
             return  # the extension never landed
         # the row never took it, so its expiry is the one before the renewal
         before = (
-            target.expire_at
-            if data.duration_days == 0
-            else pinned - timedelta(days=data.duration_days)
+            target.expire_at if data.duration_days == 0 else pinned - timedelta(days=added_days)
         )
         await self._remnawave_sdk.users.update_user(
             UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=before)
@@ -189,7 +188,7 @@ class PurchaseRollbackService:
             # a later unlimited renewal replaced the refunded term: 2099 stays
             before = renewed.expire_at
         else:
-            before = renewed.expire_at - timedelta(days=data.duration_days)
+            before = renewed.expire_at - timedelta(days=data.days_to_take_back)
         if before != renewed.expire_at:
             await self._remnawave_sdk.users.update_user(
                 UpdateUserRequestDto(id=renewed.remnawave_user_id, expire_at=before)
@@ -201,7 +200,7 @@ class PurchaseRollbackService:
                 _assert_unchanged(current, renewed)
                 paid = await self._paid_in_snapshot_currency(data, current)
                 await self._lifecycle_service.shorten_after_refund(
-                    current.id, days=data.duration_days, paid=paid, now=now
+                    current.id, days=data.days_to_take_back, paid=paid, now=now
                 )
                 await self._publish(actor, current)
         except Exception:

@@ -198,8 +198,7 @@ class AccountMergeRepository:
         s: int,
         t: int,
     ) -> None:
-        # a change of owner is not an edit of the row: updated_at stays, since a
-        # paid order's updated_at is its paid-at moment every revenue query reads
+        # a change of owner is not an edit of the row: updated_at stays
         model = user_col.class_
         values: dict[Any, Any] = {user_col: t}
         if hasattr(model, "updated_at"):

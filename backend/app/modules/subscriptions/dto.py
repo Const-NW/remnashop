@@ -363,6 +363,8 @@ class PurchaseSubscriptionDto:
     publish_event: bool = True
     # CHANGE only: keep the target's expire_at instead of now + days + credit
     keep_expire_at: bool = False
+    # referral bonus days: plain days, not a plan term read as calendar months
+    exact_days: bool = False
     # zero the panel's traffic counter; set for a customer's paid order (a
     # CHANGE's credit already deducts the spent traffic), never for an admin grant
     reset_traffic: bool = False
@@ -387,6 +389,12 @@ class PurchaseRollbackDto:
     # the order's purchase key: a renewal that reached the panel but not the
     # database is found by the expiry pinned on it
     idempotency_key: Optional[str] = None
+    # what the renewal really added; None on an order from when a term was plain days
+    added_days: Optional[int] = None
+
+    @property
+    def days_to_take_back(self) -> int:
+        return self.added_days if self.added_days is not None else self.duration_days
 
 
 @dataclass(frozen=True, kw_only=True)

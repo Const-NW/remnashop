@@ -21,3 +21,6 @@ class MarkOrderFulfilledUseCase(UseCase[MarkOrderFulfilledDto, None]):
             await self._transaction_repository.mark_fulfilled_by_key(
                 data.payment_key, data.subscription_id
             )
+            if data.added_days is not None:
+                # apart from the link: the reconcile sweep may have set that first
+                await self._transaction_repository.set_added_days(data.payment_key, data.added_days)

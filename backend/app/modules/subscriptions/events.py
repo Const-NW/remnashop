@@ -39,6 +39,8 @@ class SubscriptionPurchasedEvent(UserEvent):
     # The paid order's idempotency key; None for trial/promocode/referral grants.
     payment_key: Optional[str] = None
     is_trial: bool = False
+    # the days the term really holds: a calendar month is 28-31 days
+    added_days: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,6 +48,8 @@ class SubscriptionRenewedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
     duration_days: int
+    # what the term really added: a calendar month is 28-31 days
+    added_days: Optional[int] = None
     payment_key: Optional[str] = None
 
 
@@ -56,6 +60,8 @@ class SubscriptionChangedEvent(UserEvent):
     previous_subscription_id: int
     previous_plan_snapshot: dict[str, Any]
     payment_key: Optional[str] = None
+    # the new term's own days, without the credit carried over
+    added_days: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)

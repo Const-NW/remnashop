@@ -655,7 +655,7 @@ async def test_get_ad_link_payout_counts_payments_inside_the_window(
             )
         await transaction_repository.mark_status(order.id, status)
         await session.execute(
-            update(Transaction).where(Transaction.id == order.id).values(updated_at=paid_at)
+            update(Transaction).where(Transaction.id == order.id).values(paid_at=paid_at)
         )
 
     payout = await GetAdLinkPayoutUseCase(

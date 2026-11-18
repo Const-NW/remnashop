@@ -1,4 +1,6 @@
 from contextlib import suppress
+from dataclasses import replace
+from datetime import datetime
 
 from loguru import logger
 from remnapy import RemnawaveSDK
@@ -25,7 +27,7 @@ from app.modules.subscriptions.panel import (
     subscription_row,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
-from app.modules.subscriptions.unlimited import expiry_after
+from app.modules.subscriptions.unlimited import expiry_after, term_days
 from app.modules.users import UserRepository
 
 
@@ -88,8 +90,10 @@ class NewPurchase:
                 data.user_id, pending=await self._open_orders(data)
             )
 
+        now = datetime_now()
+        expire_at = expiry_after(now, data.duration_days, exact_days=data.exact_days)
+        data = _credit_actual_days(data, now, expire_at)
         plan = data.plan_snapshot
-        expire_at = expiry_after(datetime_now(), data.duration_days)
         panel_user = await self._remnawave_sdk.users.create_user(
             new_panel_user(buyer, plan, expire_at, self._prefix)
         )
@@ -177,8 +181,10 @@ class NewPurchase:
         # the trial's panel user, reconfigured for the purchased plan; no
         # create_user/delete_user here. Enabled too: a trial paused or disabled
         # is still replaced by a subscription the customer has paid for
+        now = datetime_now()
+        expire_at = expiry_after(now, data.duration_days, exact_days=data.exact_days)
+        data = _credit_actual_days(data, now, expire_at)
         plan = data.plan_snapshot
-        expire_at = expiry_after(datetime_now(), data.duration_days)
         panel_user = await self._remnawave_sdk.users.update_user(
             configure_for_plan(trial.remnawave_user_id, plan, expire_at, enable=True)
         )
@@ -248,5 +254,14 @@ class NewPurchase:
                 purchase_type=data.purchase_type,
                 payment_key=data.idempotency_key,
                 is_trial=data.plan_snapshot.is_trial,
+                added_days=data.plan_snapshot.credit_days,
             )
         )
+
+
+def _credit_actual_days(
+    data: PurchaseSubscriptionDto, now: datetime, expire_at: datetime
+) -> PurchaseSubscriptionDto:
+    # a calendar month is 28-31 days: proration divides by the days it really holds
+    days = term_days(now, expire_at, data.duration_days)
+    return replace(data, plan_snapshot=replace(data.plan_snapshot, credit_days=days))

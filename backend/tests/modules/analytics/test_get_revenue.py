@@ -82,7 +82,7 @@ async def _seed(
         order = await transaction_repository.create(dto)
     await transaction_repository.mark_status(order.id, status)
     await session.execute(
-        update(Transaction).where(Transaction.id == order.id).values(created_at=at, updated_at=at)
+        update(Transaction).where(Transaction.id == order.id).values(created_at=at, paid_at=at)
     )
 
 

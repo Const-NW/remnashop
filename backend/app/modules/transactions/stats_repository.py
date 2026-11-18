@@ -35,6 +35,7 @@ from app.modules.transactions.dto import (
     PayerSummaryDto,
     PaymentAttemptDto,
 )
+from app.modules.transactions.repository import PAID_AT
 
 _PAID: Final[tuple[ColumnElement[bool], ...]] = (
     Transaction.status == TransactionStatus.PAID,
@@ -43,7 +44,7 @@ _PAID: Final[tuple[ColumnElement[bool], ...]] = (
 
 
 class TransactionStatsRepository:
-    """Aggregates for analytics; updated_at of a PAID row is its paid moment."""
+    """Aggregates for analytics, dated by paid_at."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -52,7 +53,7 @@ class TransactionStatsRepository:
     def _paid_select() -> Select[Any]:
         return select(
             Transaction.user_id,
-            Transaction.updated_at,
+            Transaction.paid_at,
             Transaction.currency,
             Transaction.final_price,
             Transaction.anchor_final_price,
@@ -90,10 +91,10 @@ class TransactionStatsRepository:
         )
 
     async def list_paid(self, start: Optional[datetime], end: datetime) -> list[PaidTransactionDto]:
-        stmt = self._paid_select().where(Transaction.updated_at < end)
+        stmt = self._paid_select().where(Transaction.paid_at < end)
         if start is not None:
-            stmt = stmt.where(Transaction.updated_at >= start)
-        rows = await self.session.execute(stmt.order_by(Transaction.updated_at, Transaction.id))
+            stmt = stmt.where(Transaction.paid_at >= start)
+        rows = await self.session.execute(stmt.order_by(Transaction.paid_at, Transaction.id))
         return [self._to_paid(row) for row in rows.all()]
 
     async def list_recent_paid(
@@ -108,7 +109,7 @@ class TransactionStatsRepository:
                     Transaction.user_id == hide_staff_from,
                 )
             )
-        stmt = stmt.order_by(Transaction.updated_at.desc(), Transaction.id.desc()).limit(limit)
+        stmt = stmt.order_by(Transaction.paid_at.desc(), Transaction.id.desc()).limit(limit)
         return [self._to_paid(row) for row in (await self.session.execute(stmt)).all()]
 
     async def list_paid_by_users(
@@ -116,8 +117,8 @@ class TransactionStatsRepository:
     ) -> list[PaidTransactionDto]:
         stmt = (
             self._paid_select()
-            .where(in_ids(Transaction.user_id, user_ids), Transaction.updated_at < end)
-            .order_by(Transaction.updated_at, Transaction.id)
+            .where(in_ids(Transaction.user_id, user_ids), Transaction.paid_at < end)
+            .order_by(Transaction.paid_at, Transaction.id)
         )
         rows = (await self.session.execute(stmt)).all()
         return sorted((self._to_paid(row) for row in rows), key=lambda row: row.paid_at)
@@ -177,8 +178,8 @@ class TransactionStatsRepository:
         S_n + max over k <= n of (paid_k - S_{k-1}), S being the running sum of
         days: a running max, so window functions can compute it.
         """
-        order = (Transaction.updated_at, Transaction.duration_days, Transaction.id)
-        conditions: list[ColumnElement[bool]] = [*_PAID, Transaction.updated_at < before]
+        order = (Transaction.paid_at, Transaction.duration_days, Transaction.id)
+        conditions: list[ColumnElement[bool]] = [*_PAID, Transaction.paid_at < before]
         if user_ids is not None:
             conditions.append(in_ids(Transaction.user_id, user_ids))
         # an unlimited order covers for good: the ones after it add nothing, and
@@ -190,14 +191,15 @@ class TransactionStatsRepository:
                 earlier.status == TransactionStatus.PAID,
                 earlier.is_test.is_(False),
                 earlier.duration_days == 0,
-                tuple_(earlier.updated_at, earlier.duration_days, earlier.id)
-                < tuple_(Transaction.updated_at, Transaction.duration_days, Transaction.id),
+                tuple_(earlier.paid_at, earlier.duration_days, earlier.id)
+                < tuple_(Transaction.paid_at, Transaction.duration_days, Transaction.id),
             )
         )
         # an unlimited order has 0 days and covers for good
+        # what the term really added: a calendar month is 28-31 days
         covered_days = case(
             (Transaction.duration_days == 0, UNLIMITED_COVERAGE_DAYS),
-            else_=Transaction.duration_days,
+            else_=func.coalesce(Transaction.added_days, Transaction.duration_days),
         )
         days_before = func.coalesce(
             func.sum(covered_days).over(
@@ -208,7 +210,7 @@ class TransactionStatsRepository:
         steps = (
             select(
                 Transaction.user_id,
-                Transaction.updated_at.label("paid_at"),
+                Transaction.paid_at.label("paid_at"),
                 covered_days.label("days"),
                 Transaction.duration_days.label("paid_days"),
                 Transaction.id,
@@ -312,10 +314,10 @@ class TransactionStatsRepository:
     ) -> dict[int, datetime]:
         """Each payer's first paid moment before `before`; with `since`, only
         payers whose first payment is at or after it."""
-        first = func.min(Transaction.updated_at)
+        first = func.min(PAID_AT)
         stmt = (
             select(Transaction.user_id, first)
-            .where(*_PAID, Transaction.updated_at < before)
+            .where(*_PAID, Transaction.paid_at < before)
             .group_by(Transaction.user_id)
         )
         if since is not None:
@@ -333,7 +335,7 @@ class TransactionStatsRepository:
                     func.count(),
                     func.count(Transaction.user_id.distinct()),
                     func.coalesce(func.sum(Transaction.anchor_final_price), 0),
-                ).where(*_PAID, Transaction.updated_at >= start, Transaction.updated_at < end)
+                ).where(*_PAID, Transaction.paid_at >= start, Transaction.paid_at < end)
             )
         ).one()
         return PaidTotalsDto(payments=payments, paying_users=paying_users, revenue=revenue)
@@ -341,7 +343,7 @@ class TransactionStatsRepository:
     async def revenue_by_currency(self, start: datetime, end: datetime) -> dict[Currency, Decimal]:
         stmt = (
             select(Transaction.currency, func.sum(Transaction.final_price))
-            .where(*_PAID, Transaction.updated_at >= start, Transaction.updated_at < end)
+            .where(*_PAID, Transaction.paid_at >= start, Transaction.paid_at < end)
             .group_by(Transaction.currency)
         )
         return dict((await self.session.execute(stmt)).tuples().all())
@@ -349,12 +351,12 @@ class TransactionStatsRepository:
     async def payer_summaries(
         self, before: datetime, user_ids: Optional[Collection[int]] = None
     ) -> list[PayerSummaryDto]:
-        conditions: list[ColumnElement[bool]] = [*_PAID, Transaction.updated_at < before]
+        conditions: list[ColumnElement[bool]] = [*_PAID, Transaction.paid_at < before]
         if user_ids is not None:
             if not user_ids:
                 return []
             conditions.append(in_ids(Transaction.user_id, user_ids))
-        order = (Transaction.updated_at, Transaction.id)
+        order = (Transaction.paid_at, Transaction.id)
         first_plan = func.coalesce(
             func.array_agg(aggregate_order_by(Transaction.plan_snapshot["name"].astext, *order))[1],
             "",
@@ -365,8 +367,8 @@ class TransactionStatsRepository:
                 func.count(),
                 func.count().filter(Transaction.purchase_type == PurchaseType.RENEW),
                 func.sum(Transaction.anchor_final_price),
-                func.min(Transaction.updated_at),
-                func.max(Transaction.updated_at),
+                func.min(Transaction.paid_at),
+                func.max(Transaction.paid_at),
                 first_plan,
             )
             .where(*conditions)

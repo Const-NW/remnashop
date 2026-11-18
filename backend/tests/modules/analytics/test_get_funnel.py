@@ -201,7 +201,7 @@ async def test_previous_conversion_gives_the_earlier_cohort_the_same_time_to_pay
     await session.execute(
         update(Transaction)
         .where(Transaction.user_id == quick.id)
-        .values(updated_at=now - timedelta(days=39))
+        .values(paid_at=now - timedelta(days=39))
     )
     # paid today, 40 days in: the current cohort can't be that old yet
     await _pay(transaction_repository, uow, slow.id, plan_id, "funnel-p2")

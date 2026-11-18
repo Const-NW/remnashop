@@ -13,7 +13,7 @@ from app.core.usecase import UseCase
 from app.modules.subscriptions import PurchaseIdempotencyRepository, PurchaseSubscriptionDispatch
 from app.modules.transactions.dto import FulfillTransactionDto, TransactionWithUserDto
 from app.modules.transactions.events import TransactionFulfilledManuallyEvent
-from app.modules.transactions.fulfillment import dispatch_fulfillment
+from app.modules.transactions.fulfillment import dispatch_fulfillment, link_fulfilled_order
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.unpaid_orders import UNPAID_FINAL
 from app.modules.transactions.visibility import visible_transaction
@@ -60,7 +60,9 @@ class FulfillTransactionUseCase(UseCase[FulfillTransactionDto, TransactionWithUs
             linked = await self._idempotency_repository.find_subscription_id(order.idempotency_key)
             if linked is not None:
                 # already provisioned, the reconciliation sweep just hasn't recorded it
-                await self._transaction_repository.mark_fulfilled(order.id, linked)
+                await link_fulfilled_order(
+                    self._transaction_repository, self._idempotency_repository, order, linked
+                )
             else:
                 if unpaid:
                     changed = await self._transaction_repository.mark_status_if(

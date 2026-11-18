@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import datetime, time, timedelta
 from typing import Literal, Optional, overload
 
@@ -48,3 +49,20 @@ def period_parts(days: int) -> tuple[Literal["unlimited", "year", "month", "day"
     if days % 30 == 0:
         return "month", days // 30
     return "day", days
+
+
+def add_term(start: datetime, days: int) -> datetime:
+    """`days` as period_parts reads them: years and months are calendar ones, landing
+    on the same day of the month or on its last day when the month is shorter."""
+    unit, count = period_parts(days)
+    if unit == "year":
+        months = 12 * count
+    elif unit == "month":
+        months = count
+    else:
+        return start + timedelta(days=days)
+    year, month = divmod(start.month - 1 + months, 12)
+    year += start.year
+    return start.replace(
+        year=year, month=month + 1, day=min(start.day, monthrange(year, month + 1)[1])
+    )

@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, Optional
 
 from dishka.integrations.taskiq import FromDishka, inject
 from loguru import logger
@@ -54,9 +54,12 @@ async def mark_order_fulfilled_task(
     payment_key: str,
     subscription_id: int,
     use_case: FromDishka[MarkOrderFulfilledUseCase],
+    added_days: Optional[int] = None,
 ) -> None:
     await use_case.system(
-        MarkOrderFulfilledDto(payment_key=payment_key, subscription_id=subscription_id)
+        MarkOrderFulfilledDto(
+            payment_key=payment_key, subscription_id=subscription_id, added_days=added_days
+        )
     )
 
 

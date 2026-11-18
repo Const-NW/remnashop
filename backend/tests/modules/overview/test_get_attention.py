@@ -133,7 +133,7 @@ async def _seed(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == stuck.id)
-        .values(updated_at=now - timedelta(minutes=20))
+        .values(paid_at=now - timedelta(minutes=20))
     )
     await session.execute(
         update(Transaction)

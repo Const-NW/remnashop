@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Optional, Protocol
 
 
 class ConfirmStarsPaymentDispatch(Protocol):
@@ -12,4 +12,6 @@ class NotifyPaymentWaitlistDispatch(Protocol):
 
 
 class MarkOrderFulfilledDispatch(Protocol):
-    async def kiq(self, *, payment_key: str, subscription_id: int) -> object: ...
+    async def kiq(
+        self, *, payment_key: str, subscription_id: int, added_days: Optional[int] = None
+    ) -> object: ...

@@ -5,6 +5,7 @@ from typing import Any, Final, Optional, cast
 from sqlalchemy import (
     ColumnElement,
     CursorResult,
+    DateTime,
     Numeric,
     and_,
     exists,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     literal,
     or_,
     select,
+    type_coerce,
     update,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,6 +110,10 @@ def _order_filters(
     return filters
 
 
+# typed for its PAID rows, which always have it (ck_transactions_paid_has_paid_at)
+PAID_AT: Final[ColumnElement[datetime]] = type_coerce(Transaction.paid_at, DateTime(timezone=True))
+
+
 class TransactionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -146,6 +152,8 @@ class TransactionRepository:
             expires_at=row.expires_at,
             fulfilled_at=row.fulfilled_at,
             fulfilled_subscription_id=row.fulfilled_subscription_id,
+            added_days=row.added_days,
+            paid_at=row.paid_at,
             is_test=row.is_test,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -272,6 +280,9 @@ class TransactionRepository:
                 f"Transaction '{order_id}' not found", code=ErrorCode.PAYMENT_ORDER_NOT_FOUND
             )
         row.status = status
+        if status is TransactionStatus.PAID:
+            # in SQL, as mark_status_if: a concurrent move to PAID can't move it
+            row.paid_at = func.coalesce(Transaction.paid_at, NOW_FUNC)
         if external_payment_id is not None:
             row.external_payment_id = external_payment_id
         await self.session.flush()
@@ -288,6 +299,8 @@ class TransactionRepository:
     ) -> bool:
         # conditional in SQL so a status that landed meanwhile (e.g. PAID) wins
         values: dict[str, Any] = {"status": status, "updated_at": NOW_FUNC}
+        if status is TransactionStatus.PAID:
+            values["paid_at"] = func.coalesce(Transaction.paid_at, NOW_FUNC)
         if external_payment_id is not None:
             values["external_payment_id"] = external_payment_id
         result = await self.session.execute(
@@ -331,8 +344,8 @@ class TransactionRepository:
                     Transaction.status == TransactionStatus.PAID,
                     _NOT_TEST,
                     Transaction.fulfilled_at.is_(None),
-                    Transaction.updated_at <= cutoff,
-                    Transaction.updated_at >= since,
+                    Transaction.paid_at <= cutoff,
+                    Transaction.paid_at >= since,
                 )
             )
         ).all()
@@ -343,21 +356,25 @@ class TransactionRepository:
             Transaction.idempotency_key == idempotency_key, subscription_id
         )
 
+    async def set_added_days(self, idempotency_key: str, added_days: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.idempotency_key == idempotency_key, Transaction.added_days.is_(None))
+            .values(added_days=added_days)
+        )
+
     async def mark_fulfilled(self, order_id: int, subscription_id: int) -> None:
         await self._mark_fulfilled_where(Transaction.id == order_id, subscription_id)
 
     async def _mark_fulfilled_where(
         self, condition: ColumnElement[bool], subscription_id: int
     ) -> None:
-        # updated_at is the paid-at timestamp every revenue query groups by;
-        # pinned to itself, since Core update() still applies its onupdate
         await self.session.execute(
             update(Transaction)
             .where(condition, Transaction.fulfilled_at.is_(None))
             .values(
                 fulfilled_at=NOW_FUNC,
                 fulfilled_subscription_id=subscription_id,
-                updated_at=Transaction.updated_at,
             )
         )
 
@@ -400,7 +417,7 @@ class TransactionRepository:
                         Transaction.fulfilled_subscription_id.is_(None),
                         # older paid orders are past reconcile and no longer turn
                         # into a subscription on their own
-                        Transaction.updated_at >= now - RECONCILE_WINDOW,
+                        Transaction.paid_at >= now - RECONCILE_WINDOW,
                         # provisioned but not yet linked by the reconcile sweep
                         ~exists().where(
                             SubscriptionPurchaseIdempotency.key == Transaction.idempotency_key,
@@ -545,8 +562,6 @@ class TransactionRepository:
             update(Transaction).values(
                 anchor_base_price=func.round(Transaction.anchor_base_price * exact, 2),
                 anchor_final_price=func.round(Transaction.anchor_final_price * exact, 2),
-                # paid-at timestamp, pinned like mark_fulfilled does
-                updated_at=Transaction.updated_at,
             )
         )
 
@@ -567,8 +582,6 @@ class TransactionRepository:
                 anchor_base_price=func.round(Transaction.base_price * exact, 2),
                 anchor_final_price=func.round(Transaction.final_price * exact, 2),
                 anchor_unrated=False,
-                # paid-at timestamp, pinned like mark_fulfilled does
-                updated_at=Transaction.updated_at,
             )
         )
 
@@ -602,9 +615,8 @@ class TransactionRepository:
             in_ids(Transaction.user_id, user_ids),
             Transaction.status == TransactionStatus.PAID,
             _NOT_TEST,
-            # updated_at of a PAID row is its paid moment
-            Transaction.updated_at >= paid_from,
-            Transaction.updated_at < paid_to,
+            Transaction.paid_at >= paid_from,
+            Transaction.paid_at < paid_to,
         )
         count, amount = (await self.session.execute(stmt)).tuples().one()
         return count, amount or ZERO_AMOUNT
@@ -638,7 +650,7 @@ class TransactionRepository:
             _NOT_TEST,
         )
         if paid_before is not None:
-            stmt = stmt.where(Transaction.updated_at < paid_before)
+            stmt = stmt.where(Transaction.paid_at < paid_before)
         result = await self.session.execute(stmt)
         paid.update(result.scalars().all())
         return paid
@@ -678,8 +690,7 @@ class TransactionRepository:
         if created_before is not None:
             stmt = stmt.where(Transaction.created_at < created_before)
         if paid_since is not None:
-            # updated_at of a PAID row is its paid moment
-            stmt = stmt.where(Transaction.updated_at >= paid_since)
+            stmt = stmt.where(Transaction.paid_at >= paid_since)
         return dict((await self.session.execute(stmt)).tuples().all())
 
     async def count_paid_since(self, since: datetime) -> int:
@@ -688,7 +699,7 @@ class TransactionRepository:
                 select(func.count()).where(
                     Transaction.status == TransactionStatus.PAID,
                     _NOT_TEST,
-                    Transaction.updated_at >= since,
+                    Transaction.paid_at >= since,
                 )
             )
             or 0
@@ -697,19 +708,24 @@ class TransactionRepository:
     async def list_paid_periods(self, user_ids: list[int]) -> list[tuple[int, datetime, int]]:
         periods: list[tuple[int, datetime, int]] = []
         stmt = (
-            select(Transaction.user_id, Transaction.updated_at, Transaction.duration_days)
+            # what each term really added: a calendar month is 28-31 days
+            select(
+                Transaction.user_id,
+                PAID_AT,
+                func.coalesce(Transaction.added_days, Transaction.duration_days),
+            )
             .where(
                 in_ids(Transaction.user_id, user_ids),
                 Transaction.status == TransactionStatus.PAID,
                 _NOT_TEST,
             )
-            .order_by(Transaction.user_id, Transaction.updated_at)
+            .order_by(Transaction.user_id, Transaction.paid_at)
         )
         periods.extend((await self.session.execute(stmt)).tuples().all())
         return periods
 
     async def first_paid_at_since(self, since: datetime) -> dict[int, datetime]:
-        first_paid = func.min(Transaction.updated_at)
+        first_paid = func.min(PAID_AT)
         stmt = (
             select(Transaction.user_id, first_paid)
             .where(Transaction.status == TransactionStatus.PAID, _NOT_TEST)
@@ -719,13 +735,13 @@ class TransactionRepository:
         return dict((await self.session.execute(stmt)).tuples().all())
 
     async def daily_paid_anchor_revenue(self, since: datetime) -> dict[date, DailyPaidDto]:
-        day_col = func.date(func.timezone("UTC", Transaction.updated_at))
+        day_col = func.date(func.timezone("UTC", Transaction.paid_at))
         stmt = (
             select(day_col, func.sum(Transaction.anchor_final_price), func.count())
             .where(
                 Transaction.status == TransactionStatus.PAID,
                 _NOT_TEST,
-                Transaction.updated_at >= since,
+                Transaction.paid_at >= since,
             )
             .group_by(day_col)
             .order_by(day_col)

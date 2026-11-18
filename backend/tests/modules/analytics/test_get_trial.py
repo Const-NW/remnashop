@@ -106,9 +106,7 @@ async def _pay(
             _paid_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key=key)
         )
     await tx_repo.mark_status(order.id, TransactionStatus.PAID)
-    await session.execute(
-        update(Transaction).where(Transaction.id == order.id).values(updated_at=at)
-    )
+    await session.execute(update(Transaction).where(Transaction.id == order.id).values(paid_at=at))
 
 
 async def test_actor_without_trial_view_is_denied(

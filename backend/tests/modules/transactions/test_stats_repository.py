@@ -73,7 +73,7 @@ async def test_list_paid_returns_only_paid_non_test_rows_in_range(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == old.id)
-        .values(updated_at=datetime_now() - timedelta(days=40))
+        .values(paid_at=datetime_now() - timedelta(days=40))
     )
     repo = TransactionStatsRepository(session)
 
@@ -113,7 +113,7 @@ async def test_list_recent_paid_returns_newest_first(
         await session.execute(
             update(Transaction)
             .where(Transaction.id == order.id)
-            .values(updated_at=datetime_now() + timedelta(days=1, hours=-hours))
+            .values(paid_at=datetime_now() + timedelta(days=1, hours=-hours))
         )
 
     rows = await TransactionStatsRepository(session).list_recent_paid(2)
@@ -180,6 +180,8 @@ async def _paid_history(
             paid_at = base + timedelta(days=rng.randint(0, 380), hours=rng.randint(0, 23))
             # 0 is an unlimited order
             days = rng.choice((0, 7, 30, 30, 90, 365))
+            # a calendar month records the days it really held; None is an older order
+            added_days = rng.choice((None, 28, 31)) if days == 30 else None
             async with uow:
                 order = await transaction_repository.create(
                     _order(user.id, plan_id, f"cov-{seed}-{u}-{n}")
@@ -188,9 +190,9 @@ async def _paid_history(
             await session.execute(
                 update(Transaction)
                 .where(Transaction.id == order.id)
-                .values(updated_at=paid_at, duration_days=days)
+                .values(paid_at=paid_at, duration_days=days, added_days=added_days)
             )
-            payments.append((paid_at, days))
+            payments.append((paid_at, added_days or days))
         history[user.id] = payments
     return history
 
@@ -288,7 +290,7 @@ async def test_coverage_of_many_unlimited_orders_stays_in_range(
         await session.execute(
             update(Transaction)
             .where(Transaction.id == order.id)
-            .values(updated_at=start + timedelta(minutes=n), duration_days=0)
+            .values(paid_at=start + timedelta(minutes=n), duration_days=0)
         )
     now = datetime_now()
 

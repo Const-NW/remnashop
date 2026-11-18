@@ -15,3 +15,17 @@ export function previousWindow(period: number, now = Date.now()): { createdFrom?
     createdTo: new Date(now - shift).toISOString(),
   };
 }
+
+/** The end of a plan term of `days` from `start` (ms), as the backend counts it: a multiple
+ * of 365 is calendar years, of 30 calendar months (the month's last day when shorter), else days. */
+export function addTerm(start: number, days: number): number {
+  const months = days % 365 === 0 ? (days / 365) * 12 : days % 30 === 0 ? days / 30 : 0;
+  if (months === 0) return start + days * DAY_MS;
+  const date = new Date(start);
+  const day = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.getTime();
+}

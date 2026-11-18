@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Optional
 
-from sqlalchemy import ForeignKey, Index, Numeric, String, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,9 +25,14 @@ class Transaction(BaseSql, TimestampMixin):
         Index("ix_transactions_status_expires_at", "status", "expires_at"),
         # paid-at range scans: overview revenue, analytics, loyalty, reconciliation
         Index(
-            "ix_transactions_paid_updated_at",
-            "updated_at",
+            "ix_transactions_paid_at",
+            "paid_at",
             postgresql_where=text(f"status = '{TransactionStatus.PAID.name}' AND NOT is_test"),
+        ),
+        # every revenue query dates a paid order by it
+        CheckConstraint(
+            f"status <> '{TransactionStatus.PAID.name}' OR paid_at IS NOT NULL",
+            name="paid_has_paid_at",
         ),
         # the admin list's newest-first pages
         Index("ix_transactions_created_at_id", text("created_at DESC"), text("id DESC")),
@@ -98,5 +103,10 @@ class Transaction(BaseSql, TimestampMixin):
     fulfilled_subscription_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True
     )
+    # the days the term really added (a calendar month is 28-31), which a refund of a
+    # renewal takes back; None before it was recorded, when a term was plain days
+    added_days: Mapped[Optional[int]]
+    # set once, on the first move to PAID; a refund or a later write leaves it
+    paid_at: Mapped[Optional[datetime]]
     # Dashboard gateway check: never provisioned, excluded from every revenue query.
     is_test: Mapped[bool] = mapped_column(default=False, server_default="false")

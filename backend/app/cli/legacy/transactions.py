@@ -1,6 +1,7 @@
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from decimal import Decimal
-from typing import Any, Final, Optional
+from typing import Any, Final, Optional, cast
 
 from app.cli.legacy.report import MigrationReport
 from app.cli.legacy.subscriptions import convert_plan_snapshot
@@ -101,6 +102,8 @@ def transform_transactions(
             idempotency_key=str(row["payment_id"]),
             expires_at=row["created_at"],
             fulfilled_at=row["updated_at"] if status is TransactionStatus.PAID else None,
+            # an old order's updated_at is its paid moment until a refund moves it
+            paid_at=_paid_at(row, status),
             target_subscription_id=_known(row.get("target_subscription_id"), subscription_ids),
             fulfilled_subscription_id=_known(
                 row.get("fulfilled_subscription_id"), subscription_ids
@@ -117,6 +120,14 @@ def transform_transactions(
             "check the rates in the dashboard and recalculate them there"
         )
     return result
+
+
+def _paid_at(row: Mapping[str, Any], status: TransactionStatus) -> Optional[datetime]:
+    if status is TransactionStatus.PAID:
+        return cast(datetime, row["updated_at"])
+    if status is TransactionStatus.REFUNDED:
+        return cast(datetime, row["created_at"])
+    return None
 
 
 def _known(subscription_id: Optional[int], subscription_ids: set[int]) -> Optional[int]:

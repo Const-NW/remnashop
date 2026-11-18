@@ -1,5 +1,6 @@
-from app.modules.subscriptions import PurchaseSubscriptionDispatch
+from app.modules.subscriptions import PurchaseIdempotencyRepository, PurchaseSubscriptionDispatch
 from app.modules.transactions.dto import TransactionDto
+from app.modules.transactions.repository import TransactionRepository
 
 
 async def dispatch_fulfillment(
@@ -19,3 +20,17 @@ async def dispatch_fulfillment(
         target_subscription_id=order.target_subscription_id,
         idempotency_key=order.idempotency_key,
     )
+
+
+async def link_fulfilled_order(
+    transaction_repository: TransactionRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    order: TransactionDto,
+    subscription_id: int,
+) -> None:
+    """Records a delivery the fulfilled task didn't, with the days a renewal pinned:
+    a refund takes those back, not the nominal duration."""
+    await transaction_repository.mark_fulfilled(order.id, subscription_id)
+    added_days = await idempotency_repository.find_renew_added_days(order.idempotency_key)
+    if added_days is not None:
+        await transaction_repository.set_added_days(order.idempotency_key, added_days)

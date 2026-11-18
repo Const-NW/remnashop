@@ -93,9 +93,7 @@ async def _pay(
             )
         )
     await tx_repo.mark_status(order.id, TransactionStatus.PAID)
-    await session.execute(
-        update(Transaction).where(Transaction.id == order.id).values(updated_at=at)
-    )
+    await session.execute(update(Transaction).where(Transaction.id == order.id).values(paid_at=at))
 
 
 async def _activate(
