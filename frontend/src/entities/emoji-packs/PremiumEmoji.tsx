@@ -15,19 +15,21 @@ interface PremiumEmojiProps {
   item: EmojiPackItem | undefined;
   /** Rendered size in px; the source artwork is always 512x512. */
   size: number;
+  /** false: the thumbnail only, never played (a row in the packs list) */
+  animate?: boolean;
 }
 
 /** Telegram's artwork: the static thumbnail at rest, the lottie animation or
  * .webm only while the pointer is over the emoji's parent, the plain glyph as
  * the last resort. Lottie scenes playing at once drop the page to 30fps and below. */
-export function PremiumEmoji({ item, size }: PremiumEmojiProps) {
+export function PremiumEmoji({ item, size, animate = true }: PremiumEmojiProps) {
   const [failed, setFailed] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [animationReady, setAnimationReady] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
-  const isLottie = item?.animation_kind === "lottie";
-  const isAnimated = isLottie || item?.animation_kind === "video";
+  const isLottie = animate && item?.animation_kind === "lottie";
+  const isAnimated = isLottie || (animate && item?.animation_kind === "video");
   const emojiId = item?.custom_emoji_id;
 
   useEffect(() => {
