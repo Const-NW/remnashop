@@ -3059,6 +3059,7 @@
         "command": "Команды",
         "inline": "Приглашение",
         "ntf-customer": "Клиентам",
+        "email": "Письма",
         "ntf-admin": "Админам",
         "ntf-telegram": "Поля карточек",
         "gateway": "Платёжки",

@@ -2967,6 +2967,7 @@
         "command": "Commands",
         "inline": "Invite",
         "ntf-customer": "To customers",
+        "email": "Emails",
         "ntf-admin": "To admins",
         "ntf-telegram": "Card fields",
         "gateway": "Gateways",

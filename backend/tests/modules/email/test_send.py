@@ -1,4 +1,5 @@
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any, Final, Optional
 
 import aiosmtplib
 import pytest
@@ -13,8 +14,9 @@ from app.modules.email import EmailBrandDto, read_smtp_failure
 from app.modules.email.batch import InlineImageDto, OutgoingEmailDto, build_mime
 from app.modules.email.dto import EmailMessageDto, SendTestEmailDto
 from app.modules.email.sender import EmailSendError, SmtpSender
-from app.modules.email.templates import render_link_code, render_login_code
+from app.modules.email.templates import render_code_email
 from app.modules.email.usecases import SendEmailUseCase, SendTestEmailUseCase
+from app.modules.notifications import NotificationRenderer
 from app.modules.settings import AppearanceImageDto, SmtpProfileDto
 from app.modules.settings.dto import EmailSettingsDto
 from app.modules.users import UserDto
@@ -113,21 +115,43 @@ def _test_case(settings: EmailSettingsDto, sender: _Sender) -> SendTestEmailUseC
     return SendTestEmailUseCase(_Repo(settings), sender, _Uow())  # type: ignore[arg-type]
 
 
-def test_login_code_template_contains_code() -> None:
-    subject, text, html = render_login_code("123456", Locale.RU, _BRAND, None)
-    assert "123456" in text and "123456" in html and subject
+_SHIPPED: Final[Path] = Path(__file__).parents[3] / "assets" / "translations"
 
 
-def test_login_code_template_falls_back_to_en() -> None:
-    subject, _, _ = render_login_code("123456", Locale.DE, _BRAND, None)
-    assert subject == "Your sign-in code: 123456"
+def _shipped_renderer() -> NotificationRenderer:
+    texts = {
+        locale: (_SHIPPED / locale.value / "notifications.ftl").read_text(encoding="utf-8")
+        for locale in (Locale.EN, Locale.RU)
+    }
+    return NotificationRenderer(texts, default_locale=Locale.EN)
 
 
-def test_link_code_template() -> None:
-    subject, text, html = render_link_code("123456", Locale.RU, _BRAND, None)
-    assert subject == "Код для привязки почты: 123456"
+def test_code_email_puts_title_in_subject_and_code_in_body() -> None:
+    subject, text, html = render_code_email(
+        title="Код для входа: 123456",
+        body="Код действует 10 минут.",
+        brand=_BRAND,
+        cabinet_url=None,
+    )
+    assert subject == "Код для входа: 123456"
     assert "123456" in text and "123456" in html
-    assert render_link_code("123456", Locale.DE, _BRAND, None)[0] == "Your linking code: 123456"
+
+
+@pytest.mark.parametrize(
+    ("key", "locale", "title"),
+    [
+        ("email-login-code", Locale.RU, "Код для входа: 123456"),
+        ("email-login-code", Locale.EN, "Your sign-in code: 123456"),
+        ("email-link-code", Locale.RU, "Код для привязки почты: 123456"),
+        ("email-link-code", Locale.EN, "Your linking code: 123456"),
+        # a locale the shop doesn't ship falls back to its default
+        ("email-link-code", Locale.DE, "Your linking code: 123456"),
+    ],
+)
+def test_shipped_code_email_texts(key: str, locale: Locale, title: str) -> None:
+    renderer = _shipped_renderer()
+    assert renderer.text(locale, f"{key}.title", {"code": "123456"}) == title
+    assert renderer.render_message(locale, key, {"code": "123456"})
 
 
 async def test_sender_uses_tls_flags(monkeypatch: pytest.MonkeyPatch) -> None:
