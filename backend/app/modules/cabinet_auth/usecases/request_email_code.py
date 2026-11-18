@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Final, Optional, Union
 
 from redis.asyncio import Redis
 
@@ -16,9 +16,12 @@ from app.modules.cabinet_auth.email_codes import (
     send_limit_hit,
 )
 from app.modules.cabinet_auth.email_domains import is_allowed_domain
-from app.modules.email import SendEmailDispatch, load_email_brand, render_login_code
+from app.modules.email import SendEmailDispatch, load_email_brand, render_code_email
+from app.modules.notifications import NotificationRendererFactory
 from app.modules.settings import SettingsRepository
 from app.modules.users import UserRepository
+
+_LOGIN_CODE_KEY: Final[str] = "email-login-code"
 
 
 class RequestEmailCodeUseCase:
@@ -30,6 +33,7 @@ class RequestEmailCodeUseCase:
         redis: Redis,
         config: AppConfig,
         user_repository: UserRepository,
+        renderer_factory: NotificationRendererFactory,
         uow: UnitOfWork,
     ) -> None:
         self._settings_repository = settings_repository
@@ -38,6 +42,7 @@ class RequestEmailCodeUseCase:
         self._redis = redis
         self._config = config
         self._user_repository = user_repository
+        self._renderer_factory = renderer_factory
         self._uow = uow
 
     async def execute(
@@ -67,8 +72,13 @@ class RequestEmailCodeUseCase:
 
         recipient = existing.email if existing is not None and existing.email else email
         code = await self._store.issue(email, codes, locale, recipient=recipient)
-        subject, text, html = render_login_code(
-            code, locale, brand, self._config.cabinet.url or None
+        renderer = await self._renderer_factory.build()
+        args: dict[str, Union[str, int]] = {"code": code}
+        subject, text, html = render_code_email(
+            title=renderer.text(locale, f"{_LOGIN_CODE_KEY}.title", args) or code,
+            body=renderer.render_message(locale, _LOGIN_CODE_KEY, args),
+            brand=brand,
+            cabinet_url=self._config.cabinet.url or None,
         )
         await self._send_email.kiq(
             to=normalize_email(recipient), subject=subject, text=text, html=html

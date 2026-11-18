@@ -41,8 +41,8 @@ type Area = "bot" | "notifications" | "reference";
 /** Groups of each area in tab order; a key prefix not listed here becomes a tab of "bot" after them. */
 const AREAS: Record<Area, string[]> = {
   bot: ["msg", "frg", "btn", "ntf-bot", "command", "inline"],
-  notifications: ["ntf-customer", "ntf-admin", "ntf-telegram"],
-  reference: ["gateway", "platform", "time"],
+  notifications: ["ntf-customer", "email", "ntf-admin", "ntf-telegram"],
+  reference: ["gateway", "payment", "platform", "time"],
 };
 const KNOWN_GROUPS = new Set(Object.values(AREAS).flat());
 

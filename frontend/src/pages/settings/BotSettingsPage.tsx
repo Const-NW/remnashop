@@ -4,7 +4,6 @@ import { BotRequirementsForm } from "@features/bot-requirements/BotRequirementsF
 import { BotSettingsForm } from "@features/bot-settings/BotSettingsForm";
 import { DialogCanvasEditor } from "@features/dialog-canvas-editor/DialogCanvasEditor";
 import { EmojiPacksManager } from "@features/emoji-packs/EmojiPacksManager";
-import { TranslationsEditorForm } from "@features/translations-editor/TranslationsEditorForm";
 
 export function BotSettingsPage() {
   const permissions = usePermissions();
@@ -15,7 +14,6 @@ export function BotSettingsPage() {
       {permissions.includes("DIALOGS_CATALOG_VIEW") && permissions.includes("DIALOGS_WINDOWS_VIEW") && (
         <DialogCanvasEditor />
       )}
-      {permissions.includes("TRANSLATIONS_VIEW") && <TranslationsEditorForm />}
       {permissions.includes("EMOJI_PACKS_VIEW") && <EmojiPacksManager />}
       {permissions.includes("BOT_COMMANDS_VIEW") && <BotCommandsForm />}
     </div>

@@ -20,7 +20,7 @@ from app.modules.email.layout import (
     render_email_html,
 )
 from app.modules.email.sender import EmailSendError
-from app.modules.email.templates import render_link_code, render_login_code
+from app.modules.email.templates import render_code_email
 
 __all__ = [
     "SMTP_PAUSE_SECONDS",
@@ -38,9 +38,8 @@ __all__ = [
     "load_email_logo_image",
     "read_smtp_failure",
     "record_smtp_failure",
+    "render_code_email",
     "render_email",
     "render_email_html",
-    "render_link_code",
-    "render_login_code",
     "smtp_pause_key",
 ]

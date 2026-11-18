@@ -1493,6 +1493,7 @@
       "general": "Общие",
       "bot": "Telegram-бот",
       "cabinet": "Веб-кабинет",
+      "translations": "Языки и тексты",
       "apiTokens": "API-токены",
       "appearance": "Внешний вид",
       "gateways": "Платёжные шлюзы",
@@ -3058,9 +3059,11 @@
         "command": "Команды",
         "inline": "Приглашение",
         "ntf-customer": "Клиентам",
+        "email": "Письма",
         "ntf-admin": "Админам",
         "ntf-telegram": "Поля карточек",
         "gateway": "Платёжки",
+        "payment": "Описание платежа",
         "platform": "Платформы",
         "time": "Единицы времени"
       }

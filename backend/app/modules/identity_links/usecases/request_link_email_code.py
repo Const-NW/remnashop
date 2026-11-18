@@ -1,3 +1,5 @@
+from typing import Final, Union
+
 from redis.asyncio import Redis
 
 from app.core.config import AppConfig
@@ -15,10 +17,13 @@ from app.modules.cabinet_auth import (
     require_email_sign_in,
     send_limit_hit,
 )
-from app.modules.email import SendEmailDispatch, load_email_brand, render_link_code
+from app.modules.email import SendEmailDispatch, load_email_brand, render_code_email
 from app.modules.identity_links.email_codes import LinkEmailCodeStore, link_fail_key
+from app.modules.notifications import NotificationRendererFactory
 from app.modules.settings import SettingsRepository
 from app.modules.users import UserDto, UserRepository
+
+_LINK_CODE_KEY: Final[str] = "email-link-code"
 
 
 class RequestLinkEmailCodeUseCase:
@@ -31,6 +36,7 @@ class RequestLinkEmailCodeUseCase:
         config: AppConfig,
         user_repository: UserRepository,
         blacklist_repository: BlacklistRepository,
+        renderer_factory: NotificationRendererFactory,
         uow: UnitOfWork,
     ) -> None:
         self._settings_repository = settings_repository
@@ -40,6 +46,7 @@ class RequestLinkEmailCodeUseCase:
         self._config = config
         self._user_repository = user_repository
         self._blacklist_repository = blacklist_repository
+        self._renderer_factory = renderer_factory
         self._uow = uow
 
     async def execute(self, user: UserDto, email: str, locale: Locale) -> None:
@@ -74,8 +81,13 @@ class RequestLinkEmailCodeUseCase:
         # (a "+" that is part of the name on some hosts) must not stand in for it
         recipient = owner.email if owner is not None and owner.email else email
         code = await self._store.issue(email, InviteCodesDto(), locale, recipient=recipient)
-        subject, text, html = render_link_code(
-            code, locale, brand, self._config.cabinet.url or None
+        renderer = await self._renderer_factory.build()
+        args: dict[str, Union[str, int]] = {"code": code}
+        subject, text, html = render_code_email(
+            title=renderer.text(locale, f"{_LINK_CODE_KEY}.title", args) or code,
+            body=renderer.render_message(locale, _LINK_CODE_KEY, args),
+            brand=brand,
+            cabinet_url=self._config.cabinet.url or None,
         )
         await self._send_email.kiq(
             to=normalize_email(recipient), subject=subject, text=text, html=html

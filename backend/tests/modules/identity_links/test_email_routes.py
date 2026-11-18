@@ -9,6 +9,7 @@ from app.modules.auth.repository import SessionRepository
 from app.modules.cabinet_auth import email_key
 from app.modules.settings.dto import UpdateCabinetAuthSettingsDto, UpdateEmailSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.translations import TranslationRepository, ensure_translations_seeded
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
@@ -45,8 +46,14 @@ async def headers(
 
 @pytest.mark.usefixtures("email_enabled")
 async def test_link_email_by_code(
-    client: httpx.AsyncClient, email_dispatch: RecordingDispatch, headers: dict[str, str]
+    client: httpx.AsyncClient,
+    email_dispatch: RecordingDispatch,
+    headers: dict[str, str],
+    config: AppConfig,
+    translation_repository: TranslationRepository,
 ) -> None:
+    # the email's texts come from the translations
+    await ensure_translations_seeded(config, translation_repository)
     assert (
         await client.post(LINK_CODE, json={"email": "new@gmail.com"}, headers=headers)
     ).status_code == 204
