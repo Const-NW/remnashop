@@ -145,6 +145,7 @@ class ErrorCode(UpperStrEnum):
     GATEWAY_NOT_IMPLEMENTED = auto()
     GATEWAY_NOT_SUPPORTED = auto()
     GATEWAY_NOT_TESTABLE = auto()
+    GATEWAY_TEST_NO_TELEGRAM = auto()
     GATEWAY_REORDER_INCOMPLETE = auto()
     GATEWAY_REQUIRED = auto()
     HTTP_ERROR = auto()

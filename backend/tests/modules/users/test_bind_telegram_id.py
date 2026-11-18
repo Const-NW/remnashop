@@ -121,3 +121,25 @@ async def test_a_typed_telegram_id_is_never_bound_to_staff(
         )
 
     assert error.value.code is ErrorCode.STAFF_TELEGRAM_BIND_REFUSED
+
+
+async def test_the_owner_binds_a_typed_telegram_id_to_their_own_account(use_case, owner) -> None:
+    result = await use_case(
+        owner, BindTelegramDto(user_id=owner.id, telegram_id=800, client_ip="127.0.0.1")
+    )
+
+    assert result.telegram_id == 800
+
+
+async def test_an_admin_cannot_bind_a_typed_telegram_id_to_themselves(
+    use_case, user_repository
+) -> None:
+    admin = await user_repository.create(CreateUserDto(name="a", login="bindself", role=Role.ADMIN))
+    admin = admin.model_copy(update={"permission_grants": ["USERS_TELEGRAM_BIND"]})
+
+    with pytest.raises(ValidationError) as error:
+        await use_case(
+            admin, BindTelegramDto(user_id=admin.id, telegram_id=900, client_ip="127.0.0.1")
+        )
+
+    assert error.value.code is ErrorCode.STAFF_TELEGRAM_BIND_REFUSED

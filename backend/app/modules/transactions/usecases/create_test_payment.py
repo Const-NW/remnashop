@@ -28,11 +28,13 @@ from app.modules.transactions.dto import CreateTransactionDto, TestPaymentDto
 from app.modules.transactions.events import GatewayTestPaymentCreatedEvent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
+from app.modules.transactions.gateways.telegram_stars import with_bot_settings
 from app.modules.transactions.ports import PaymentTexts
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users import UserDto
 
 _TEST_AMOUNT: Final[Decimal] = Decimal(2)
+_STARS_TEST_AMOUNT: Final[Decimal] = Decimal(1)
 _TEST_ORDER_TTL: Final[timedelta] = timedelta(minutes=30)
 # stands in for an admin without an email when the gateway wants one for a receipt
 _TEST_CUSTOMER_EMAIL: Final[str] = "test@example.com"
@@ -63,7 +65,7 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
 
     async def _execute(self, actor: UserDto, data: PaymentGatewayType) -> TestPaymentDto:
         gateway_class = GATEWAY_REGISTRY.get(data)
-        if gateway_class is None or data is PaymentGatewayType.TELEGRAM_STARS:
+        if gateway_class is None:
             raise ValidationError(
                 f"Gateway '{data.value}' cannot be tested from the dashboard",
                 code=ErrorCode.GATEWAY_NOT_TESTABLE,
@@ -78,15 +80,18 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
                 )
             settings = await self._gateway_repository.get_raw_settings(data)
             shop_settings = await self._settings_repository.get_shop_settings()
+            if data is PaymentGatewayType.TELEGRAM_STARS:
+                settings = await self._with_bot_settings(actor, settings)
 
         customer_email = shop_settings.payment_email or actor.email
         if customer_email is None and gateway_class.requires_customer_email(settings):
             customer_email = _TEST_CUSTOMER_EMAIL
 
         currency = gateway_currency(data, settings)
+        amount = _STARS_TEST_AMOUNT if data is PaymentGatewayType.TELEGRAM_STARS else _TEST_AMOUNT
         async with self._uow:
             rates = await self._pricing_repository.get_rate_table()
-            anchor_amount = convert_for_report(_TEST_AMOUNT, currency, rates.anchor, rates)
+            anchor_amount = convert_for_report(amount, currency, rates.anchor, rates)
             order = await self._transaction_repository.create(
                 CreateTransactionDto(
                     user_id=actor.id,
@@ -95,7 +100,7 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
                         plan_id=0,
                         public_code="test",
                         name="Test payment",
-                        price_paid=_TEST_AMOUNT,
+                        price_paid=amount,
                         currency=currency,
                         duration_days=0,
                         traffic_limit=0,
@@ -109,10 +114,10 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
                     channel=PurchaseChannel.CABINET,
                     target_subscription_id=None,
                     gateway_type=data,
-                    base_price=_TEST_AMOUNT,
+                    base_price=amount,
                     discount_percent=0,
                     discount_source=DiscountSource.NONE,
-                    final_price=_TEST_AMOUNT,
+                    final_price=amount,
                     anchor_base_price=anchor_amount,
                     anchor_final_price=anchor_amount,
                     customer_email=customer_email,
@@ -143,3 +148,14 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
             )
         logger.info(f"{actor.log} Created test transaction '{order.id}' on gateway '{data.value}'")
         return TestPaymentDto(order_id=order.id, confirmation_url=intent.confirmation_url)
+
+    async def _with_bot_settings(self, actor: UserDto, settings: dict[str, str]) -> dict[str, str]:
+        # pre-checkout matches the payer's telegram_id against the order's user
+        if actor.telegram_id is None:
+            raise ValidationError("No Telegram linked", code=ErrorCode.GATEWAY_TEST_NO_TELEGRAM)
+        bot_settings = await self._settings_repository.get_bot_settings()
+        if not bot_settings.is_configured or bot_settings.token is None:
+            raise ValidationError("The bot is not configured", code=ErrorCode.GATEWAY_NOT_AVAILABLE)
+        return with_bot_settings(
+            settings, bot_settings.token.get_secret_value(), bot_settings.proxy
+        )

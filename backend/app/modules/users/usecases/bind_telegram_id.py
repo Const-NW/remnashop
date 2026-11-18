@@ -1,5 +1,6 @@
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
+from app.core.enums import Role
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
@@ -35,8 +36,9 @@ class BindTelegramIdUseCase(UseCase[BindTelegramDto, UserListItemDto]):
             )
             assert_manageable(actor, target, allow_self=True)
             # a staff Telegram signs into the dashboard: it is linked by proving it,
-            # through the OAuth connect flow, not typed in
-            if target.is_privileged:
+            # through the OAuth connect flow, not typed in; the owner may type their own
+            is_owner_self = actor.role is Role.OWNER and target.id == actor.id
+            if target.is_privileged and not is_owner_self:
                 raise ValidationError(
                     "A staff account links Telegram by signing in with it",
                     code=ErrorCode.STAFF_TELEGRAM_BIND_REFUSED,
