@@ -75,12 +75,10 @@ export function GatewaySettingsCard({
   const docsUrl = GATEWAY_DOCS_URLS[gateway.type];
   const logoUrl = GATEWAY_LOGOS[gateway.type];
   const dirty = Object.values(values).some((value) => value !== "");
-  // Stars pays inside the bot, there is no provider page to open
   const permissions = usePermissions();
   const canUpdate = permissions.includes("GATEWAYS_UPDATE");
   const canSetChannels = permissions.includes("GATEWAYS_CHANNELS_UPDATE");
-  const canTest =
-    gateway.is_configured && gateway.type !== "TELEGRAM_STARS" && permissions.includes("GATEWAYS_TEST");
+  const canTest = gateway.is_configured && permissions.includes("GATEWAYS_TEST");
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -171,9 +169,24 @@ export function GatewaySettingsCard({
   };
 
   const testButton = canTest && (
-    <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment()}>
-      {isTesting ? t("settings.gateways.testPaymentCreating") : t("settings.gateways.testPayment")}
-    </Button>
+    <>
+      <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment()}>
+        {isTesting ? t("settings.gateways.testPaymentCreating") : t("settings.gateways.testPayment")}
+      </Button>
+      {testStatus !== null && (
+        <span
+          className={`text-xs ${
+            testStatus === "PAID"
+              ? "text-success"
+              : testStatus === "PENDING"
+                ? "text-muted-foreground"
+                : "text-warning"
+          }`}
+        >
+          {t(`settings.gateways.testPaymentStatus.${testStatus}`)}
+        </span>
+      )}
+    </>
   );
 
   return (
@@ -265,20 +278,7 @@ export function GatewaySettingsCard({
           {valueFields.length > 0 && canUpdate ? (
             <SaveFooter flush dirty={dirty} saving={isSubmitting} beside={testButton} />
           ) : (
-            testButton && <div className="flex items-center gap-3">{testButton}</div>
-          )}
-          {testStatus !== null && (
-            <p
-              className={`text-xs ${
-                testStatus === "PAID"
-                  ? "text-success"
-                  : testStatus === "PENDING"
-                    ? "text-muted-foreground"
-                    : "text-warning"
-              }`}
-            >
-              {t(`settings.gateways.testPaymentStatus.${testStatus}`)}
-            </p>
+            testButton && <div className="flex flex-wrap items-center gap-3">{testButton}</div>
           )}
         </>
       }

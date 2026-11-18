@@ -2115,3 +2115,71 @@ async def test_checkout_unlimited_downgrade_is_free_order(
     assert order.status is TransactionStatus.PAID
     assert fake_gateway.create_payment_calls == []
     assert len(purchase_dispatch.messages) == 1
+
+
+async def test_test_payment_issues_a_stars_invoice_to_an_admin_with_telegram(
+    gateway_repository: GatewayRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    fake_gateway: _FakeGateway,
+) -> None:
+    async with uow:
+        await settings_repository.update_bot_settings(
+            UpdateBotSettingsDto(token="123:abc", secret_token="hook-secret")
+        )
+    owner = await user_repository.create(
+        CreateUserDto(name="owner", role=Role.OWNER, telegram_id=777)
+    )
+    use_case = CreateTestPaymentUseCase(
+        gateway_repository,
+        transaction_repository,
+        pricing_repository,
+        settings_repository,
+        uow,
+        _FakeFactory(fake_gateway),
+        RecordingEventPublisher(),
+        FixedPaymentTexts(),
+    )
+
+    result = await use_case(owner, PaymentGatewayType.TELEGRAM_STARS)
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.is_test
+    assert order.currency is Currency.XTR
+    assert order.final_price == 1
+    assert order.status is TransactionStatus.PENDING
+
+
+async def test_test_payment_refuses_stars_without_a_linked_telegram(
+    gateway_repository: GatewayRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    fake_gateway: _FakeGateway,
+) -> None:
+    async with uow:
+        await settings_repository.update_bot_settings(
+            UpdateBotSettingsDto(token="123:abc", secret_token="hook-secret")
+        )
+    owner = await user_repository.create(CreateUserDto(name="owner", role=Role.OWNER))
+    use_case = CreateTestPaymentUseCase(
+        gateway_repository,
+        transaction_repository,
+        pricing_repository,
+        settings_repository,
+        uow,
+        _FakeFactory(fake_gateway),
+        RecordingEventPublisher(),
+        FixedPaymentTexts(),
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await use_case(owner, PaymentGatewayType.TELEGRAM_STARS)
+
+    assert error.value.code is ErrorCode.GATEWAY_TEST_NO_TELEGRAM
+    assert fake_gateway.create_payment_calls == []
