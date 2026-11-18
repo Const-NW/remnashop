@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from typing import Optional
 
 from loguru import logger
@@ -40,6 +41,18 @@ class PanelTrafficUsage:
             )
             return None
         return int(panel_user.used_traffic_bytes)  # the SDK types it as float
+
+    async def created_at(self, subscription: SubscriptionDto) -> Optional[datetime]:
+        """When the panel user was created, the day MONTH_ROLLING resets on;
+        None when the panel can't be reached. Outside a transaction."""
+        try:
+            panel_user = await self._remnawave_sdk.users.get_user_by_id(
+                subscription.remnawave_user_id
+            )
+        except Exception as e:
+            logger.warning("Panel user lookup failed for subscription '{}': {}", subscription.id, e)
+            return None
+        return panel_user.created_at
 
     async def activity(self, subscription: SubscriptionDto) -> PanelActivityDto:
         """Traffic, last online and the last subscription request; each part is

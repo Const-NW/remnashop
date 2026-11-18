@@ -25,6 +25,7 @@ from app.modules.subscriptions import (
     GetAvailableTrialUseCase,
     ListOwnActiveSubscriptionsUseCase,
     ListOwnSubscriptionsUseCase,
+    PanelTrafficUsage,
 )
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
@@ -131,6 +132,7 @@ async def on_show_connect_problem(
     dialog_manager: DialogManager,
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
+    panel_usage: FromDishka[PanelTrafficUsage],
     i18n: FromDishka[TranslatorHub],
 ) -> None:
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
@@ -144,9 +146,11 @@ async def on_show_connect_problem(
         await dialog_manager.show()
         return
     runner = get_translator(i18n, user)
-    reset = next_traffic_reset(
-        subscription.traffic_limit_strategy, subscription.created_at, datetime_now()
-    )
+    created_at = subscription.created_at
+    if subscription.traffic_limit_strategy is TrafficLimitStrategy.MONTH_ROLLING:
+        # the panel counts from its own user, which an imported subscription predates
+        created_at = await panel_usage.created_at(subscription) or created_at
+    reset = next_traffic_reset(subscription.traffic_limit_strategy, created_at, datetime_now())
     text = runner.get(
         "ntf-common.connect-not-available",
         status=problem,
