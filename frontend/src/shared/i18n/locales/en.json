@@ -1413,6 +1413,7 @@
       "general": "General",
       "bot": "Telegram bot",
       "cabinet": "Web cabinet",
+      "translations": "Languages & texts",
       "apiTokens": "API tokens",
       "appearance": "Appearance",
       "gateways": "Payment gateways",
@@ -2969,6 +2970,7 @@
         "ntf-admin": "To admins",
         "ntf-telegram": "Card fields",
         "gateway": "Gateways",
+        "payment": "Payment description",
         "platform": "Platforms",
         "time": "Time units"
       }

@@ -58,6 +58,9 @@ export const BotSettingsPage = lazy(() =>
 export const CabinetSettingsPage = lazy(() =>
   import("@pages/settings/CabinetSettingsPage").then((m) => ({ default: m.CabinetSettingsPage })),
 );
+export const TranslationsSettingsPage = lazy(() =>
+  import("@pages/settings/TranslationsSettingsPage").then((m) => ({ default: m.TranslationsSettingsPage })),
+);
 export const DashboardPage = lazy(() =>
   import("@pages/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage })),
 );

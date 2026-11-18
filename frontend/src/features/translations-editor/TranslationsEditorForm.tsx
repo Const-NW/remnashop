@@ -42,7 +42,7 @@ type Area = "bot" | "notifications" | "reference";
 const AREAS: Record<Area, string[]> = {
   bot: ["msg", "frg", "btn", "ntf-bot", "command", "inline"],
   notifications: ["ntf-customer", "ntf-admin", "ntf-telegram"],
-  reference: ["gateway", "platform", "time"],
+  reference: ["gateway", "payment", "platform", "time"],
 };
 const KNOWN_GROUPS = new Set(Object.values(AREAS).flat());
 
