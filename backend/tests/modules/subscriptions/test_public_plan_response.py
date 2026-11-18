@@ -1,8 +1,8 @@
 from app.modules.subscriptions.api.schemas import PublicPlanResponse
 
 
-def test_premium_emoji_markup_becomes_its_glyph() -> None:
-    description = PublicPlanResponse.model_validate(
+def test_premium_emoji_markup_becomes_its_glyph_and_stays_in_markup() -> None:
+    plan = PublicPlanResponse.model_validate(
         {
             "id": 1,
             "name": "Plan",
@@ -15,6 +15,7 @@ def test_premium_emoji_markup_becomes_its_glyph() -> None:
             "order_index": 0,
             "durations": [],
         }
-    ).description
+    )
 
-    assert description == "\U0001f525 fast"
+    assert plan.description == "\U0001f525 fast"
+    assert plan.model_dump()["description_markup"] == "[\U0001f525](emoji:42) fast"
