@@ -1,5 +1,6 @@
 from aiogram.enums import ParseMode
 from aiogram_dialog import Dialog, Window
+from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, CopyText, ListGroup, SwitchTo
 from aiogram_dialog.widgets.media import DynamicMedia
 from aiogram_dialog.widgets.text import Format
@@ -9,11 +10,16 @@ from app.telegram.dialogs.keyboard import ConfigKeyboard
 from app.telegram.dialogs.rendering import LabelIcon
 from app.telegram.routers.referrals.catalog import register_referrals_catalog
 from app.telegram.routers.referrals.getters import (
+    redeem_amount_getter,
     redeem_target_getter,
     referrals_about_getter,
     referrals_getter,
 )
-from app.telegram.routers.referrals.handlers import on_redeem_target_selected
+from app.telegram.routers.referrals.handlers import (
+    on_redeem_all_days,
+    on_redeem_days_input,
+    on_redeem_target_selected,
+)
 from app.telegram.states import Referrals
 
 register_referrals_catalog()
@@ -31,6 +37,18 @@ referrals_main = Window(
     parse_mode=ParseMode.HTML,
     state=Referrals.MAIN,
     getter=referrals_getter,
+)
+
+redeem_amount = Window(
+    Format("{window_text}"),
+    MessageInput(on_redeem_days_input),
+    Button(
+        Format("{all_text}"), style=LabelIcon("all_text"), id="all", on_click=on_redeem_all_days
+    ),
+    SwitchTo(Format("{back_text}"), style=LabelIcon("back_text"), id="back", state=Referrals.MAIN),
+    parse_mode=ParseMode.HTML,
+    state=Referrals.REDEEM_AMOUNT,
+    getter=redeem_amount_getter,
 )
 
 redeem_target = Window(
@@ -56,4 +74,4 @@ referrals_about = Window(
     getter=referrals_about_getter,
 )
 
-router = Dialog(referrals_main, redeem_target, referrals_about)
+router = Dialog(referrals_main, redeem_amount, redeem_target, referrals_about)

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Any, Union
+from typing import Any, Final, Union
 
 from aiogram import Bot
 from aiogram_dialog import DialogManager
@@ -11,6 +11,7 @@ from app.core.config import AppConfig
 from app.core.constants import USER_KEY
 from app.modules.banners import GetBannerForDisplayUseCase
 from app.modules.referrals import (
+    MAX_BONUS_DAYS,
     GetOwnReferralStatsUseCase,
     GetReferralSettingsUseCase,
     ListBonusDaysTargetsUseCase,
@@ -36,6 +37,9 @@ from app.telegram.dialogs.rendering import (
 )
 from app.telegram.i18n import format_expiry, get_translator
 from app.telegram.middlewares._codes import REFERRAL_PREFIX
+
+# days chosen in the amount window, read back by the target window
+REDEEM_DAYS_KEY: Final[str] = "redeem_days"
 
 
 def referral_url(bot_username: str, code: str) -> str:
@@ -148,8 +152,28 @@ async def redeem_target_getter(
             for s in await list_bonus_days_targets(user)
         ],
         "window_text": render_window_text(
-            runner, "msg-referrals-redeem-target", bonus_days=user.bonus_days
+            runner,
+            "msg-referrals-redeem-target",
+            bonus_days=dialog_manager.dialog_data.get(REDEEM_DAYS_KEY, user.bonus_days),
         ),
+        "back_text": label_with_icon(runner, "btn-back.general"),
+    }
+
+
+@inject
+async def redeem_amount_getter(
+    dialog_manager: DialogManager,
+    i18n: FromDishka[TranslatorHub],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    runner = get_translator(i18n, user)
+    max_days = min(user.bonus_days, MAX_BONUS_DAYS)
+    return {
+        "window_text": render_window_text(
+            runner, "msg-referrals-redeem-amount", bonus_days=user.bonus_days, max_days=max_days
+        ),
+        "all_text": label_with_icon(runner, "btn-referrals.redeem-all", days=max_days),
         "back_text": label_with_icon(runner, "btn-back.general"),
     }
 

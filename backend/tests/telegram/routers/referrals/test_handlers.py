@@ -13,8 +13,11 @@ from app.telegram.dialogs import state_pool
 from app.telegram.routers.menu.catalog import register_menu_catalog
 from app.telegram.routers.purchase.catalog import register_purchase_catalog
 from app.telegram.routers.referrals.catalog import register_referrals_catalog
+from app.telegram.routers.referrals.getters import REDEEM_DAYS_KEY
 from app.telegram.routers.referrals.handlers import (
+    on_redeem_all_days,
     on_redeem_days,
+    on_redeem_days_input,
     on_redeem_target_selected,
     on_referral_qr,
 )
@@ -42,62 +45,114 @@ def _i18n() -> MagicMock:
     return i18n
 
 
-async def test_redeem_with_one_subscription_redeems_all_days() -> None:
+def _message(text: str) -> MagicMock:
+    message = MagicMock(spec=Message)
+    message.text = text
+    message.answer = AsyncMock()
+    return message
+
+
+async def test_redeem_opens_the_amount_window() -> None:
     manager = _manager(user_bonus_days=12)
-    redeem = AsyncMock()
-    list_own = AsyncMock(return_value=[MagicMock(id=4)])
-    callback = AsyncMock()
 
     await on_redeem_days.__dishka_orig_func__(
-        callback, MagicMock(), manager, redeem, list_own, _i18n()
+        AsyncMock(), MagicMock(), manager, AsyncMock(return_value=[MagicMock(id=4)]), _i18n()
     )
 
-    redeem.assert_awaited_once()
-    assert redeem.await_args.args[1] == RedeemBonusDaysDto(subscription_id=4, days=12)
-    callback.answer.assert_awaited_once_with("ntf-referrals.days-redeemed")
-    manager.switch_to.assert_awaited_once_with(Referrals.MAIN)
+    manager.switch_to.assert_awaited_once_with(Referrals.REDEEM_AMOUNT)
 
 
 async def test_redeem_without_a_subscription_alerts() -> None:
     callback = AsyncMock()
-    redeem = AsyncMock()
+    manager = _manager(user_bonus_days=3)
 
     await on_redeem_days.__dishka_orig_func__(
-        callback,
-        MagicMock(),
-        _manager(user_bonus_days=3),
-        redeem,
-        AsyncMock(return_value=[]),
-        _i18n(),
+        callback, MagicMock(), manager, AsyncMock(return_value=[]), _i18n()
     )
 
-    redeem.assert_not_awaited()
+    manager.switch_to.assert_not_awaited()
     callback.answer.assert_awaited_once_with("ntf-referrals.no-subscription")
 
 
-async def test_redeem_with_several_subscriptions_asks_for_the_target() -> None:
-    manager = _manager(user_bonus_days=3)
+async def test_typed_amount_is_redeemed_into_the_only_subscription() -> None:
+    manager = _manager(user_bonus_days=12)
     redeem = AsyncMock()
-    list_own = AsyncMock(return_value=[MagicMock(id=4), MagicMock(id=5)])
+    message = _message(" 5 ")
 
-    await on_redeem_days.__dishka_orig_func__(
-        AsyncMock(), MagicMock(), manager, redeem, list_own, _i18n()
+    await on_redeem_days_input.__dishka_orig_func__(
+        message, MagicMock(), manager, redeem, AsyncMock(return_value=[MagicMock(id=4)]), _i18n()
+    )
+
+    assert redeem.await_args.args[1] == RedeemBonusDaysDto(subscription_id=4, days=5)
+    manager.switch_to.assert_awaited_once_with(Referrals.MAIN)
+
+
+async def test_invalid_amount_is_refused() -> None:
+    for text in ("0", "-1", "abc", "13", "2.5", ""):
+        manager = _manager(user_bonus_days=12)
+        redeem = AsyncMock()
+
+        await on_redeem_days_input.__dishka_orig_func__(
+            _message(text), MagicMock(), manager, redeem, AsyncMock(), _i18n()
+        )
+
+        redeem.assert_not_awaited()
+        manager.switch_to.assert_not_awaited()
+
+
+async def test_redeem_all_takes_at_most_one_renewals_worth_of_days() -> None:
+    manager = _manager(user_bonus_days=MAX_BONUS_DAYS + 5)
+    redeem = AsyncMock()
+
+    await on_redeem_all_days.__dishka_orig_func__(
+        AsyncMock(),
+        MagicMock(),
+        manager,
+        redeem,
+        AsyncMock(return_value=[MagicMock(id=4)]),
+        _i18n(),
+    )
+
+    assert redeem.await_args.args[1] == RedeemBonusDaysDto(subscription_id=4, days=MAX_BONUS_DAYS)
+
+
+async def test_amount_with_several_subscriptions_asks_for_the_target() -> None:
+    manager = _manager(user_bonus_days=12)
+    redeem = AsyncMock()
+    targets = AsyncMock(return_value=[MagicMock(id=4), MagicMock(id=5)])
+
+    await on_redeem_days_input.__dishka_orig_func__(
+        _message("5"), MagicMock(), manager, redeem, targets, _i18n()
     )
 
     redeem.assert_not_awaited()
     manager.switch_to.assert_awaited_once_with(Referrals.REDEEM_TARGET)
+    assert manager.dialog_data[REDEEM_DAYS_KEY] == 5
 
 
-async def test_redeem_into_the_chosen_subscription() -> None:
+async def test_redeem_the_chosen_amount_into_the_chosen_subscription() -> None:
     manager = _manager(user_bonus_days=7, item_id="5")
+    manager.dialog_data[REDEEM_DAYS_KEY] = 3
     redeem = AsyncMock()
 
     await on_redeem_target_selected.__dishka_orig_func__(
         AsyncMock(), MagicMock(), manager, redeem, _i18n()
     )
 
-    assert redeem.await_args.args[1] == RedeemBonusDaysDto(subscription_id=5, days=7)
+    assert redeem.await_args.args[1] == RedeemBonusDaysDto(subscription_id=5, days=3)
     manager.switch_to.assert_awaited_once_with(Referrals.MAIN)
+
+
+async def test_balance_spent_since_the_amount_was_chosen_caps_the_redemption() -> None:
+    manager = _manager(user_bonus_days=2, item_id="5")
+    manager.dialog_data[REDEEM_DAYS_KEY] = 6
+    redeem = AsyncMock()
+
+    await on_redeem_target_selected.__dishka_orig_func__(
+        AsyncMock(), MagicMock(), manager, redeem, _i18n()
+    )
+
+    assert redeem.await_args.args[1] == RedeemBonusDaysDto(subscription_id=5, days=2)
 
 
 async def test_redeem_refusal_is_reported() -> None:
@@ -106,7 +161,7 @@ async def test_redeem_refusal_is_reported() -> None:
         side_effect=ValidationError("trial", code=ErrorCode.BONUS_DAYS_TRIAL_SUBSCRIPTION)
     )
 
-    await on_redeem_days.__dishka_orig_func__(
+    await on_redeem_all_days.__dishka_orig_func__(
         callback,
         MagicMock(),
         _manager(user_bonus_days=3),
@@ -123,6 +178,7 @@ def test_every_referral_notification_exists_in_each_locale() -> None:
         "no-subscription",
         "days-redeemed",
         "redeem-failed",
+        "invalid-days",
     )
     for menu in _LOCALES_DIR.glob("*/menu.ftl"):
         text = menu.read_text()
@@ -167,15 +223,3 @@ async def test_qr_sends_the_referral_link_as_a_png() -> None:
     photo = callback.message.answer_photo.await_args.args[0]
     assert photo.data.startswith(b"\x89PNG")
     callback.answer.assert_awaited_once()
-
-
-async def test_redeem_takes_at_most_one_renewals_worth_of_days() -> None:
-    manager = _manager(user_bonus_days=MAX_BONUS_DAYS + 5)
-    redeem = AsyncMock()
-    list_own = AsyncMock(return_value=[MagicMock(id=4)])
-
-    await on_redeem_days.__dishka_orig_func__(
-        AsyncMock(), MagicMock(), manager, redeem, list_own, _i18n()
-    )
-
-    assert redeem.await_args.args[1] == RedeemBonusDaysDto(subscription_id=4, days=MAX_BONUS_DAYS)

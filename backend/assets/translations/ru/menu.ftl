@@ -271,7 +271,15 @@ frg-referral-terms = { $reward_strategy ->
     }
 frg-referral-levels = Друзья ваших друзей тоже приносят награду:
 frg-referral-level = { $level } уровень — { $terms }
-msg-referrals-redeem-target = Бонусных дней: { $bonus_days }. Выберите подписку, к которой их добавить:
+msg-referrals-redeem-amount =
+    Бонусных дней: { $bonus_days }.
+
+    Отправьте, сколько дней добавить к подписке (не больше { $max_days }), или обменяйте все.
+msg-referrals-redeem-target = Выберите подписку, к которой добавить { $bonus_days } { $bonus_days ->
+        [one] бонусный день
+        [few] бонусных дня
+       *[other] бонусных дней
+    }:
 
 btn-referrals =
     .about = Как это работает?
@@ -284,6 +292,8 @@ btn-referrals =
     .withdraw-icon = 💎
     .redeem = Обменять бонусные дни
     .redeem-icon = 🎁
+    .redeem-all = Все ({ $days })
+    .redeem-all-icon = 🎁
     .qr = QR-код
     .qr-icon = 🧾
     .reset-code = Новая реферальная ссылка
@@ -499,6 +509,7 @@ ntf-referrals =
     .no-subscription = ❌ У вас нет подписки, к которой можно добавить бонусные дни.
     .days-redeemed = ✅ Бонусные дни успешно добавлены к вашей подписке.
     .redeem-failed = ❌ Бонусные дни нельзя добавить к этой подписке.
+    .invalid-days = ❌ Отправьте целое число дней от 1 до { $max_days }.
     .code-reset = ✅ Ваша реферальная ссылка обновлена. Старая больше не будет работать.
     .reset-cooldown = ⏳ Обновить реферальную ссылку можно будет через { $wait }.
 
