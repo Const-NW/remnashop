@@ -215,6 +215,22 @@ async def test_successful_payment_fulfills_once(
     assert order.external_payment_id == "charge-1"
 
 
+async def test_a_charge_id_longer_than_128_characters_is_stored(
+    confirm: ConfirmStarsPaymentUseCase,
+    pending_stars_order: TransactionDto,
+    buyer: UserDto,
+    transaction_repository: TransactionRepository,
+    uow: UnitOfWork,
+) -> None:
+    charge_id = "stx" + "a" * 128
+    await confirm.system(_paid(buyer, pending_stars_order, charge_id=charge_id))
+
+    async with uow:
+        order = await transaction_repository.get_by_id(pending_stars_order.id)
+    assert order.status is TransactionStatus.PAID
+    assert order.external_payment_id == charge_id
+
+
 @pytest.mark.parametrize("change", [{"telegram_id": 1}, {"total_amount": 1}, {"currency": "USD"}])
 async def test_mismatched_payment_is_not_fulfilled(
     confirm: ConfirmStarsPaymentUseCase,
