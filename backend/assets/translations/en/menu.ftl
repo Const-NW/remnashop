@@ -267,6 +267,10 @@ frg-referral-terms = { $reward_strategy ->
     }
 frg-referral-levels = Friends of your friends earn you a reward too:
 frg-referral-level = Level { $level } — { $terms }
+msg-referrals-redeem-amount =
+    You have { $bonus_days } bonus days.
+
+    Send the number of days to add to your subscription (up to { $max_days }) or redeem them all.
 msg-referrals-redeem-target = Choose which subscription gets your { $bonus_days } bonus days:
 
 btn-referrals =
@@ -280,6 +284,8 @@ btn-referrals =
     .withdraw-icon = 💎
     .redeem = Redeem bonus days
     .redeem-icon = 🎁
+    .redeem-all = All ({ $days })
+    .redeem-all-icon = 🎁
     .qr = QR code
     .qr-icon = 🧾
     .reset-code = New referral link
@@ -495,6 +501,7 @@ ntf-referrals =
     .no-subscription = ❌ You have no subscription the bonus days can be added to.
     .days-redeemed = ✅ Bonus days have been added to your subscription.
     .redeem-failed = ❌ Bonus days can't be added to this subscription.
+    .invalid-days = ❌ Send a whole number of days from 1 to { $max_days }.
     .code-reset = ✅ Your referral link has been updated. The old one will no longer work.
     .reset-cooldown = ⏳ You can update your referral link again in { $wait }.
 
