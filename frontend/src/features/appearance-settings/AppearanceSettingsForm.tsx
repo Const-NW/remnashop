@@ -164,36 +164,32 @@ function ImageSlot({ target, kind, hasImage, label, hint, canUpload, canDelete, 
 
   return (
     <Field label={label} hint={hint}>
-      <div
-        // 26px = 8px inset + 18px (half the h-9 upload pill): the pill's ends sit concentric in the corners
-        className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-[26px] ${
-          hasImage ? "glass-well" : "border border-dashed border-white/[0.18] bg-black/[0.24]"
-        }`}
-      >
-        {hasImage ? (
-          <img src={appearanceImageUrl(target, kind)} alt="" className="h-full w-full object-contain p-11" />
-        ) : (
-          <>
+      <div className="flex flex-col gap-2">
+        <div
+          className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-3xl ${
+            hasImage ? "glass-well" : "border border-dashed border-white/[0.18] bg-black/[0.24]"
+          }`}
+        >
+          {hasImage ? (
+            <img src={appearanceImageUrl(target, kind)} alt="" className="h-full w-full object-contain p-11" />
+          ) : (
             <BrandLogo className="size-1/2 text-primary" />
-            <span className="absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/40 px-2 py-0.5 text-xs text-muted-foreground">
-              {t("settings.appearance.defaultImage")}
-            </span>
-          </>
-        )}
-        {hasImage && canDelete && (
-          <Pressable
-            type="button"
-            onClick={() => void handleDelete()}
-            disabled={isBusy}
-            className="absolute right-3.5 top-3.5 flex size-6 items-center justify-center rounded-full bg-black/55 text-white transition-colors hover:bg-black/75 disabled:opacity-60"
-          >
-            <X className="size-3" />
-          </Pressable>
-        )}
+          )}
+          {hasImage && canDelete && (
+            <Pressable
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={isBusy}
+              className="absolute right-3.5 top-3.5 flex size-6 items-center justify-center rounded-full bg-black/55 text-white transition-colors hover:bg-black/75 disabled:opacity-60"
+            >
+              <X className="size-3" />
+            </Pressable>
+          )}
+        </div>
         {canUpload && (
           <motion.label
             data-disabled={isBusy || undefined}
-            className="absolute inset-x-2 bottom-2 flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-glass-border bg-white/[0.03] text-sm font-medium text-foreground transition-colors hover:bg-white/[0.06] data-disabled:cursor-not-allowed data-disabled:opacity-60"
+            className="flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-glass-border bg-white/[0.03] text-sm font-medium text-foreground transition-colors hover:bg-white/[0.06] data-disabled:cursor-not-allowed data-disabled:opacity-60"
           >
             <input
               type="file"

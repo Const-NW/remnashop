@@ -41,6 +41,7 @@ dependencies = [
     # Bot API calls outside the bot process (core.telegram_api)
     "aiohttp>=3.12",
     "aiohttp-socks>=0.10.0",
+    "resvg-py>=0.5.0",
 ]
 
 [project.optional-dependencies]
