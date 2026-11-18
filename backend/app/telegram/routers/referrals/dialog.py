@@ -10,6 +10,7 @@ from app.telegram.dialogs.keyboard import ConfigKeyboard
 from app.telegram.dialogs.rendering import LabelIcon
 from app.telegram.routers.referrals.catalog import register_referrals_catalog
 from app.telegram.routers.referrals.getters import (
+    confirm_reset_code_getter,
     redeem_amount_getter,
     redeem_target_getter,
     referrals_about_getter,
@@ -74,4 +75,13 @@ referrals_about = Window(
     getter=referrals_about_getter,
 )
 
-router = Dialog(referrals_main, redeem_amount, redeem_target, referrals_about)
+confirm_reset_code = Window(
+    DynamicMedia("banner", when="banner"),
+    Format("{window_text}"),
+    ConfigKeyboard(window_key="referrals.confirm_reset_code"),
+    parse_mode=ParseMode.HTML,
+    state=Referrals.CONFIRM_RESET_CODE,
+    getter=confirm_reset_code_getter,
+)
+
+router = Dialog(referrals_main, redeem_amount, redeem_target, referrals_about, confirm_reset_code)

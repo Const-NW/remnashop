@@ -21,6 +21,8 @@ from app.modules.auth.repository import SessionRepository
 from app.modules.pricing import PricingRepository
 from app.modules.referrals.dto import UpdateReferralSettingsDto
 from app.modules.referrals.repository import ReferralRepository
+from app.modules.settings.dto import UpdateShopSettingsDto
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -306,3 +308,36 @@ async def test_redeem_targets_list_the_actors_subscriptions_days_can_extend(
 
     assert response.status_code == 200
     assert response.json() == {"subscription_ids": [paid]}
+
+
+async def test_reset_code_issues_a_new_referral_code(
+    client: httpx.AsyncClient, actor: tuple[UserDto, dict[str, str]]
+) -> None:
+    _, headers = actor
+    before = (await client.get(f"{API_V1}/referrals/me", headers=headers)).json()["referral_code"]
+
+    response = await client.post(f"{API_V1}/referrals/me/actions/reset-code", headers=headers)
+
+    assert response.status_code == 204
+    after = (await client.get(f"{API_V1}/referrals/me", headers=headers)).json()["referral_code"]
+    assert after and after != before
+
+
+async def test_reset_code_is_refused_while_the_shop_disabled_it(
+    client: httpx.AsyncClient,
+    actor: tuple[UserDto, dict[str, str]],
+    settings_repository: SettingsRepository,
+    uow: UnitOfWork,
+) -> None:
+    _, headers = actor
+    async with uow:
+        await settings_repository.update_shop_settings(
+            UpdateShopSettingsDto(
+                referral_reset_enabled=False, fields_set=frozenset({"referral_reset_enabled"})
+            )
+        )
+
+    response = await client.post(f"{API_V1}/referrals/me/actions/reset-code", headers=headers)
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "REFERRAL_RESET_DISABLED"

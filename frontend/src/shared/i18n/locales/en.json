@@ -3025,7 +3025,8 @@
         },
         "referrals": {
           "main": "Referral program",
-          "about": "How it works"
+          "about": "How it works",
+          "confirm_reset_code": "New referral link"
         }
       },
       "deleteWindow": "Delete window"

@@ -87,6 +87,7 @@ class CabinetSettingsDto:
     device_all_reset_enabled: bool
     device_all_reset_cooldown_hours: int
     link_reset_enabled: bool
+    referral_reset_enabled: bool
     bot_username: Optional[str]
     # the required channel, for the paused-trial hint; None without a bot
     channel_url: Optional[str]

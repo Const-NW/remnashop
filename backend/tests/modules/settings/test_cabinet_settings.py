@@ -44,6 +44,7 @@ async def test_cabinet_settings_without_a_bot(use_case: GetCabinetSettingsUseCas
     assert result.device_all_reset_enabled is True
     assert result.device_all_reset_cooldown_hours == 0
     assert result.link_reset_enabled is True
+    assert result.referral_reset_enabled is True
     assert result.payments_enabled is True
 
 

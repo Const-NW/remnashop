@@ -33,6 +33,7 @@ class GetCabinetSettingsUseCase(UseCase[None, CabinetSettingsDto, UserDto]):
             device_all_reset_enabled=shop.device_all_reset_enabled,
             device_all_reset_cooldown_hours=shop.device_all_reset_cooldown_hours,
             link_reset_enabled=shop.link_reset_enabled,
+            referral_reset_enabled=shop.referral_reset_enabled,
             bot_username=username,
             channel_url=(
                 requirements.channel_url

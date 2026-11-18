@@ -41,3 +41,4 @@ class Referrals(StatesGroup):
     REDEEM_AMOUNT = State()
     REDEEM_TARGET = State()
     ABOUT = State()
+    CONFIRM_RESET_CODE = State()

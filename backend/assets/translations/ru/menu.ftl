@@ -275,6 +275,7 @@ msg-referrals-redeem-amount =
     Бонусных дней: { $bonus_days }.
 
     Отправьте, сколько дней добавить к подписке (не больше { $max_days }), или обменяйте все.
+msg-referrals-confirm-reset-code = Создать новую реферальную ссылку? Старая перестанет работать.
 msg-referrals-redeem-target = Выберите подписку, к которой добавить { $bonus_days } { $bonus_days ->
         [one] бонусный день
         [few] бонусных дня
@@ -298,6 +299,10 @@ btn-referrals =
     .qr-icon = 🧾
     .reset-code = Новая реферальная ссылка
     .reset-code-icon = 🔄
+    .confirm-reset-code = Да, создать
+    .confirm-reset-code-icon = ✅
+    .cancel-reset-code = Отмена
+    .cancel-reset-code-icon = ❌
 
 btn-back =
     .general = Назад

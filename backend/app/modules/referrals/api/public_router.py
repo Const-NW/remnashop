@@ -1,6 +1,6 @@
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.dependencies.public import get_current_user
 from app.api.errors import error_responses
@@ -22,6 +22,7 @@ from app.modules.referrals.usecases import (
     ListBonusDaysTargetsUseCase,
     ListOwnInvitedUsersUseCase,
     RedeemBonusDaysUseCase,
+    ResetOwnReferralCodeUseCase,
 )
 from app.modules.users import UserDto
 
@@ -77,3 +78,16 @@ async def redeem_bonus_days(
         actor, RedeemBonusDaysDto(subscription_id=payload.subscription_id, days=payload.days)
     )
     return RedeemBonusDaysResponse.model_validate(result, from_attributes=True)
+
+
+@router.post(
+    "/me/actions/reset-code",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400),
+)
+@inject
+async def reset_my_referral_code(
+    use_case: FromDishka[ResetOwnReferralCodeUseCase],
+    actor: UserDto = Depends(get_current_user),
+) -> None:
+    await use_case(actor)
