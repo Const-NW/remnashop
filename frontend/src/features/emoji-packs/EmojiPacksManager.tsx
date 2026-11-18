@@ -116,7 +116,7 @@ export function EmojiPacksManager() {
             {packsState.data.map((pack) => (
               <Row
                 key={pack.set_name}
-                glyph={<PremiumEmoji item={pack.items[0]} size={18} />}
+                glyph={<PremiumEmoji item={pack.items[0]} size={18} animate={false} />}
                 label={pack.set_name}
                 onClick={() => setOpenPack(pack)}
               >

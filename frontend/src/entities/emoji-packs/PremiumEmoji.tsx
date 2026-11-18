@@ -15,32 +15,26 @@ interface PremiumEmojiProps {
   item: EmojiPackItem | undefined;
   /** Rendered size in px; the source artwork is always 512x512. */
   size: number;
-  /** A cell of a pack's grid: the thumbnail at rest, animated only while the
-   * pointer is over the cell. Dozens of lottie scenes on screen at once drop
-   * the page to 30fps and below. */
-  still?: boolean;
+  /** false: the thumbnail only, never played (a row in the packs list) */
+  animate?: boolean;
 }
 
-// an animation starts a little before its cell scrolls into view
-const IN_VIEW_MARGIN = "64px";
-
-/** Telegram's artwork: a lottie animation or a .webm while on screen, the
- * static thumbnail off screen, while it loads, or for a pack imported before
- * animations were stored, and the plain glyph as the last resort. A pack holds
- * up to a thousand emoji: animating them all at once stalls the page. */
-export function PremiumEmoji({ item, size, still = false }: PremiumEmojiProps) {
+/** Telegram's artwork: the static thumbnail at rest, the lottie animation or
+ * .webm only while the pointer is over the emoji's parent, the plain glyph as
+ * the last resort. Lottie scenes playing at once drop the page to 30fps and below. */
+export function PremiumEmoji({ item, size, animate = true }: PremiumEmojiProps) {
   const [failed, setFailed] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [animationReady, setAnimationReady] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
-  const isLottie = item?.animation_kind === "lottie";
-  const isAnimated = isLottie || item?.animation_kind === "video";
+  const isLottie = animate && item?.animation_kind === "lottie";
+  const isAnimated = isLottie || (animate && item?.animation_kind === "video");
   const emojiId = item?.custom_emoji_id;
 
   useEffect(() => {
     const cell = box.current?.parentElement;
-    if (!isAnimated || !still || !cell) return;
+    if (!isAnimated || !cell) return;
     const start = () => setPlaying(true);
     const stop = () => setPlaying(false);
     cell.addEventListener("pointerenter", start);
@@ -49,18 +43,7 @@ export function PremiumEmoji({ item, size, still = false }: PremiumEmojiProps) {
       cell.removeEventListener("pointerenter", start);
       cell.removeEventListener("pointerleave", stop);
     };
-  }, [isAnimated, still]);
-
-  useEffect(() => {
-    if (!isAnimated || still || box.current === null) return;
-    // the observer honours overflow clipping, so a cell scrolled out of a
-    // popover or dialog counts as hidden
-    const observer = new IntersectionObserver(([entry]) => setPlaying(entry.isIntersecting), {
-      rootMargin: IN_VIEW_MARGIN,
-    });
-    observer.observe(box.current);
-    return () => observer.disconnect();
-  }, [isAnimated, still]);
+  }, [isAnimated]);
 
   useEffect(() => {
     if (!emojiId || !isLottie || !playing || container.current === null) return;
@@ -70,9 +53,8 @@ export function PremiumEmoji({ item, size, still = false }: PremiumEmojiProps) {
       loop: true,
       autoplay: true,
       path: emojiAnimationUrl(emojiId),
-      // dpr defaults to devicePixelRatio, so a 22px emoji rasterizes the whole
-      // vector scene into a 44x44 canvas every frame on a Retina display.
-      rendererSettings: { dpr: 1 },
+      // 1 blurs on Retina; capped at 2 so a 3x phone doesn't rasterize 9x the pixels per frame
+      rendererSettings: { dpr: Math.min(window.devicePixelRatio, 2) },
     });
     // with subframes (the default) the frame number stays fractional, the
     // renderer's "same frame" skip never fires and a 30fps animation redraws
