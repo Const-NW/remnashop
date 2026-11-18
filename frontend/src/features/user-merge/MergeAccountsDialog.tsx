@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { usePermissions } from "@entities/user/use-current-user";
-import { getMergePreview, listUsers, mergeUsers, type MergeSide, type UserBase } from "@entities/user/api";
+import { getMergePreview, listUsers, mergeUsers, type MergePreview, type MergeSide, type UserBase } from "@entities/user/api";
 import { userLabel } from "@entities/user/display";
 import { ApiError, getErrorMessage } from "@shared/api/http";
 import { toast } from "@shared/lib/toast";
@@ -40,15 +40,36 @@ interface MergeAccountsDialogProps {
   onClose: () => void;
 }
 
+// an API refusal (two staff accounts, no rights) is shown in place of the preview
+function loadPreview(targetId: number, sourceId: number, signal: AbortSignal, refusal: string) {
+  return getMergePreview(targetId, sourceId, signal).catch((err: unknown) => {
+    if (err instanceof ApiError) return getErrorMessage(err, refusal);
+    throw err;
+  });
+}
+
 export function MergeAccountsDialog({ user, initialOther, onMerged, onClose }: MergeAccountsDialogProps) {
   const { t } = useTranslation();
   const [other, setOther] = useState<UserBase | null>(initialOther ?? null);
   const includeStaff = usePermissions().includes("ADMINS_MANAGE");
+  // opens once a preset pair's preview is in: a nested modal morphs to the size it has on mount
+  const [initialPreview] = useAsyncResource((signal) =>
+    initialOther ? loadPreview(user.id, initialOther.id, signal, t("users.merge.error")) : Promise.resolve(null),
+  );
+  if (initialPreview.kind === "loading") return null;
   return (
     <Modal onClose={onClose} size="lg" scrollable>
       <DialogHeader icon={GitMerge} title={t("users.merge.title")} />
       {other ? (
-        <MergePreviewStep user={user} other={other} onMerged={onMerged} onChange={() => setOther(null)} />
+        <MergePreviewStep
+          user={user}
+          other={other}
+          initialPreview={
+            other === initialOther && initialPreview.kind === "ready" ? initialPreview.data : null
+          }
+          onMerged={onMerged}
+          onChange={() => setOther(null)}
+        />
       ) : (
         <MergePicker excludeId={user.id} includeStaff={includeStaff} onPick={setOther} />
       )}
@@ -128,11 +149,14 @@ function AccountColumn({ label, user }: { label: string; user: UserBase }) {
 function MergePreviewStep({
   user,
   other,
+  initialPreview,
   onMerged,
   onChange,
 }: {
   user: UserBase;
   other: UserBase;
+  /** the unswapped pair's preview, shown until the step's own load is in */
+  initialPreview: MergePreview | string | null;
   onMerged: MergeAccountsDialogProps["onMerged"];
   onChange: () => void;
 }) {
@@ -145,15 +169,14 @@ function MergePreviewStep({
   const target = swapped ? other : user;
   const source = swapped ? user : other;
 
-  const [preview, reload] = useAsyncResource(
-    (signal) =>
-      // an API refusal (two staff accounts, no rights) is shown in place of the preview
-      getMergePreview(target.id, source.id, signal).catch((err: unknown) => {
-        if (err instanceof ApiError) return getErrorMessage(err, t("users.merge.error"));
-        throw err;
-      }),
+  const [loaded, reload] = useAsyncResource(
+    (signal) => loadPreview(target.id, source.id, signal, t("users.merge.error")),
     { deps: [target.id, source.id] },
   );
+  const preview =
+    loaded.kind === "loading" && !swapped && initialPreview !== null
+      ? { kind: "ready" as const, data: initialPreview }
+      : loaded;
   const data = preview.kind === "ready" && typeof preview.data !== "string" ? preview.data : null;
   // the preview that a refused merge was built on; the button waits for a different one
   const [staleData, setStaleData] = useState<typeof data>(null);
