@@ -32,6 +32,7 @@ def test_registers_all_windows() -> None:
         "subscriptions.card",
         "referrals.main",
         "referrals.about",
+        "referrals.confirm_reset_code",
     }
 
 
@@ -135,6 +136,7 @@ def test_calling_twice_is_idempotent() -> None:
         "subscriptions.card",
         "referrals.main",
         "referrals.about",
+        "referrals.confirm_reset_code",
     }
     assert catalog.has_action_handler("get_trial") is True
 

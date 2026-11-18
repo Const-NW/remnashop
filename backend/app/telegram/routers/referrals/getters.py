@@ -97,7 +97,7 @@ async def referrals_getter(
     data["referral_reset_enabled"] = shop.referral_reset_enabled
     unavailable: set[str] = set()
     if not shop.referral_reset_enabled:
-        unavailable.add("reset_referral_code")
+        unavailable |= {"referrals.confirm_reset_code", "reset_referral_code"}
     # inline mode is switched on in BotFather; without it the picker opens to nothing
     if not me.supports_inline_queries or not stats.referral_code:
         unavailable.add("invite_friend")
@@ -238,5 +238,33 @@ async def referrals_about_getter(
     data["window_text"] = render_window_text(runner, "msg-referrals-about", **values)
     data["buttons"] = await render_dialog_buttons(
         "referrals.about", dialog_config_cache, runner, data
+    )
+    return data
+
+
+@inject
+async def confirm_reset_code_getter(
+    dialog_manager: DialogManager,
+    config: FromDishka[AppConfig],
+    get_banner: FromDishka[GetBannerForDisplayUseCase],
+    i18n: FromDishka[TranslatorHub],
+    dialog_config_cache: FromDishka[DialogConfigCache],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    user: UserDto = dialog_manager.middleware_data[USER_KEY]
+    runner = get_translator(i18n, user)
+    window = await dialog_config_cache.get_window("referrals.confirm_reset_code")
+    data: dict[str, Any] = {
+        "banner": (
+            await get_banner_media(get_banner, config, user, window.banner_name)
+            if window.banner_name
+            else None
+        ),
+        "window_text": render_window_text(
+            runner, "msg-referrals-confirm-reset-code", **resolve_variable_kwargs({})
+        ),
+    }
+    data["buttons"] = await render_dialog_buttons(
+        "referrals.confirm_reset_code", dialog_config_cache, runner, data
     )
     return data

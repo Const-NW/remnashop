@@ -19,3 +19,4 @@ def register_referrals_catalog() -> None:
 
     register_seed_state("referrals.main", Referrals.MAIN)
     register_seed_state("referrals.about", Referrals.ABOUT)
+    register_seed_state("referrals.confirm_reset_code", Referrals.CONFIRM_RESET_CODE)

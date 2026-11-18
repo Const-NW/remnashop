@@ -88,8 +88,8 @@ def register_referrals_metadata() -> None:
                     text_key="btn-referrals.reset-code",
                     row=3,
                     column=0,
-                    link_type=ButtonLinkType.ACTION,
-                    action_key="reset_referral_code",
+                    link_type=ButtonLinkType.NAVIGATE,
+                    target_window_key="referrals.confirm_reset_code",
                     visibility_condition="referral_reset_enabled",
                 ),
                 catalog.CatalogButton(
@@ -124,6 +124,33 @@ def register_referrals_metadata() -> None:
                     text_key="btn-back.general",
                     row=0,
                     column=0,
+                    link_type=ButtonLinkType.NAVIGATE,
+                    target_window_key="referrals.main",
+                ),
+            ),
+        )
+    )
+
+    catalog.register_window(
+        catalog.CatalogWindow(
+            key="referrals.confirm_reset_code",
+            flow=DialogFlow.REFERRALS,
+            text_keys=("msg-referrals-confirm-reset-code",),
+            banner_name=DEFAULT_BANNER_NAME,
+            buttons=(
+                catalog.CatalogButton(
+                    key="confirm_reset_code",
+                    text_key="btn-referrals.confirm-reset-code",
+                    row=0,
+                    column=0,
+                    link_type=ButtonLinkType.ACTION,
+                    action_key="reset_referral_code",
+                ),
+                catalog.CatalogButton(
+                    key="cancel",
+                    text_key="btn-referrals.cancel-reset-code",
+                    row=0,
+                    column=1,
                     link_type=ButtonLinkType.NAVIGATE,
                     target_window_key="referrals.main",
                 ),

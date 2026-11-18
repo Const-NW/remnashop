@@ -271,6 +271,7 @@ msg-referrals-redeem-amount =
     You have { $bonus_days } bonus days.
 
     Send the number of days to add to your subscription (up to { $max_days }) or redeem them all.
+msg-referrals-confirm-reset-code = Create a new referral link? The old one will stop working.
 msg-referrals-redeem-target = Choose which subscription gets your { $bonus_days } bonus days:
 
 btn-referrals =
@@ -290,6 +291,10 @@ btn-referrals =
     .qr-icon = 🧾
     .reset-code = New referral link
     .reset-code-icon = 🔄
+    .confirm-reset-code = Yes, create
+    .confirm-reset-code-icon = ✅
+    .cancel-reset-code = Cancel
+    .cancel-reset-code-icon = ❌
 
 btn-back =
     .general = Back

@@ -69,12 +69,12 @@ async def on_reset_referral_code(
                 "ntf-referrals.reset-cooldown", wait=format_wait(runner, error.available_at)
             ),
         )
-        return
     except ValidationError:
-        # switched off while the window was open: redrawn without the button
-        await dialog_manager.show()
-        return
-    await answer_notice(callback, runner.get("ntf-referrals.code-reset"))
+        # switched off while the window was open: the main window comes back without the button
+        pass
+    else:
+        await answer_notice(callback, runner.get("ntf-referrals.code-reset"))
+    await dialog_manager.switch_to(Referrals.MAIN)
 
 
 def _redeemable_days(user: UserDto) -> int:
