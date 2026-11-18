@@ -6,13 +6,14 @@ from pywebpush import WebPushException
 from requests import Response
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Locale, Role, SessionAudience
+from app.core.enums import AppearanceImageKind, AppearanceTarget, Locale, Role, SessionAudience
 from app.modules.auth.repository import SessionRepository
 from app.modules.notifications import webpush as webpush_module
 from app.modules.notifications.dto import PushMessage, UpdateNotificationSettingsDto
 from app.modules.notifications.repository import NotificationRepository
 from app.modules.notifications.vapid import generate_vapid_keypair
 from app.modules.notifications.webpush import WebPushSender
+from app.modules.settings import SettingsRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.modules.notifications.conftest import NewSession
@@ -55,6 +56,7 @@ async def subscribed(
 async def test_gone_endpoint_is_deleted(
     subscribed: UserDto,
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     uow: UnitOfWork,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -62,7 +64,7 @@ async def test_gone_endpoint_is_deleted(
         raise _error(410)
 
     monkeypatch.setattr(webpush_module, "webpush", fake_webpush)
-    delivered = await WebPushSender(notification_repository, uow).send(
+    delivered = await WebPushSender(notification_repository, settings_repository, uow).send(
         subscribed.id, MESSAGE, SessionAudience.DASHBOARD
     )
 
@@ -78,6 +80,7 @@ async def test_gone_endpoint_is_deleted(
 async def test_third_failure_deletes_and_success_resets(
     subscribed: UserDto,
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     uow: UnitOfWork,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -89,7 +92,7 @@ async def test_third_failure_deletes_and_success_resets(
             raise outcome
 
     monkeypatch.setattr(webpush_module, "webpush", fake_webpush)
-    sender = WebPushSender(notification_repository, uow)
+    sender = WebPushSender(notification_repository, settings_repository, uow)
 
     await sender.send(subscribed.id, MESSAGE, SessionAudience.DASHBOARD)
     assert await sender.send(subscribed.id, MESSAGE, SessionAudience.DASHBOARD) == 1
@@ -109,6 +112,7 @@ async def test_third_failure_deletes_and_success_resets(
 
 async def test_not_configured_sends_nothing(
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     uow: UnitOfWork,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -120,7 +124,7 @@ async def test_not_configured_sends_nothing(
 
     monkeypatch.setattr(webpush_module, "webpush", fake_webpush)
     assert (
-        await WebPushSender(notification_repository, uow).send(
+        await WebPushSender(notification_repository, settings_repository, uow).send(
             1, MESSAGE, SessionAudience.DASHBOARD
         )
         == 0
@@ -131,6 +135,7 @@ async def test_not_configured_sends_nothing(
 async def test_payload_too_large_keeps_the_device(
     subscribed: UserDto,
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     uow: UnitOfWork,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -138,7 +143,7 @@ async def test_payload_too_large_keeps_the_device(
         raise _error(413)
 
     monkeypatch.setattr(webpush_module, "webpush", fake_webpush)
-    sender = WebPushSender(notification_repository, uow)
+    sender = WebPushSender(notification_repository, settings_repository, uow)
     for _ in range(3):
         await sender.send(subscribed.id, MESSAGE, SessionAudience.DASHBOARD)
 
@@ -151,6 +156,7 @@ async def test_payload_too_large_keeps_the_device(
 async def test_push_does_not_follow_redirects(
     subscribed: UserDto,
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     uow: UnitOfWork,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -160,7 +166,7 @@ async def test_push_does_not_follow_redirects(
         seen.update(kwargs)
 
     monkeypatch.setattr(webpush_module, "webpush", fake_webpush)
-    await WebPushSender(notification_repository, uow).send(
+    await WebPushSender(notification_repository, settings_repository, uow).send(
         subscribed.id, MESSAGE, SessionAudience.DASHBOARD
     )
 
@@ -170,6 +176,7 @@ async def test_push_does_not_follow_redirects(
 async def test_revoked_session_stops_its_pushes(
     subscribed: UserDto,
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     session_repository: SessionRepository,
     uow: UnitOfWork,
     monkeypatch: pytest.MonkeyPatch,
@@ -184,7 +191,7 @@ async def test_revoked_session_stops_its_pushes(
         await session_repository.revoke_all_by_user(subscribed.id)
 
     assert (
-        await WebPushSender(notification_repository, uow).send(
+        await WebPushSender(notification_repository, settings_repository, uow).send(
             subscribed.id, MESSAGE, SessionAudience.DASHBOARD
         )
         == 0
@@ -201,6 +208,7 @@ async def test_revoked_session_stops_its_pushes(
 async def test_send_includes_icon_and_premium_emoji_glyphs(
     subscribed: UserDto,
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     uow: UnitOfWork,
     new_session: NewSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -220,24 +228,28 @@ async def test_send_includes_icon_and_premium_emoji_glyphs(
             auth="a",
             user_agent=None,
         )
-    sender = WebPushSender(notification_repository, uow)
-    icon = "/api/appearance/cabinet/favicon?v=1"
+    sender = WebPushSender(notification_repository, settings_repository, uow)
 
+    await sender.send(subscribed.id, MESSAGE, SessionAudience.CABINET)
+    async with uow:
+        await settings_repository.set_appearance_image(
+            AppearanceTarget.CABINET, AppearanceImageKind.FAVICON, "image/svg+xml", "svg"
+        )
     await sender.send(
         subscribed.id,
-        PushMessage(title="[🚫](emoji:1) t", body="b", url="/", tag="x", icon=icon),
+        PushMessage(title="[🚫](emoji:1) t", body="b", url="/", tag="x"),
         SessionAudience.CABINET,
     )
-    await sender.send(subscribed.id, MESSAGE, SessionAudience.CABINET)
 
-    assert payloads[0]["icon"] == icon
-    assert payloads[0]["title"] == "🚫 t"
-    assert "icon" not in payloads[1]
+    assert "icon" not in payloads[0]
+    assert payloads[1]["icon"].startswith("/api/appearance/cabinet/favicon?v=")
+    assert payloads[1]["title"] == "🚫 t"
 
 
 async def test_deliver_skips_cabinet_subscriptions(
     user_repository: UserRepository,
     notification_repository: NotificationRepository,
+    settings_repository: SettingsRepository,
     uow: UnitOfWork,
     new_session: NewSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -260,6 +272,6 @@ async def test_deliver_skips_cabinet_subscriptions(
             user_agent=None,
         )
 
-    sender = WebPushSender(notification_repository, uow)
+    sender = WebPushSender(notification_repository, settings_repository, uow)
     assert await sender.send(admin.id, MESSAGE, SessionAudience.DASHBOARD) == 0
     assert await sender.send(admin.id, MESSAGE, SessionAudience.CABINET) == 1

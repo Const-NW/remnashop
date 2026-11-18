@@ -397,6 +397,20 @@ async def test_set_appearance_image_marks_has_logo(
     assert meta == ("png", "image/png")
 
 
+async def test_set_appearance_image_bumps_updated_at_for_the_same_format(
+    settings_repository: SettingsRepository,
+) -> None:
+    first = await settings_repository.set_appearance_image(
+        AppearanceTarget.DASHBOARD, AppearanceImageKind.FAVICON, "image/svg+xml", "svg"
+    )
+    second = await settings_repository.set_appearance_image(
+        AppearanceTarget.DASHBOARD, AppearanceImageKind.FAVICON, "image/svg+xml", "svg"
+    )
+
+    assert first.updated_at is not None and second.updated_at is not None
+    assert second.updated_at > first.updated_at
+
+
 async def test_get_appearance_image_meta_returns_none_when_unset(
     settings_repository: SettingsRepository,
 ) -> None:

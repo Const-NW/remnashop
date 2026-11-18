@@ -1,15 +1,24 @@
+import asyncio
 import json
 from typing import Final
 
 from dishka import FromDishka
 from dishka.integrations.fastapi import inject
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.api.dependencies.public import get_current_user
 from app.api.errors import error_responses
+from app.core.config import AppConfig
 from app.core.enums import AppearanceImageKind, AppearanceTarget
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import NotFoundError
 from app.modules.settings.api.schemas import AppearanceResponse, CabinetSettingsResponse
-from app.modules.settings.branding import cabinet_manifest
+from app.modules.settings.branding import (
+    appearance_manifest,
+    link_preview_html,
+    link_preview_image,
+)
 from app.modules.settings.usecases import (
     GetCabinetSettingsUseCase,
     GetPublicAppearanceImageUseCase,
@@ -26,18 +35,46 @@ _IMAGE_HEADERS: Final[dict[str, str]] = {
     "X-Content-Type-Options": "nosniff",
 }
 
+# both frontends ship it in public/
+_DEFAULT_FAVICON_PATH: Final[str] = "/favicon.svg"
 
-@router.get("/cabinet/manifest.webmanifest")
+
+@router.get("/{target}/manifest.webmanifest")
 @inject
-async def get_cabinet_manifest(use_case: FromDishka[GetPublicAppearanceUseCase]) -> Response:
-    manifest = cabinet_manifest(
-        await use_case.execute(AppearanceTarget.CABINET),
-        await use_case.execute(AppearanceTarget.DASHBOARD),
-    )
+async def get_appearance_manifest(
+    target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceUseCase]
+) -> Response:
+    manifest = appearance_manifest(target, await use_case.execute(target))
     return Response(
         json.dumps(manifest),
         media_type="application/manifest+json",
         headers={"Cache-Control": "no-cache"},
+    )
+
+
+@router.get("/cabinet/link-preview", response_class=HTMLResponse)
+@inject
+async def get_cabinet_link_preview(
+    use_case: FromDishka[GetPublicAppearanceUseCase], config: FromDishka[AppConfig]
+) -> HTMLResponse:
+    settings = await use_case.execute(AppearanceTarget.CABINET)
+    return HTMLResponse(link_preview_html(settings, config.cabinet.url))
+
+
+@router.get("/cabinet/preview-image", responses=error_responses(404))
+@inject
+async def get_cabinet_preview_image(
+    use_case: FromDishka[GetPublicAppearanceImageUseCase],
+) -> Response:
+    logo = await use_case.execute(AppearanceTarget.CABINET, AppearanceImageKind.LOGO)
+    image = await asyncio.to_thread(link_preview_image, logo)
+    if image is None:
+        raise NotFoundError("Logo has no preview", code=ErrorCode.APPEARANCE_IMAGE_NOT_SET)
+    return Response(
+        content=image.data,
+        media_type=image.content_type,
+        # the URL carries the logo's version
+        headers={**_IMAGE_HEADERS, "Cache-Control": "public, max-age=86400"},
     )
 
 
@@ -66,6 +103,34 @@ async def get_appearance_favicon(
 ) -> Response:
     image = await use_case.execute(target, AppearanceImageKind.FAVICON)
     return Response(content=image.data, media_type=image.content_type, headers=_IMAGE_HEADERS)
+
+
+@router.get("/{target}/app-icon", responses=error_responses(404))
+@inject
+async def get_appearance_app_icon(
+    target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]
+) -> Response:
+    image = await use_case.execute(target, AppearanceImageKind.APP_ICON)
+    return Response(content=image.data, media_type=image.content_type, headers=_IMAGE_HEADERS)
+
+
+# Linked from index.html: Safari takes the tab icon from the page as loaded and
+# ignores a <link rel="icon"> changed by a script.
+@router.get("/{target}/tab-icon")
+@inject
+async def get_appearance_tab_icon(
+    target: AppearanceTarget, use_case: FromDishka[GetPublicAppearanceImageUseCase]
+) -> Response:
+    no_cache = {"Cache-Control": "no-cache"}
+    try:
+        image = await use_case.execute(target, AppearanceImageKind.FAVICON)
+    except NotFoundError:
+        return RedirectResponse(
+            _DEFAULT_FAVICON_PATH, status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers=no_cache
+        )
+    return Response(
+        content=image.data, media_type=image.content_type, headers={**_IMAGE_HEADERS, **no_cache}
+    )
 
 
 shop_router = APIRouter(prefix="/shop", tags=["shop"])

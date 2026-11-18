@@ -15,6 +15,7 @@ from app.core.db.models.shop_settings import ShopSettings
 from app.core.db.partial_update import apply_partial_update
 from app.core.db.singleton import SINGLETON_ID, get_or_create_singleton
 from app.core.enums import AppearanceImageKind, AppearanceTarget, SmtpSecurity
+from app.core.utils.time import datetime_now
 from app.modules.settings.dto import (
     AccessSettingsDto,
     AppearanceSettingsDto,
@@ -271,8 +272,10 @@ class SettingsRepository:
             shader_enabled=row.shader_enabled,
             has_logo=row.logo_extension is not None,
             has_favicon=row.favicon_extension is not None,
+            has_app_icon=row.app_icon_extension is not None,
             logo_content_type=row.logo_content_type,
             favicon_content_type=row.favicon_content_type,
+            app_icon_content_type=row.app_icon_content_type,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -320,26 +323,21 @@ class SettingsRepository:
         if row is None:
             return None
 
-        if kind == AppearanceImageKind.LOGO:
-            if row.logo_extension is None or row.logo_content_type is None:
-                return None
-            return row.logo_extension, row.logo_content_type
-
-        if row.favicon_extension is None or row.favicon_content_type is None:
+        extension = getattr(row, f"{kind}_extension")
+        content_type = getattr(row, f"{kind}_content_type")
+        if extension is None or content_type is None:
             return None
-        return row.favicon_extension, row.favicon_content_type
+        return extension, content_type
 
     async def set_appearance_image(
         self, target: AppearanceTarget, kind: AppearanceImageKind, content_type: str, extension: str
     ) -> AppearanceSettingsDto:
         row = await self._get_or_create_appearance(target)
 
-        if kind == AppearanceImageKind.LOGO:
-            row.logo_content_type = content_type
-            row.logo_extension = extension
-        else:
-            row.favicon_content_type = content_type
-            row.favicon_extension = extension
+        setattr(row, f"{kind}_content_type", content_type)
+        setattr(row, f"{kind}_extension", extension)
+        # same format again changes no column, and image URLs are versioned by updated_at
+        row.updated_at = datetime_now()
 
         await self.session.flush()
         await self.session.refresh(row)
@@ -350,12 +348,8 @@ class SettingsRepository:
     ) -> AppearanceSettingsDto:
         row = await self._get_or_create_appearance(target)
 
-        if kind == AppearanceImageKind.LOGO:
-            row.logo_content_type = None
-            row.logo_extension = None
-        else:
-            row.favicon_content_type = None
-            row.favicon_extension = None
+        setattr(row, f"{kind}_content_type", None)
+        setattr(row, f"{kind}_extension", None)
 
         await self.session.flush()
         await self.session.refresh(row)

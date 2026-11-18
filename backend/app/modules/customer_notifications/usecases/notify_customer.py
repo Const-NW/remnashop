@@ -20,7 +20,6 @@ from app.core.constants import (
 )
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
-    AppearanceTarget,
     Locale,
     PaymentOutcome,
     PurchaseChannel,
@@ -55,7 +54,7 @@ from app.modules.notifications import (
     telegram_card,
 )
 from app.modules.plans import PlanRepository
-from app.modules.settings import SettingsRepository, push_icon_path
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import (
     SubscriptionChangedEvent,
     SubscriptionDto,
@@ -339,13 +338,6 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             )
             return
         if channel is CustomerChannel.PUSH:
-            async with self._uow:
-                cabinet = await self._settings_repository.get_appearance_settings(
-                    AppearanceTarget.CABINET
-                )
-                dashboard = await self._settings_repository.get_appearance_settings(
-                    AppearanceTarget.DASHBOARD
-                )
             # already in the worker: per-device failures are swallowed by the sender
             await self._web_push.send(
                 user.id,
@@ -354,7 +346,6 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                     body=body,
                     url=customer_url(data.event_type, data.subscription_id, data.args),
                     tag=data.event_type,
-                    icon=push_icon_path(cabinet, dashboard),
                 ),
                 SessionAudience.CABINET,
             )

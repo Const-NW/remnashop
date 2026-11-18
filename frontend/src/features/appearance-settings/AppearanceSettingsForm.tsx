@@ -15,7 +15,12 @@ import {
   uploadAppearanceImage,
 } from "@entities/appearance/api";
 import { getErrorMessage } from "@shared/api/http";
-import { useAppearancePreview, useBrandName, useReloadAppearance } from "@entities/appearance/use-appearance";
+import {
+  DEFAULT_BRAND_NAME,
+  useAppearancePreview,
+  useBrandName,
+  useReloadAppearance,
+} from "@entities/appearance/use-appearance";
 import { DEFAULT_ACCENT_COLOR, HEX_COLOR_PATTERN } from "@shared/lib/color";
 import { DEFAULT_SHADER_BASE, resolveShaderStops, SHADER_TONE_COUNT } from "@shared/lib/shader-palette";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
@@ -43,6 +48,13 @@ const ACCEPTED_FILE_TYPES = `image/jpeg,image/png,image/webp,${SVG_MIME_TYPE}`;
 const IMAGE_LIMITS: Record<AppearanceImageKind, { minSide: number; maxSide: number; maxKb: number }> = {
   logo: { minSide: 128, maxSide: 1024, maxKb: 1024 },
   favicon: { minSide: 32, maxSide: 512, maxKb: 256 },
+  "app-icon": { minSide: 512, maxSide: 1024, maxKb: 1024 },
+};
+
+const IMAGE_FLAGS: Record<AppearanceImageKind, "has_logo" | "has_favicon" | "has_app_icon"> = {
+  logo: "has_logo",
+  favicon: "has_favicon",
+  "app-icon": "has_app_icon",
 };
 
 const ACCENT_COLOR_PRESETS: readonly string[] = [
@@ -152,36 +164,32 @@ function ImageSlot({ target, kind, hasImage, label, hint, canUpload, canDelete, 
 
   return (
     <Field label={label} hint={hint}>
-      <div
-        // 26px = 8px inset + 18px (half the h-9 upload pill): the pill's ends sit concentric in the corners
-        className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-[26px] ${
-          hasImage ? "glass-well" : "border border-dashed border-white/[0.18] bg-black/[0.24]"
-        }`}
-      >
-        {hasImage ? (
-          <img src={appearanceImageUrl(target, kind)} alt="" className="h-full w-full object-contain p-11" />
-        ) : (
-          <>
+      <div className="flex flex-col gap-2">
+        <div
+          className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-3xl ${
+            hasImage ? "glass-well" : "border border-dashed border-white/[0.18] bg-black/[0.24]"
+          }`}
+        >
+          {hasImage ? (
+            <img src={appearanceImageUrl(target, kind)} alt="" className="h-full w-full object-contain p-11" />
+          ) : (
             <BrandLogo className="size-1/2 text-primary" />
-            <span className="absolute top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/40 px-2 py-0.5 text-xs text-muted-foreground">
-              {t("settings.appearance.defaultImage")}
-            </span>
-          </>
-        )}
-        {hasImage && canDelete && (
-          <Pressable
-            type="button"
-            onClick={() => void handleDelete()}
-            disabled={isBusy}
-            className="absolute right-3.5 top-3.5 flex size-6 items-center justify-center rounded-full bg-black/55 text-white transition-colors hover:bg-black/75 disabled:opacity-60"
-          >
-            <X className="size-3" />
-          </Pressable>
-        )}
+          )}
+          {hasImage && canDelete && (
+            <Pressable
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={isBusy}
+              className="absolute right-3.5 top-3.5 flex size-6 items-center justify-center rounded-full bg-black/55 text-white transition-colors hover:bg-black/75 disabled:opacity-60"
+            >
+              <X className="size-3" />
+            </Pressable>
+          )}
+        </div>
         {canUpload && (
           <motion.label
             data-disabled={isBusy || undefined}
-            className="absolute inset-x-2 bottom-2 flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-glass-border bg-white/[0.03] text-sm font-medium text-foreground transition-colors hover:bg-white/[0.06] data-disabled:cursor-not-allowed data-disabled:opacity-60"
+            className="flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-glass-border bg-white/[0.03] text-sm font-medium text-foreground transition-colors hover:bg-white/[0.06] data-disabled:cursor-not-allowed data-disabled:opacity-60"
           >
             <input
               type="file"
@@ -210,15 +218,16 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
   const reloadAppearance = useReloadAppearance();
   const { setPreviewColor, setPreviewShaderColors, setPreviewShaderEnabled } = useAppearancePreview();
   const permissions = usePermissions();
-  // null: nothing stored, the name in use applies (the default, for the cabinet the dashboard's)
+  // null: nothing stored, the default name applies
   const [brandName, setBrandName] = useState<string | null>(null);
-  const fallbackBrandName = useBrandName();
+  const dashboardBrandName = useBrandName();
+  const fallbackBrandName = isDashboard ? dashboardBrandName : DEFAULT_BRAND_NAME;
   const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT_COLOR);
   // last non-preset pick, kept as an extra swatch after a preset replaces it
   const [previousColor, setPreviousColor] = useState<string | null>(null);
   const [hexInput, setHexInput] = useState(DEFAULT_ACCENT_COLOR);
   const [colorTouched, setColorTouched] = useState(false);
-  // off: the background follows the accent (the cabinet's: the dashboard's background)
+  // off: the background follows the accent
   const [ownShaderBase, setOwnShaderBase] = useState(false);
   const [shaderBase, setShaderBase] = useState(DEFAULT_SHADER_BASE);
   const [shaderTones, setShaderTones] = useState<(string | null)[]>([...NO_PINNED_TONES]);
@@ -353,6 +362,9 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
       if (state.kind === "ready" && state.data.has_favicon && permissions.includes("APPEARANCE_FAVICON_DELETE")) {
         await deleteAppearanceImage(target, "favicon");
       }
+      if (state.kind === "ready" && state.data.has_app_icon && permissions.includes("APPEARANCE_APP_ICON_DELETE")) {
+        await deleteAppearanceImage(target, "app-icon");
+      }
       const data = await resetAppearanceSettings(target);
       seedBranding(data);
       seedColors(data);
@@ -368,7 +380,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
 
   const handleImageChanged = (kind: AppearanceImageKind, hasImage: boolean) => {
     if (state.kind !== "ready") return;
-    setData({ ...state.data, [kind === "logo" ? "has_logo" : "has_favicon"]: hasImage });
+    setData({ ...state.data, [IMAGE_FLAGS[kind]]: hasImage });
     reloadAppearance();
   };
 
@@ -377,6 +389,9 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
   const canLogo = permissions.includes("APPEARANCE_LOGO_UPLOAD") || permissions.includes("APPEARANCE_LOGO_DELETE");
   const canFavicon =
     permissions.includes("APPEARANCE_FAVICON_UPLOAD") || permissions.includes("APPEARANCE_FAVICON_DELETE");
+  const canAppIcon =
+    permissions.includes("APPEARANCE_APP_ICON_UPLOAD") || permissions.includes("APPEARANCE_APP_ICON_DELETE");
+  const canImages = canLogo || canFavicon || canAppIcon;
 
   const dirty =
     state.kind === "ready" &&
@@ -414,7 +429,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
 
         {state.kind === "ready" && (
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {(canManage || canLogo || canFavicon) && (
+              {(canManage || canImages) && (
                 <InnerCard>
                   {canManage && (
                     <Field
@@ -431,7 +446,7 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
                       />
                     </Field>
                   )}
-                  {(canLogo || canFavicon) && (
+                  {canImages && (
                     <div className="flex flex-wrap gap-4">
                       {canLogo && (
                         <div className="min-w-0 flex-1">
@@ -458,6 +473,20 @@ export function AppearanceSettingsForm({ target }: { target: AppearanceTarget })
                           canUpload={permissions.includes("APPEARANCE_FAVICON_UPLOAD")}
                           canDelete={permissions.includes("APPEARANCE_FAVICON_DELETE")}
                           onChanged={(hasImage) => handleImageChanged("favicon", hasImage)}
+                        />
+                        </div>
+                      )}
+                      {canAppIcon && (
+                        <div className="min-w-0 flex-1">
+                        <ImageSlot
+                          target={target}
+                          kind="app-icon"
+                          hasImage={state.data.has_app_icon}
+                          label={t("settings.appearance.appIconLabel")}
+                          hint={t("settings.appearance.appIconHint")}
+                          canUpload={permissions.includes("APPEARANCE_APP_ICON_UPLOAD")}
+                          canDelete={permissions.includes("APPEARANCE_APP_ICON_DELETE")}
+                          onChanged={(hasImage) => handleImageChanged("app-icon", hasImage)}
                         />
                         </div>
                       )}

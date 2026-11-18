@@ -58,6 +58,7 @@ from app.modules.settings.usecases import (
     UpdateBotSettingsUseCase,
     UpdateOAuthSettingsUseCase,
     UpdateShopSettingsUseCase,
+    UploadAppearanceAppIconUseCase,
     UploadAppearanceFaviconUseCase,
     UploadAppearanceLogoUseCase,
     get_bot_commands,
@@ -1270,6 +1271,31 @@ async def test_upload_favicon_accepts_small_square(
     )
 
     assert settings.has_favicon is True
+
+
+async def test_upload_app_icon_needs_512_px(
+    settings_repository: SettingsRepository, config: AppConfig, uow: UnitOfWork, tmp_path: Path
+) -> None:
+    use_case = UploadAppearanceAppIconUseCase(
+        settings_repository, _appearance_config(config, tmp_path), uow, RecordingEventPublisher()
+    )
+
+    with pytest.raises(ValidationError):
+        await use_case(
+            OWNER,
+            UploadAppearanceImageDto(
+                target=AppearanceTarget.CABINET, content_type="image/png", data=_png(256, 256)
+            ),
+        )
+    settings = await use_case(
+        OWNER,
+        UploadAppearanceImageDto(
+            target=AppearanceTarget.CABINET, content_type="image/png", data=_png(512, 512)
+        ),
+    )
+
+    assert settings.has_app_icon is True
+    assert settings.has_favicon is False
 
 
 async def test_get_appearance_image_missing_raises_not_found(

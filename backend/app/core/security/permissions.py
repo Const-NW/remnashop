@@ -113,6 +113,8 @@ class Permission(UpperStrEnum):
     APPEARANCE_LOGO_DELETE = auto()
     APPEARANCE_FAVICON_UPLOAD = auto()
     APPEARANCE_FAVICON_DELETE = auto()
+    APPEARANCE_APP_ICON_UPLOAD = auto()
+    APPEARANCE_APP_ICON_DELETE = auto()
     GATEWAYS_VIEW = auto()
     GATEWAYS_UPDATE = auto()
     GATEWAYS_ACTIVE_SET = auto()
@@ -363,6 +365,8 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.APPEARANCE_LOGO_DELETE: PermissionMeta(resource="appearance", kind="write"),
     Permission.APPEARANCE_FAVICON_UPLOAD: PermissionMeta(resource="appearance", kind="write"),
     Permission.APPEARANCE_FAVICON_DELETE: PermissionMeta(resource="appearance", kind="write"),
+    Permission.APPEARANCE_APP_ICON_UPLOAD: PermissionMeta(resource="appearance", kind="write"),
+    Permission.APPEARANCE_APP_ICON_DELETE: PermissionMeta(resource="appearance", kind="write"),
     Permission.GATEWAYS_VIEW: PermissionMeta(resource="gateways", kind="read"),
     Permission.GATEWAYS_UPDATE: PermissionMeta(resource="gateways", kind="write"),
     Permission.GATEWAYS_ACTIVE_SET: PermissionMeta(resource="gateways", kind="write"),

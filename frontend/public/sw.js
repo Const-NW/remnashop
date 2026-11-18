@@ -14,7 +14,8 @@ self.addEventListener("push", (event) => {
     Promise.all([
       self.registration.showNotification(data.title || "Remnashop", {
         body: data.body || "",
-        icon: "/favicon.svg",
+        icon: data.icon || "/favicon.svg",
+        badge: "/badge-96.png",
         tag: data.tag || "remnashop",
         renotify: true,
         data: { url: data.url || "/dashboard" },

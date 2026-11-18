@@ -8,27 +8,40 @@ from pywebpush import WebPushException, webpush
 
 from app.core.constants import TTL_1D
 from app.core.db.uow import UnitOfWork
-from app.core.enums import SessionAudience
+from app.core.enums import AppearanceTarget, SessionAudience
 from app.core.utils.telegram_text import premium_emoji_glyphs
 from app.modules.notifications.dto import PushMessage, PushSubscriptionDto
 from app.modules.notifications.repository import NotificationRepository
+from app.modules.settings import SettingsRepository, push_icon_path
 
 _TTL_SECONDS: Final[int] = TTL_1D
 _TIMEOUT_SECONDS: Final[float] = 10.0
 _GONE_STATUSES: Final[frozenset[int]] = frozenset({404, 410})
 # our payload was too big, not the device's fault
 _PAYLOAD_TOO_LARGE: Final[int] = 413
+_APPEARANCE_BY_AUDIENCE: Final[dict[SessionAudience, AppearanceTarget]] = {
+    SessionAudience.DASHBOARD: AppearanceTarget.DASHBOARD,
+    SessionAudience.CABINET: AppearanceTarget.CABINET,
+}
 
 
 class WebPushSender:
-    def __init__(self, notification_repository: NotificationRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        notification_repository: NotificationRepository,
+        settings_repository: SettingsRepository,
+        uow: UnitOfWork,
+    ) -> None:
         self._repository = notification_repository
+        self._settings_repository = settings_repository
         self._uow = uow
 
     async def send(self, user_id: int, message: PushMessage, audience: SessionAudience) -> int:
         async with self._uow:
             settings = await self._repository.get_settings()
             subscriptions = await self._repository.list_push_subscriptions(user_id, audience)
+            target = _APPEARANCE_BY_AUDIENCE[audience]
+            appearance = await self._settings_repository.get_appearance_settings(target)
         if settings.vapid_private_key is None or not subscriptions:
             return 0
         if settings.vapid_contact is None:
@@ -43,8 +56,9 @@ class WebPushSender:
             "url": message.url,
             "tag": message.tag,
         }
-        if message.icon is not None:
-            fields["icon"] = message.icon
+        icon = push_icon_path(target, appearance)
+        if icon is not None:
+            fields["icon"] = icon
         payload = json.dumps(fields)
         delivered = 0
         for subscription in subscriptions:

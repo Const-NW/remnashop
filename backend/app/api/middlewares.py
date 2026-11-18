@@ -16,9 +16,9 @@ from app.core.error_codes import ErrorCode
 _DEFAULT_BODY_LIMIT: Final[int] = 1024 * 1024
 # image uploads: the largest per-route file cap (banners, 5 MB) plus multipart framing
 _UPLOAD_BODY_LIMIT: Final[int] = 6 * 1024 * 1024
-# PUT /settings/appearance/{target}/{logo,favicon}
+# PUT /settings/appearance/{target}/{logo,favicon,app-icon}
 _APPEARANCE_UPLOAD_RE: Final[re.Pattern[str]] = re.compile(
-    rf"^{API_V1}/settings/appearance/[a-z]+/(?:logo|favicon)$"
+    rf"^{API_V1}/settings/appearance/[a-z]+/(?:logo|favicon|app-icon)$"
 )
 # PUT /banners/{name}/{locale}
 _BANNER_UPLOAD_PREFIX: Final[str] = f"{API_V1}/banners/"

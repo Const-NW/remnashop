@@ -187,7 +187,6 @@ class PushMessage:
     body: str
     url: str
     tag: str
-    icon: Optional[str] = None
 
 
 @dataclass(frozen=True, kw_only=True)

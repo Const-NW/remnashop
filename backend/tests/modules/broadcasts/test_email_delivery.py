@@ -426,12 +426,12 @@ async def test_canceled_stops_chain(
     assert email_dispatch.messages == []
 
 
-# customers see the cabinet's logo first, the dashboard's when the cabinet has none
+# customers see only the cabinet's logo
 @pytest.mark.parametrize(
     ("logo_targets", "expected_logo"),
     [
         ((), None),
-        ((AppearanceTarget.DASHBOARD,), b"dashboard"),
+        ((AppearanceTarget.DASHBOARD,), None),
         ((AppearanceTarget.CABINET,), b"cabinet"),
         ((AppearanceTarget.DASHBOARD, AppearanceTarget.CABINET), b"cabinet"),
     ],

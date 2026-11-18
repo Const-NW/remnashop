@@ -5,7 +5,14 @@ from app.core.enums import AppearanceTarget
 from app.core.events import ActorEvent, EventCategory, SystemEvent
 
 AppearanceAction: TypeAlias = Literal[
-    "favicon_delete", "favicon_upload", "logo_delete", "logo_upload", "reset", "update"
+    "app_icon_delete",
+    "app_icon_upload",
+    "favicon_delete",
+    "favicon_upload",
+    "logo_delete",
+    "logo_upload",
+    "reset",
+    "update",
 ]
 
 

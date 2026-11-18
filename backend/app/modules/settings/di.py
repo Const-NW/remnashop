@@ -3,6 +3,7 @@ from dishka import Provider, Scope, provide, provide_all
 from app.modules.settings.bot_commands_sync import BotCommandsPusher
 from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.usecases import (
+    DeleteAppearanceAppIconUseCase,
     DeleteAppearanceFaviconUseCase,
     DeleteAppearanceLogoUseCase,
     GetAccessSettingsUseCase,
@@ -34,6 +35,7 @@ from app.modules.settings.usecases import (
     UpdateEmailSettingsUseCase,
     UpdateOAuthSettingsUseCase,
     UpdateShopSettingsUseCase,
+    UploadAppearanceAppIconUseCase,
     UploadAppearanceFaviconUseCase,
     UploadAppearanceLogoUseCase,
 )
@@ -76,8 +78,10 @@ class SettingsProvider(Provider):
         ResetEmailSettingsUseCase,
         UploadAppearanceLogoUseCase,
         UploadAppearanceFaviconUseCase,
+        UploadAppearanceAppIconUseCase,
         DeleteAppearanceLogoUseCase,
         DeleteAppearanceFaviconUseCase,
+        DeleteAppearanceAppIconUseCase,
     )
     bot_commands_sync = provide(BotCommandsPusher, provides=BotCommandsSync)
 

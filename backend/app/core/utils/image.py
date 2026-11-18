@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 from io import BytesIO
 from typing import Final, Optional
 
+import resvg_py
 from PIL import Image, UnidentifiedImageError
 
 # The declared content type proves nothing; the magic bytes are checked too.
@@ -99,3 +100,21 @@ def read_svg_size(data: bytes) -> Optional[tuple[float, float]]:
     if size is None or size[0] <= 0 or size[1] <= 0:
         return None
     return size
+
+
+# None for an href that is not in-document: resvg reads a file path off the disk.
+def svg_to_png(data: bytes, side: int) -> Optional[bytes]:
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError:
+        return None
+    for element in root.iter():
+        for name, value in element.attrib.items():
+            if _local_name(name) == "href" and not value.strip().startswith(("#", "data:")):
+                return None
+    try:
+        return resvg_py.svg_to_bytes(
+            svg_string=data.decode("utf-8"), width=side, height=side, skip_system_fonts=True
+        )
+    except (UnicodeDecodeError, ValueError):
+        return None

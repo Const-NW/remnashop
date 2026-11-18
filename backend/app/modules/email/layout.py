@@ -21,26 +21,23 @@ class _AppearanceSource(Protocol):
     async def get_appearance_settings(self, target: AppearanceTarget) -> AppearanceSettingsDto: ...
 
 
-# emails go to customers: the cabinet's appearance, the dashboard's for whatever it leaves unset
+# emails go to customers: the cabinet's appearance
 async def load_email_brand(settings_repository: _AppearanceSource) -> EmailBrandDto:
     cabinet = await settings_repository.get_appearance_settings(AppearanceTarget.CABINET)
-    dashboard = await settings_repository.get_appearance_settings(AppearanceTarget.DASHBOARD)
     return EmailBrandDto(
-        brand=cabinet.brand_name or dashboard.brand_name or _DEFAULT_BRAND,
-        color=cabinet.primary_color or dashboard.primary_color,
-        has_logo=cabinet.has_logo or dashboard.has_logo,
+        brand=cabinet.brand_name or _DEFAULT_BRAND,
+        color=cabinet.primary_color,
+        has_logo=cabinet.has_logo,
     )
 
 
 async def load_email_logo_image(
     appearance: GetPublicAppearanceImageUseCase,
 ) -> Optional[AppearanceImageDto]:
-    for target in (AppearanceTarget.CABINET, AppearanceTarget.DASHBOARD):
-        try:
-            return await appearance.execute(target, AppearanceImageKind.LOGO)
-        except NotFoundError:
-            continue
-    return None
+    try:
+        return await appearance.execute(AppearanceTarget.CABINET, AppearanceImageKind.LOGO)
+    except NotFoundError:
+        return None
 
 
 def brand_accent(color: Optional[str]) -> str:

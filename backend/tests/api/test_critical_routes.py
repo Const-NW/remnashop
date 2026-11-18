@@ -191,8 +191,9 @@ async def test_public_appearance_needs_no_session(client: httpx.AsyncClient) -> 
     assert response.json()["has_logo"] is False
 
 
-async def test_cabinet_manifest_is_public(client: httpx.AsyncClient) -> None:
-    response = await client.get(f"{API_V1}/appearance/cabinet/manifest.webmanifest")
+@pytest.mark.parametrize("target", ["dashboard", "cabinet"])
+async def test_manifest_is_public(client: httpx.AsyncClient, target: str) -> None:
+    response = await client.get(f"{API_V1}/appearance/{target}/manifest.webmanifest")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/manifest+json")
@@ -202,7 +203,7 @@ async def test_cabinet_manifest_is_public(client: httpx.AsyncClient) -> None:
 
 async def test_public_appearance_images_404_when_unset(client: httpx.AsyncClient) -> None:
     for target in ("dashboard", "cabinet"):
-        for kind in ("logo", "favicon"):
+        for kind in ("logo", "favicon", "app-icon"):
             response = await client.get(f"{API_V1}/appearance/{target}/{kind}")
             assert response.status_code == 404
             assert response.json()["detail"] != "Not Found"  # usecase miss, not an unrouted path
@@ -242,6 +243,36 @@ async def test_cabinet_logo_is_separate_from_dashboard(
 
     assert cabinet.content == _SVG_LOGO
     assert dashboard.json()["has_logo"] is False
+
+
+async def test_tab_icon_redirects_to_the_default_when_unset(client: httpx.AsyncClient) -> None:
+    for target in ("dashboard", "cabinet"):
+        response = await client.get(f"{API_V1}/appearance/{target}/tab-icon")
+
+        assert response.status_code == 307
+        assert response.headers["location"] == "/favicon.svg"
+        assert response.headers["cache-control"] == "no-cache"
+
+
+async def test_tab_icon_serves_only_its_own_favicon(
+    client: httpx.AsyncClient, owner_headers: dict[str, str]
+) -> None:
+    upload = await client.put(
+        f"{API_V1}/settings/appearance/dashboard/favicon",
+        files={"file": ("favicon.svg", _SVG_LOGO, "image/svg+xml")},
+        headers=owner_headers,
+    )
+    assert upload.status_code == 200
+
+    dashboard = await client.get(f"{API_V1}/appearance/dashboard/tab-icon")
+    cabinet = await client.get(f"{API_V1}/appearance/cabinet/tab-icon")
+
+    assert dashboard.status_code == 200
+    assert dashboard.content == _SVG_LOGO
+    assert dashboard.headers["cache-control"] == "no-cache"
+    assert "sandbox" in dashboard.headers["content-security-policy"]
+    assert cabinet.status_code == 307
+    assert cabinet.headers["location"] == "/favicon.svg"
 
 
 @pytest.mark.parametrize(
