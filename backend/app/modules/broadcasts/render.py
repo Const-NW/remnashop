@@ -6,7 +6,7 @@ from typing import Any, Final, Optional
 from fluent_compiler.bundle import FluentBundle
 from loguru import logger
 
-from app.core.constants import T_ME
+from app.core.constants import CUSTOMER_NOTIFICATION_CLOSE_CALLBACK, T_ME
 from app.core.enums import BroadcastButtonKind, Locale
 from app.modules.broadcasts.content import render_text
 from app.modules.broadcasts.dto import (
@@ -85,6 +85,9 @@ class BroadcastRenderer:
                 return {"callback_data": "bc:menu"}
             if link:
                 return {"url": f"{link}?start={_MENU_START_PAYLOAD}"}
+        # a subscriber can't delete a channel post
+        if button.kind is BroadcastButtonKind.CLOSE and not channel:
+            return {"callback_data": CUSTOMER_NOTIFICATION_CLOSE_CALLBACK}
         return None
 
     def _keyboard(
