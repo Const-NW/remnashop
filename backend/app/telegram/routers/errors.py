@@ -15,7 +15,7 @@ from app.modules.settings import GetShopSettingsUseCase
 from app.modules.users import UserDto
 from app.telegram.dialogs.rendering import label_with_icon
 from app.telegram.i18n import get_translator
-from app.telegram.notice import answer_notice
+from app.telegram.notice import answer_notice, delete_or_strip
 from app.telegram.states import MainMenu
 
 # ErrorMiddleware has logged the exception already. A raise from in here is not
@@ -33,8 +33,8 @@ async def on_lost_context(
     if callback is not None:
         with suppress(TelegramAPIError):
             await callback.answer()
-            if isinstance(callback.message, Message):
-                await callback.message.delete()
+        if isinstance(callback.message, Message):
+            await delete_or_strip(callback.message)
     if user is None or user.is_blocked:
         # raised ahead of the user and blacklist middlewares
         return

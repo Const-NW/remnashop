@@ -19,6 +19,16 @@ async def _delete_after(message: Message, seconds: int) -> None:
         await message.delete()
 
 
+async def delete_or_strip(message: Message) -> None:
+    """A bot can't delete its message older than 48 hours: its buttons go instead."""
+    try:
+        await message.delete()
+    except TelegramAPIError:
+        # already gone, e.g. a double tap
+        with suppress(TelegramAPIError):
+            await message.edit_reply_markup(reply_markup=None)
+
+
 def delete_later(message: Message, seconds: int) -> None:
     """Removes a sent message after `seconds`; a restart before then leaves it in the chat."""
     task = asyncio.create_task(_delete_after(message, seconds))

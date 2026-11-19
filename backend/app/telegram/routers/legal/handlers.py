@@ -32,6 +32,7 @@ from app.telegram.legal_gate import (
     legal_gate_keyboard,
 )
 from app.telegram.middlewares.requirements import ask_requirement
+from app.telegram.notice import delete_or_strip
 from app.telegram.routers.legal.keyboard import close_keyboard, legal_keyboard
 from app.telegram.routers.requirements.handlers import continue_requirements
 
@@ -142,11 +143,11 @@ async def _refresh_list(
         for button in row
     ):
         return
+    if not documents:
+        await delete_or_strip(message)
+        return
     with suppress(TelegramAPIError):
-        if documents:
-            await message.edit_reply_markup(reply_markup=legal_keyboard(runner, documents))
-        else:
-            await message.delete()
+        await message.edit_reply_markup(reply_markup=legal_keyboard(runner, documents))
 
 
 @router.callback_query(LegalAcceptCallback.filter())
@@ -175,7 +176,7 @@ async def on_legal_accept(
     if pending.documents:
         runner = get_translator(i18n, user)
         if isinstance(callback.message, Message):
-            await callback.message.delete()
+            await delete_or_strip(callback.message)
         await ask_requirement(
             callback,
             render_window_text(

@@ -1,8 +1,6 @@
-from contextlib import suppress
 from typing import Any
 
 from aiogram import F, Router
-from aiogram.exceptions import TelegramAPIError
 from aiogram.types import CallbackQuery, Message
 from aiogram_dialog import DialogManager, ShowMode, StartMode
 from dishka import FromDishka
@@ -20,7 +18,7 @@ from app.modules.subscriptions import ListOwnSubscriptionsUseCase
 from app.modules.users import UserDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
 from app.telegram.i18n import get_translator
-from app.telegram.notice import answer_notice
+from app.telegram.notice import answer_notice, delete_or_strip
 from app.telegram.states import MainMenu, Purchase
 
 router = Router(name=__name__)
@@ -29,9 +27,7 @@ router = Router(name=__name__)
 @router.callback_query(F.data == CUSTOMER_NOTIFICATION_CLOSE_CALLBACK)
 async def on_notification_close(callback: CallbackQuery) -> None:
     if isinstance(callback.message, Message):
-        # a double tap finds the message already gone
-        with suppress(TelegramAPIError):
-            await callback.message.delete()
+        await delete_or_strip(callback.message)
     await callback.answer()
 
 
