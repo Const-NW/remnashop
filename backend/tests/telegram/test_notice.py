@@ -3,10 +3,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.methods import DeleteMessage
 from aiogram.types import CallbackQuery, Message
 
 import app.telegram.notice as notice
-from app.telegram.notice import answer_notice
+from app.telegram.notice import answer_notice, delete_or_strip
 
 
 @pytest.fixture(autouse=True)
@@ -64,3 +66,38 @@ async def test_premium_emoji_markup_becomes_a_tg_emoji() -> None:
         parse_mode=ParseMode.HTML,
         reply_markup=None,
     )
+
+
+def _undeletable() -> TelegramBadRequest:
+    return TelegramBadRequest(
+        DeleteMessage(chat_id=1, message_id=1), "message can't be deleted for everyone"
+    )
+
+
+async def test_delete_or_strip_deletes_the_message() -> None:
+    message = MagicMock(spec=Message, delete=AsyncMock(), edit_reply_markup=AsyncMock())
+
+    await delete_or_strip(message)
+
+    message.delete.assert_awaited_once()
+    message.edit_reply_markup.assert_not_awaited()
+
+
+async def test_a_message_too_old_to_delete_loses_its_buttons() -> None:
+    message = MagicMock(
+        spec=Message, delete=AsyncMock(side_effect=_undeletable()), edit_reply_markup=AsyncMock()
+    )
+
+    await delete_or_strip(message)
+
+    message.edit_reply_markup.assert_awaited_once_with(reply_markup=None)
+
+
+async def test_a_message_already_gone_is_left_alone() -> None:
+    message = MagicMock(
+        spec=Message,
+        delete=AsyncMock(side_effect=_undeletable()),
+        edit_reply_markup=AsyncMock(side_effect=_undeletable()),
+    )
+
+    await delete_or_strip(message)

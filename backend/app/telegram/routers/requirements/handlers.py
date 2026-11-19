@@ -24,7 +24,7 @@ from app.telegram.middlewares.requirements import (
     channel_member_key,
     is_channel_member,
 )
-from app.telegram.notice import answer_notice
+from app.telegram.notice import answer_notice, delete_or_strip
 from app.telegram.replay import replay_later
 from app.telegram.states import MainMenu
 
@@ -39,7 +39,7 @@ async def _resume(
     dispatcher: Dispatcher,
 ) -> None:
     if isinstance(callback.message, Message):
-        await callback.message.delete()
+        await delete_or_strip(callback.message)
     # the message a requirement stopped (a /start deep link) goes on where it was headed
     stopped = await redis.getdel(gate_message_key(user.id))
     if stopped is not None and callback.bot is not None:
@@ -82,7 +82,7 @@ async def continue_requirements(
     if not await _is_subscribed(callback, user, requirements, redis, report):
         runner = get_translator(i18n, user)
         if isinstance(callback.message, Message):
-            await callback.message.delete()
+            await delete_or_strip(callback.message)
         await ask_requirement(
             callback,
             plain_to_html(runner.get("ntf-requirements.channel")),
