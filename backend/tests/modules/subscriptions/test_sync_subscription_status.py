@@ -422,6 +422,34 @@ async def test_sync_keeps_the_panel_users_creation_date(
         assert abs((stored.panel_created_at - at).total_seconds()) < 1
 
 
+async def test_an_expiry_moved_in_the_panel_drops_the_term_anchor(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    subscription_id = await _create_subscription(
+        subscription_repository, user_repository, 71903, SubscriptionStatus.ACTIVE
+    )
+    await subscription_repository.set_term_anchor_day(subscription_id, 31)
+
+    await SyncSubscriptionStatusUseCase(
+        subscription_repository,
+        uow,
+        event_publisher,
+        SubscriptionLifecycleService(subscription_repository),
+    ).system(
+        SyncSubscriptionStatusDto(
+            remnawave_user_id=71903,
+            status=SubscriptionStatus.ACTIVE,
+            source="webhook",
+            expire_at=datetime_now() + timedelta(days=50),
+        )
+    )
+
+    assert (await subscription_repository.get_by_id(subscription_id)).term_anchor_day is None
+
+
 async def test_synced_event_carries_the_owner(
     session: AsyncSession,
     subscription_repository: SubscriptionRepository,

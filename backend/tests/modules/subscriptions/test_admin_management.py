@@ -978,6 +978,40 @@ async def test_limits_are_restored_in_the_panel_when_deleted_mid_edit(
     assert row.device_limit != devices_before + 5
 
 
+async def test_a_hand_set_expiry_drops_the_term_anchor(
+    grant_use_case: GrantSubscriptionUseCase,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    remnawave_sdk: RemnawaveSDK,
+    event_publisher: EventPublisher,
+    uow: UnitOfWork,
+) -> None:
+    recipient = await user_repository.create(CreateUserDto(name="r", telegram_id=9291))
+    plan = await _plan(plan_repository, "grant-anchor")
+    granted = await grant_use_case(
+        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=30)
+    )
+    await subscription_repository.set_term_anchor_day(granted.id, 31)
+    use_case = UpdateSubscriptionUseCase(
+        subscription_repository,
+        UserRepository(subscription_repository.session),
+        remnawave_sdk,
+        event_publisher,
+        uow,
+        SubscriptionLifecycleService(subscription_repository),
+    )
+
+    updated = await use_case(
+        OWNER,
+        UpdateSubscriptionDto(
+            subscription_id=granted.id, expire_at=datetime_now() + timedelta(days=45)
+        ),
+    )
+
+    assert updated.term_anchor_day is None
+
+
 async def test_an_admin_can_neither_see_nor_touch_the_owners_own_subscription(
     grant_use_case: GrantSubscriptionUseCase,
     user_repository: UserRepository,

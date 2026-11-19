@@ -26,3 +26,6 @@ class SubscriptionPurchaseIdempotency(BaseSql, TimestampMixin):
     renew_expire_at: Mapped[Optional[datetime]]
     # the days that expiry adds, for a refund of an unfinished renewal to take back
     renew_added_days: Mapped[Optional[int]]
+    # the anchor day it leaves on the row: a retry can't work it out from the end
+    # alone, a shorter month having cut it
+    renew_anchor_day: Mapped[Optional[int]]

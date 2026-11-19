@@ -142,7 +142,7 @@ class RenewPurchase:
             # own: a row behind the panel still adds them all, its end a day or
             # two off the same date
             base = max(target.expire_at, datetime_now())
-            anchor = target.term_anchor_day
+            anchor = _live_anchor(target)
             added_days = term_days(
                 base,
                 expiry_after(
@@ -197,9 +197,11 @@ class RenewPurchase:
                 days=added_days,
                 previous_expire_at=target.expire_at,
             )
-            if anchor_day is not None and anchor_day != subscription.term_anchor_day:
-                await self._subscription_repository.set_term_anchor_day(subscription.id, anchor_day)
-                subscription = await self._subscription_repository.get_by_id(subscription.id)
+            # plain days and day terms clear it: their end sits off any anchor
+            if anchor_day != subscription.term_anchor_day:
+                subscription = await self._subscription_repository.set_term_anchor_day(
+                    subscription.id, anchor_day
+                )
             # only what reached the panel: the row must not claim a tag the panel lacks
             if tag_applied and subscription.tag != data.plan_snapshot.tag:
                 subscription = await self._subscription_repository.set_tag(
@@ -293,7 +295,8 @@ class RenewPurchase:
         async with self._uow:
             pinned = await self._idempotency.find_pending_renew_expire_at(key)
             added_days = await self._idempotency.find_pending_renew_added_days(key)
-        anchor = target.term_anchor_day
+            anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
+        anchor = _live_anchor(target)
         if pinned is None:
             base = await self._renewal_base(target)
             # ms-truncated so the pinned value compares equal to the panel's
@@ -307,14 +310,12 @@ class RenewPurchase:
             )
             added_days = term_days(base, pinned, data.duration_days)
             async with self._uow:
-                await self._idempotency.pin_renew_expire_at(key, pinned, added_days, token)
+                await self._idempotency.pin_renew_expire_at(
+                    key, pinned, added_days, anchor_day, token
+                )
             keep_key()
         else:
             keep_key()
-            # a retry has no base: the pinned end keeps the anchor it sits on
-            anchor_day = term_anchor(
-                pinned, data.duration_days, exact_days=data.exact_days, anchor_day=anchor
-            )
             if added_days is None:
                 # pinned before the column existed, when a term was plain days
                 added_days = data.duration_days
@@ -326,3 +327,8 @@ class RenewPurchase:
             UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=pinned)
         )
         return pinned, added_days, anchor_day
+
+
+def _live_anchor(target: SubscriptionDto) -> Optional[int]:
+    """A lapsed subscription starts a new term today: its old anchor doesn't apply."""
+    return target.term_anchor_day if target.expire_at > datetime_now() else None

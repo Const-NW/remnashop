@@ -106,8 +106,19 @@ class PurchaseIdempotencyRepository:
             return None
         return row.renew_added_days
 
+    async def find_pending_renew_anchor_day(self, key: str) -> Optional[int]:
+        row = await self.session.get(SubscriptionPurchaseIdempotency, key)
+        if row is None or row.subscription_id is not None:
+            return None
+        return row.renew_anchor_day
+
     async def pin_renew_expire_at(
-        self, key: str, expire_at: datetime, added_days: int, token: Optional[datetime]
+        self,
+        key: str,
+        expire_at: datetime,
+        added_days: int,
+        anchor_day: Optional[int],
+        token: Optional[datetime],
     ) -> None:
         # pinned before the panel write: an attempt that lost its claim must not write at all
         result = await self.session.execute(
@@ -117,7 +128,11 @@ class PurchaseIdempotencyRepository:
                 SubscriptionPurchaseIdempotency.created_at == token,
                 SubscriptionPurchaseIdempotency.subscription_id.is_(None),
             )
-            .values(renew_expire_at=expire_at, renew_added_days=added_days)
+            .values(
+                renew_expire_at=expire_at,
+                renew_added_days=added_days,
+                renew_anchor_day=anchor_day,
+            )
             .execution_options(synchronize_session=False)
         )
         if cast(CursorResult, result).rowcount == 0:

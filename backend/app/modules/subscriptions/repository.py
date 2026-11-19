@@ -587,12 +587,15 @@ class SubscriptionRepository:
             .values(panel_created_at=at)
         )
 
-    async def set_term_anchor_day(self, subscription_id: int, day: int) -> None:
-        await self.session.execute(
-            update(Subscription)
-            .where(Subscription.id == subscription_id)
-            .values(term_anchor_day=day)
-        )
+    async def set_term_anchor_day(
+        self, subscription_id: int, day: Optional[int]
+    ) -> SubscriptionDto:
+        row = await self._get_or_raise(subscription_id)
+        row.term_anchor_day = day
+        await self.session.flush()
+        await self.session.refresh(row)
+        entitlements_by_subscription = await self._load_entitlements([row.id])
+        return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
 
     async def set_panel_created_at_many(self, created_at: dict[int, datetime]) -> None:
         """One executemany for a whole panel sync, keyed by remnawave_user_id."""

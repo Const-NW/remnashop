@@ -576,10 +576,11 @@ async def test_monthly_renewals_come_back_to_the_anchor_day(
     # plain days move the end off the anchor (May 31st + 60 days = July 30th);
     # the next month counts from there
     for _ in range(2):
-        await use_case(
+        renewed = await use_case(
             buyer,
             _order(PurchaseType.RENEW, target_subscription_id=original.id, exact_days=True),
         )
+        assert renewed.term_anchor_day is None
     renewed = await use_case(buyer, _order(PurchaseType.RENEW, target_subscription_id=original.id))
     assert renewed.expire_at.date().isoformat() == "2027-08-30"
     assert renewed.term_anchor_day == 30
@@ -2448,6 +2449,52 @@ async def test_a_renew_whose_db_write_failed_is_completed_by_the_retry_without_e
     assert linked == original.id
     # a third delivery is a plain replay of the finished purchase
     assert (await use_case(buyer, renewal)).id == original.id
+
+
+async def test_a_renew_retry_keeps_the_anchor_it_pinned(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    session: AsyncSession,
+) -> None:
+    use_case, lifecycle, buyer, original, renewal = await _renew_fixture(
+        plan_repository,
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_sdk,
+        uow,
+        event_publisher,
+        telegram_id=433,
+        public_code="renew-retry-anchor",
+    )
+    end = datetime(2027, 1, 31, 12, tzinfo=original.expire_at.tzinfo)
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == original.id)
+        .values(expire_at=end, term_anchor_day=None)
+    )
+    remnawave_store[original.remnawave_user_id]["expireAt"] = end.isoformat()
+    real_renew = lifecycle.renew
+
+    async def _fail(*_args: object, **_kwargs: object) -> SubscriptionDto:
+        raise RuntimeError("DB write failed after the panel call landed")
+
+    lifecycle.renew = _fail  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError):
+        await use_case(buyer, renewal)
+    lifecycle.renew = real_renew  # type: ignore[method-assign]
+
+    renewed = await use_case(buyer, renewal)
+
+    # cut to February 28th; the retry still knows the term started on the 31st
+    assert renewed.expire_at.date().isoformat() == "2027-02-28"
+    assert renewed.term_anchor_day == 31
 
 
 async def test_a_renew_whose_panel_response_was_lost_is_not_applied_twice(

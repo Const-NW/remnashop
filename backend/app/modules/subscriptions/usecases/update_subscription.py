@@ -97,6 +97,11 @@ class UpdateSubscriptionUseCase(UseCase[UpdateSubscriptionDto, SubscriptionDto])
             async with self._uow:
                 await lock_live_subscription(self._subscription_repository, data.subscription_id)
                 subscription = await self._subscription_repository.update(data)
+                if data.expire_at is not None:
+                    # a hand-set end: the next calendar term counts from its day
+                    subscription = await self._subscription_repository.set_term_anchor_day(
+                        subscription.id, None
+                    )
                 if panel_status is not None:
                     subscription = await self._lifecycle_service.sync_status(
                         subscription.id, panel_status
