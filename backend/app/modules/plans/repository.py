@@ -145,6 +145,7 @@ class PlanRepository:
             )
             for item in translations
         )
+        await self.session.flush()
 
     async def _to_dtos(self, rows: list[Plan]) -> list[PlanDto]:
         plan_ids = [row.id for row in rows]
