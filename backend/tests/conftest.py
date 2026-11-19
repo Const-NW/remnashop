@@ -138,7 +138,10 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
     async with engine.connect() as connection:
         transaction = await connection.begin()
         async_session = AsyncSession(
-            bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
+            bind=connection,
+            expire_on_commit=False,
+            autoflush=False,
+            join_transaction_mode="create_savepoint",
         )
         yield async_session
         await async_session.close()

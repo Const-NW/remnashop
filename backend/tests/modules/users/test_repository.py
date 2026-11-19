@@ -498,6 +498,7 @@ async def test_list_filtered_filters_by_subscription_trial_and_created_to(
     old = await _create_user(user_repository, uow, name="Old")
     _add_subscription(session, subscribed.id, SubscriptionStatus.ACTIVE, remnawave_user_id=701)
     _add_subscription(session, expired.id, SubscriptionStatus.EXPIRED, remnawave_user_id=702)
+    await session.flush()
     await session.execute(
         update(User)
         .where(User.id == old.id)
@@ -536,6 +537,7 @@ async def test_list_stats_counts_within_roles(
     _add_subscription(session, staff.id, SubscriptionStatus.ACTIVE, remnawave_user_id=804)
     _add_subscription(session, last_week.id, SubscriptionStatus.EXPIRED, remnawave_user_id=805)
     _add_subscription(session, last_week.id, SubscriptionStatus.LIMITED, remnawave_user_id=806)
+    await session.flush()
     await session.execute(
         update(User)
         .where(User.id == blocked.id)
