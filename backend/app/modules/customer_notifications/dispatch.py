@@ -24,6 +24,7 @@ class NotifyCustomerDispatch(Protocol):
         payment_key: Optional[str] = None,
         subscription_id: Optional[int] = None,
         telegram_refused: bool = False,
+        cooldown_until: Optional[str] = None,
     ) -> object: ...
 
 

@@ -159,6 +159,7 @@ class _Fixture:
         subscription_id: Optional[int] = None,
         telegram_refused: bool = False,
         args: Optional[dict[str, Union[str, int]]] = None,
+        cooldown_until: Optional[str] = None,
     ) -> None:
         await self.use_case.system(
             NotifyCustomerDto(
@@ -169,6 +170,7 @@ class _Fixture:
                 payment_key=payment_key,
                 subscription_id=subscription_id,
                 telegram_refused=telegram_refused,
+                cooldown_until=cooldown_until,
             )
         )
 
@@ -236,6 +238,7 @@ async def test_telegram_and_email_both_queued(fx: _Fixture) -> None:
                 "payment_key": None,
                 "subscription_id": None,
                 "telegram_refused": False,
+                "cooldown_until": None,
             },
             "html": True,
         }
@@ -348,15 +351,61 @@ def test_counter_is_in_the_worker_registry() -> None:
     )
 
 
-async def test_torrent_warning_is_sent_once_a_day_per_user(fx: _Fixture) -> None:
+def _block(minutes: int = 5) -> str:
+    return (datetime_now() + timedelta(minutes=minutes)).isoformat()
+
+
+async def test_torrent_warning_is_sent_once_per_block_per_user(fx: _Fixture) -> None:
     first = await fx.create(name="a", telegram_id=8101)
     second = await fx.create(name="b", telegram_id=8102)
 
-    await fx.notify(first, "TorrentBlockerReportEvent", outbox_id=11)
-    await fx.notify(first, "TorrentBlockerReportEvent", outbox_id=12)
-    await fx.notify(second, "TorrentBlockerReportEvent", outbox_id=13)
+    await fx.notify(first, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=11)
+    await fx.notify(first, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=12)
+    await fx.notify(second, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=13)
 
     assert [m["user_id"] for m in fx.telegram.messages] == [first.id, second.id]
+
+
+def _torrent_cooldown_key(user: UserDto) -> str:
+    return f"{REDIS_KEY_PREFIX}customer_cooldown:TorrentBlockerReportEvent:{user.id}"
+
+
+async def test_a_new_torrent_block_after_the_last_one_ended_is_told(
+    fx: _Fixture, redis: Redis
+) -> None:
+    user = await fx.create(name="a", telegram_id=8105)
+
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(60), outbox_id=14)
+    # lasts as long as the block
+    assert 59 * 60 < await redis.ttl(_torrent_cooldown_key(user)) <= 60 * 60
+    # the first block ran out
+    await redis.delete(_torrent_cooldown_key(user))
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(60), outbox_id=15)
+
+    assert len(fx.telegram.messages) == 2
+
+
+@pytest.mark.parametrize("until", [-1, 1, "garbage", "2026-01-01T00:00:00"])
+async def test_a_torrent_cooldown_never_drops_below_the_floor(
+    fx: _Fixture, redis: Redis, until: Union[int, str]
+) -> None:
+    # minutes from now, computed here and not at collection
+    until = _block(until) if isinstance(until, int) else until
+    user = await fx.create(name="a", telegram_id=8106)
+
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=until, outbox_id=18)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=until, outbox_id=19)
+
+    assert len(fx.telegram.messages) == 1
+    assert 14 * 60 < await redis.ttl(_torrent_cooldown_key(user)) <= 15 * 60
+
+
+async def test_a_long_torrent_block_is_quiet_for_a_day_at_most(fx: _Fixture, redis: Redis) -> None:
+    user = await fx.create(name="a", telegram_id=8107)
+
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(30 * 24 * 60))
+
+    assert 23 * 3600 < await redis.ttl(_torrent_cooldown_key(user)) <= 24 * 3600
 
 
 async def test_failed_torrent_warning_can_be_retried(fx: _Fixture) -> None:
@@ -368,10 +417,10 @@ async def test_failed_torrent_warning_can_be_retried(fx: _Fixture) -> None:
     original = fx.telegram.kiq
     fx.telegram.kiq = boom  # type: ignore[method-assign]
     with pytest.raises(RetryableTaskError):
-        await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=21)
+        await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=21)
 
     fx.telegram.kiq = original  # type: ignore[method-assign]
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=21)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=21)
 
     assert len(fx.telegram.messages) == 1
 
@@ -390,13 +439,25 @@ async def test_bot_blocked_customer_gets_email_instead(fx: _Fixture) -> None:
 async def test_a_refused_telegram_send_goes_out_by_email(fx: _Fixture) -> None:
     user = await fx.create(name="a", telegram_id=8202, email="a@example.com")
     # the cooldown run already took its slot when Telegram refused
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=41)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=41)
     assert fx.email.messages == []
     async with fx.uow:
         await fx.users.set_bot_blocked(user.id, True)
 
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=41, telegram_refused=True)
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=41, telegram_refused=True)
+    await fx.notify(
+        user,
+        "TorrentBlockerReportEvent",
+        cooldown_until=_block(),
+        outbox_id=41,
+        telegram_refused=True,
+    )
+    await fx.notify(
+        user,
+        "TorrentBlockerReportEvent",
+        cooldown_until=_block(),
+        outbox_id=41,
+        telegram_refused=True,
+    )
 
     assert len(fx.telegram.messages) == 1
     assert [m["to"] for m in fx.email.messages] == ["a@example.com"]
@@ -423,11 +484,11 @@ async def test_a_torrent_warning_that_failed_before_sending_is_retried(
 
     monkeypatch.setattr(fx.tokens, "get_bot_token", unavailable)
     with pytest.raises(RetryableTaskError):
-        await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=31)
+        await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=31)
     monkeypatch.undo()
 
     # the failed run left no cooldown behind for the retry to trip over
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=31)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=31)
 
     assert len(fx.telegram.messages) == 1
 
@@ -662,8 +723,8 @@ async def test_feed_not_duplicated_on_retry_after_channel_failure(
 async def test_feed_respects_cooldown(fx: _Fixture) -> None:
     user = await fx.create(name="f", telegram_id=8303)
 
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=61)
-    await fx.notify(user, "TorrentBlockerReportEvent", outbox_id=62)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=61)
+    await fx.notify(user, "TorrentBlockerReportEvent", cooldown_until=_block(), outbox_id=62)
 
     assert len(await fx.feed_rows(user)) == 1
 

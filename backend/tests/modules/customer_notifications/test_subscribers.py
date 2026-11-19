@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from unittest.mock import ANY, AsyncMock, patch
 
@@ -209,6 +209,7 @@ async def test_event_enqueues_notification(
         args=args,
         payment_key=ANY,
         subscription_id=ANY,
+        cooldown_until=ANY,
     )
 
 
@@ -236,6 +237,7 @@ async def test_merge_notifies_only_on_self_merge(actor_id: int, notified: bool) 
             args={},
             payment_key=None,
             subscription_id=None,
+            cooldown_until=None,
         )
     else:
         kiq.assert_not_awaited()
@@ -350,6 +352,19 @@ async def test_torrent_block_says_how_long_it_lasts(minutes: int, args: dict[str
     kiq = await _dispatch(event)
 
     assert kiq.await_args.kwargs["args"] == args
+    assert kiq.await_args.kwargs["cooldown_until"] == until.isoformat()
+
+
+async def test_a_permanent_torrent_block_keeps_quiet_for_a_day() -> None:
+    event = TorrentBlockerReportEvent(
+        user=_user(7), node_name="n", destination="d", blocked_until="t", block_duration_s=0, **_SUB
+    )
+    event = replace(event, blocked_until=event.occurred_at.isoformat())
+
+    kiq = await _dispatch(event)
+
+    until = datetime.fromisoformat(kiq.await_args.kwargs["cooldown_until"])
+    assert until == event.occurred_at + timedelta(days=1)
 
 
 @pytest.mark.parametrize("rewarded", [True, False])
@@ -366,4 +381,5 @@ async def test_the_referrer_hears_about_the_friend_who_joined(rewarded: bool) ->
         args={"rewarded": "yes" if rewarded else "no"},
         payment_key=None,
         subscription_id=None,
+        cooldown_until=None,
     )

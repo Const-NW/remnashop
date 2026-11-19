@@ -13,6 +13,8 @@ class NotifyCustomerDto:
     subscription_id: Optional[int] = None
     # Telegram refused this notification for good: the rest goes out by email
     telegram_refused: bool = False
+    # ISO datetime; the same event for this user stays silent until then
+    cooldown_until: Optional[str] = None
 
 
 @dataclass(frozen=True, kw_only=True)
