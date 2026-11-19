@@ -180,6 +180,7 @@ export interface CabinetAuthSettings {
   email_enabled: boolean;
   restrict_email_domains: boolean;
   allowed_email_domains: string[];
+  email_required: boolean;
   captcha_enabled: boolean;
   captcha_provider: CaptchaProvider;
   captcha_site_key: string | null;

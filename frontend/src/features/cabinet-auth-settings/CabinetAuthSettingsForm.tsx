@@ -54,10 +54,11 @@ const METHODS: { key: MethodKey; label: Exclude<GuideMethod, "captcha">; icon: C
 ];
 
 // what the card's Save writes to cabinet settings: every switch and the captcha choice
-type Draft = Pick<CabinetAuthSettings, MethodKey | "restrict_email_domains" | "captcha_enabled" | "captcha_provider">;
+type Draft = Pick<CabinetAuthSettings, MethodKey | "restrict_email_domains" | "email_required" | "captcha_enabled" | "captcha_provider">;
 const DRAFT_KEYS: (keyof Draft)[] = [
   ...METHODS.map((method) => method.key),
   "restrict_email_domains",
+  "email_required",
   "captcha_enabled",
   "captcha_provider",
 ];
@@ -139,7 +140,10 @@ export function CabinetAuthSettingsForm({ emailVersion }: { emailVersion: number
   const dirty = hasCabinetChanges || hasOAuthChanges;
 
   const setFlag = <K extends keyof Draft>(key: K, value: Draft[K]) =>
-    setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
+    // required email needs email sign-in: switching that off takes it along, or the save is refused
+    setDraft((prev) =>
+      prev ? { ...prev, [key]: value, ...(key === "email_enabled" && !value ? { email_required: false } : {}) } : prev,
+    );
   const setCredential = (method: OAuthMethod, field: "id" | "secret", value: string) =>
     setCredentials((prev) => ({ ...prev, [method]: { ...prev[method], [field]: value } }));
 
@@ -230,18 +234,31 @@ export function CabinetAuthSettingsForm({ emailVersion }: { emailVersion: number
         panel={
           isEmail && (
             // 2px past the panel's 14px: the switch under the row's own (16px in)
-            <div className="flex items-center gap-3 pr-0.5">
-              <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
-                {t("settings.cabinetAuth.restrictDomains")}
-              </span>
-              <Button variant="glass" size="sm" onClick={() => setIsDomainsOpen(true)}>
-                {t("settings.cabinetAuth.domainsList")}
-              </Button>
-              <Switch
-                checked={current.restrict_email_domains}
-                onChange={(value) => setFlag("restrict_email_domains", value)}
-                disabled={!canManage}
-              />
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3 pr-0.5">
+                <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                  {t("settings.cabinetAuth.restrictDomains")}
+                </span>
+                <Button variant="glass" size="sm" onClick={() => setIsDomainsOpen(true)}>
+                  {t("settings.cabinetAuth.domainsList")}
+                </Button>
+                <Switch
+                  checked={current.restrict_email_domains}
+                  onChange={(value) => setFlag("restrict_email_domains", value)}
+                  disabled={!canManage}
+                />
+              </div>
+              <div className="flex items-center gap-3 pr-0.5">
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-sm font-medium text-foreground">{t("settings.cabinetAuth.requireEmail")}</span>
+                  <span className="text-xs text-muted-foreground">{t("settings.cabinetAuth.requireEmailHint")}</span>
+                </span>
+                <Switch
+                  checked={current.email_required}
+                  onChange={(value) => setFlag("email_required", value)}
+                  disabled={!canManage || !current.email_enabled}
+                />
+              </div>
             </div>
           )
         }

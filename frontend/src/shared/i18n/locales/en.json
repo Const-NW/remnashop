@@ -1801,6 +1801,8 @@
       "title": "Cabinet sign-in",
       "description": "Manage web cabinet sign-in methods for customers",
       "restrictDomains": "Only allowed email domains",
+      "requireEmail": "Require an email after Telegram sign-in",
+      "requireEmailHint": "Customers without an email can’t use the cabinet until they confirm one.",
       "allowedDomains": "Allowed domains",
       "allowedDomainsHint": "New email sign-ups only from these domains. Existing customers sign in with any address.",
       "telegramMiniAppHint": "The cabinet inside Telegram, signs in automatically",

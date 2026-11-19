@@ -293,6 +293,7 @@ class CabinetAuthSettingsResponse(BaseModel):
     email_enabled: bool
     restrict_email_domains: bool
     allowed_email_domains: list[str]
+    email_required: bool
     captcha_enabled: bool
     captcha_provider: CaptchaProvider
     captcha_site_key: Optional[str]
@@ -308,6 +309,7 @@ class UpdateCabinetAuthSettingsRequest(BaseModel):
     email_enabled: Optional[bool] = None
     restrict_email_domains: Optional[bool] = None
     allowed_email_domains: Optional[list[str]] = None
+    email_required: Optional[bool] = None
     captcha_enabled: Optional[bool] = None
     captcha_provider: Optional[CaptchaProvider] = None
     captcha_site_key: Optional[str] = Field(default=None, min_length=1, max_length=255)
