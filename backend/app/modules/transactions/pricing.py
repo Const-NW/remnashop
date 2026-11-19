@@ -67,8 +67,9 @@ def quote_price(
     # what the plan being changed was paid comes off first, discounts apply to the rest
     payable = _after_credit(base_price, change_credit, rate)
     plan_discount_percent = plan.active_discount(datetime_now())
-    if payable == 0 or plan_discount_percent >= 100:
-        # already free: a one-shot purchase discount must not be spent on it
+    if payable == 0 or plan_discount_percent >= 100 or plan.is_trial:
+        # already free, or a paid trial: the customer's own discounts (a one-shot
+        # one above all) are kept for a real purchase; the plan's sale still applies
         discount_percent, discount_source, discount_promocode_id = 0, DiscountSource.NONE, None
     else:
         discount_percent, discount_source, discount_promocode_id = _effective_discount(user)

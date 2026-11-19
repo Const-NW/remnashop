@@ -9,6 +9,7 @@ from sqlalchemy import (
     Numeric,
     and_,
     exists,
+    false,
     func,
     literal,
     or_,
@@ -112,6 +113,10 @@ def _order_filters(
 
 # typed for its PAID rows, which always have it (ck_transactions_paid_has_paid_at)
 PAID_AT: Final[ColumnElement[datetime]] = type_coerce(Transaction.paid_at, DateTime(timezone=True))
+# an order without the key predates trials being sold
+_IS_TRIAL_ORDER: Final[ColumnElement[bool]] = func.coalesce(
+    Transaction.plan_snapshot["is_trial"].as_boolean(), false()
+)
 
 
 class TransactionRepository:
@@ -406,7 +411,7 @@ class TransactionRepository:
             Transaction.purchase_type == PurchaseType.NEW,
         ]
         if trial_only:
-            conditions.append(Transaction.plan_snapshot["is_trial"].as_boolean().is_(True))
+            conditions.append(_IS_TRIAL_ORDER.is_(True))
         if exclude_key is not None:
             conditions.append(Transaction.idempotency_key != exclude_key)
         count = await self.session.scalar(
@@ -646,8 +651,13 @@ class TransactionRepository:
         return count, amount or ZERO_AMOUNT
 
     async def list_user_ids_with_paid_order(
-        self, user_ids: list[int], *, paid_before: Optional[datetime] = None
+        self,
+        user_ids: list[int],
+        *,
+        paid_before: Optional[datetime] = None,
+        trial: Optional[bool] = None,
     ) -> set[int]:
+        """`trial` narrows to paid trials (True) or to everything else (False)."""
         if not user_ids:
             return set()
         paid: set[int] = set()
@@ -656,6 +666,8 @@ class TransactionRepository:
             Transaction.status == TransactionStatus.PAID,
             _NOT_TEST,
         )
+        if trial is not None:
+            stmt = stmt.where(_IS_TRIAL_ORDER.is_(trial))
         if paid_before is not None:
             stmt = stmt.where(Transaction.paid_at < paid_before)
         result = await self.session.execute(stmt)

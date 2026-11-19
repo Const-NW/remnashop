@@ -74,6 +74,10 @@ export function AdLinkStatsPanel({ adLink, periodDays, createdFrom }: AdLinkStat
           value={String(stats.paid_count)}
           hint={`${t("advertising.stats.conversionRate")} ${
             stats.attributions_count > 0 ? formatPercent(stats.conversion_rate, i18n.language) : none
+          }${
+            stats.trial_count > 0
+              ? ` · ${stats.trial_count.toLocaleString(i18n.language)} ${t("advertising.stats.trialCount")}`
+              : ""
           }`}
         />
         <KpiTile

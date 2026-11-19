@@ -2832,6 +2832,7 @@
     "stats": {
       "attributions": "Sign-ups",
       "paidCount": "Purchases",
+      "trialCount": "paid trials",
       "conversionRate": "Conversion",
       "revenue": "Revenue",
       "cost": "Cost",

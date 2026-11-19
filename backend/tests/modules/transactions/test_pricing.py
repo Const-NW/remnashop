@@ -405,3 +405,17 @@ def test_quote_reports_the_credited_price_as_the_base_of_its_discounts() -> None
     assert quote.anchor_base_price == convert_for_report(
         Decimal("2000"), Currency.RUB, rates.anchor, rates
     )
+
+
+def test_a_paid_trial_takes_no_customer_discount_but_keeps_the_plan_sale() -> None:
+    plan = _plan(base_price=Decimal("100")).model_copy(
+        update={"is_trial": True, "discount_percent": 10}
+    )
+    user = _user(personal_discount=30, purchase_discount=70, loyalty_discount=5)
+
+    quote = quote_price(plan, 30, Currency.RUB, user, _rates())
+
+    # the one-shot discount isn't spent on it; the plan's own sale still applies
+    assert quote.discount_source is DiscountSource.NONE
+    assert quote.discount_percent == 0
+    assert quote.final_price == Decimal("90")

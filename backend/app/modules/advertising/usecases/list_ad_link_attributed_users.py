@@ -45,7 +45,7 @@ class ListAdLinkAttributedUsersUseCase(
                 user.id: user for user in await self._user_repository.list_by_ids(user_ids)
             }
             paid_user_ids = await self._transaction_repository.list_user_ids_with_paid_order(
-                user_ids
+                user_ids, trial=False
             )
 
             result = [

@@ -158,12 +158,14 @@ async def test_generate_ad_link_code_returns_unused_code(
     assert len(code) == 12
 
 
-def _paid_order_dto(*, user_id: int, plan_id: int, idempotency_key: str) -> CreateTransactionDto:
+def _paid_order_dto(
+    *, user_id: int, plan_id: int, idempotency_key: str, is_trial: bool = False
+) -> CreateTransactionDto:
     return CreateTransactionDto(
         channel=PurchaseChannel.CABINET,
         user_id=user_id,
         plan_id=plan_id,
-        plan_snapshot=make_plan_snapshot(plan_id=plan_id),
+        plan_snapshot=make_plan_snapshot(plan_id=plan_id, is_trial=is_trial),
         duration_days=30,
         currency=Currency.RUB,
         purchase_type=PurchaseType.NEW,
@@ -264,6 +266,47 @@ async def test_get_ad_link_stats_computes_conversion_and_revenue(
     assert stats.cost == Decimal("100")
     assert stats.roi == Decimal("4")
     assert stats.cpa == Decimal("100")
+
+
+async def test_get_ad_link_stats_counts_a_paid_trial_apart_from_purchases(
+    ad_link_repository: AdLinkRepository,
+    uow: UnitOfWork,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    user_repository: UserRepository,
+    plan_id: int,
+) -> None:
+    ad_link = await CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())(
+        OWNER, CreateAdLinkDto(name="Trial Campaign", code="stats-trial", cost=Decimal("0"))
+    )
+    trialist = await user_repository.create(CreateUserDto(name="Trialist", telegram_id=940_102))
+    buyer = await user_repository.create(CreateUserDto(name="Buyer", telegram_id=940_103))
+    for user in (trialist, buyer):
+        await ad_link_repository.create_attribution(
+            ad_link_id=ad_link.id, user_id=user.id, channel=AdLinkChannel.BOT
+        )
+    async with uow:
+        for user, key, is_trial in (
+            (trialist, "stats-trial-1", True),
+            (buyer, "stats-trial-2", True),
+            (buyer, "stats-trial-3", False),
+        ):
+            order = await transaction_repository.create(
+                _paid_order_dto(
+                    user_id=user.id, plan_id=plan_id, idempotency_key=key, is_trial=is_trial
+                )
+            )
+            await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
+
+    stats = await GetAdLinkStatsUseCase(
+        ad_link_repository, transaction_repository, pricing_repository, uow
+    )(OWNER, GetAdLinkStatsDto(ad_link_id=ad_link.id))
+
+    # only the buyer converted; both paid for a trial, and every payment is revenue
+    assert stats.paid_count == 1
+    assert stats.trial_count == 2
+    assert stats.conversion_rate == Decimal("0.5")
+    assert stats.revenue == Decimal("1500")
 
 
 async def test_get_ad_link_stats_converts_revenue_with_a_non_unit_rate(

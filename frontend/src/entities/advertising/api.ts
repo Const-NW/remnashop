@@ -93,6 +93,8 @@ export interface AdLinkStats {
   attributions_count: number;
   attributions_by_channel: Partial<Record<AdLinkChannel, number>>;
   paid_count: number;
+  /** bought a paid trial; not in paid_count or conversion_rate */
+  trial_count: number;
   conversion_rate: string;
   revenue: string;
   /** fixed_cost + revenue_share */

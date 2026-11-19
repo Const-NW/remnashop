@@ -2926,6 +2926,7 @@
     "stats": {
       "attributions": "Регистрации",
       "paidCount": "Покупки",
+      "trialCount": "платных пробников",
       "conversionRate": "Конверсия",
       "revenue": "Выручка",
       "cost": "Расходы",
