@@ -103,8 +103,8 @@ class Transaction(BaseSql, TimestampMixin):
     fulfilled_subscription_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("subscriptions.id", ondelete="SET NULL"), index=True
     )
-    # the days the term really added (a calendar month is 28-31), which a refund of a
-    # renewal takes back; None before it was recorded, when a term was plain days
+    # the days the term really added, which a refund of a renewal takes back;
+    # None before it was recorded, when a term was plain days
     added_days: Mapped[Optional[int]]
     # set once, on the first move to PAID; a refund or a later write leaves it
     paid_at: Mapped[Optional[datetime]]

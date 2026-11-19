@@ -196,7 +196,7 @@ class TransactionStatsRepository:
             )
         )
         # an unlimited order has 0 days and covers for good
-        # what the term really added: a calendar month is 28-31 days
+        # what the term really added
         covered_days = case(
             (Transaction.duration_days == 0, UNLIMITED_COVERAGE_DAYS),
             else_=func.coalesce(Transaction.added_days, Transaction.duration_days),

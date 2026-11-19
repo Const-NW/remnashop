@@ -83,8 +83,8 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
     async def _fill_reset_anchors(
         self, subscriptions: list[SubscriptionDto], snapshot: dict[int, UserResponseDto]
     ) -> None:
-        """The panel's createdAt for rows that lack it, read off the listing: not
-        counted as an update, nothing else on the row moves."""
+        """The panel's createdAt for rows without it or with another one, read off the
+        listing: not counted as an update, nothing else on the row moves."""
         anchors = {
             s.remnawave_user_id: listed.created_at
             for s in subscriptions

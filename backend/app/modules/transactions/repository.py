@@ -708,7 +708,7 @@ class TransactionRepository:
     async def list_paid_periods(self, user_ids: list[int]) -> list[tuple[int, datetime, int]]:
         periods: list[tuple[int, datetime, int]] = []
         stmt = (
-            # what each term really added: a calendar month is 28-31 days
+            # what each term really added
             select(
                 Transaction.user_id,
                 PAID_AT,

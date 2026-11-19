@@ -48,6 +48,8 @@ def downgrade() -> None:
         postgresql_where=sa.text(_PAID_NOT_TEST),
     )
     op.drop_constraint(op.f("ck_transactions_paid_has_paid_at"), "transactions", type_="check")
+    # the old code dates revenue by a PAID order's updated_at, which this one lets move
+    op.execute("UPDATE transactions SET updated_at = paid_at WHERE status = 'PAID'")
     op.drop_column("transactions", "paid_at")
     op.drop_column("subscription_purchase_idempotency", "renew_added_days")
     op.drop_column("transactions", "added_days")

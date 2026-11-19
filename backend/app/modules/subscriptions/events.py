@@ -39,7 +39,7 @@ class SubscriptionPurchasedEvent(UserEvent):
     # The paid order's idempotency key; None for trial/promocode/referral grants.
     payment_key: Optional[str] = None
     is_trial: bool = False
-    # the days the term really holds: a calendar month is 28-31 days
+    # the days the term really holds
     added_days: Optional[int] = None
 
 
@@ -48,7 +48,7 @@ class SubscriptionRenewedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
     duration_days: int
-    # what the term really added: a calendar month is 28-31 days
+    # what the term really added
     added_days: Optional[int] = None
     payment_key: Optional[str] = None
 
