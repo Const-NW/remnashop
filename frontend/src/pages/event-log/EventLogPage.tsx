@@ -233,7 +233,7 @@ export function EventLogPage() {
                               onClick={() => setSelectedEntry(entry)}
                               className={ROW_GRID_CLASSNAME}
                             >
-                              <IconCircle glyph={<EventTypeIcon eventType={entry.event_type} className="size-4" />} />
+                              <IconCircle glyph={<EventTypeIcon entry={entry} className="size-4" />} />
                               <span className="truncate text-sm font-medium text-foreground/90">{eventTitle(entry, t)}</span>
                               <span className="text-sm tabular-nums text-foreground">
                                 {formatTime(entry.occurred_at, i18n.language)}
