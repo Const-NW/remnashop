@@ -26,6 +26,8 @@ class CabinetAuthSettings(BaseSql, TimestampMixin):
     allowed_email_domains: Mapped[list[str]] = mapped_column(
         JSONB, default=lambda: list(DEFAULT_ALLOWED_EMAIL_DOMAINS), server_default="[]"
     )
+    # a cabinet customer without an email is held at the email screen
+    email_required: Mapped[bool] = mapped_column(default=False, server_default="false")
     # guards the anonymous email-code request
     captcha_enabled: Mapped[bool] = mapped_column(default=False, server_default="false")
     captcha_provider: Mapped[CaptchaProvider] = mapped_column(

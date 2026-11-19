@@ -21,6 +21,7 @@ class CabinetMethodsDto:
     captcha: Optional[CaptchaWidgetDto] = None
     # where the cabinet sends a browser when the Mini App is the only way in
     bot_username: Optional[str] = None
+    email_required: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

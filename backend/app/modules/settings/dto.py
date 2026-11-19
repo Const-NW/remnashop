@@ -392,6 +392,7 @@ class CabinetAuthSettingsDto(BaseDto, TimestampMixin):
     allowed_email_domains: list[str] = Field(
         default_factory=lambda: list(DEFAULT_ALLOWED_EMAIL_DOMAINS)
     )
+    email_required: bool = False
     captcha_enabled: bool = False
     captcha_provider: CaptchaProvider = CaptchaProvider.TURNSTILE
     captcha_site_key: Optional[str] = None
@@ -431,6 +432,7 @@ class UpdateCabinetAuthSettingsDto:
     email_enabled: Optional[bool] = None
     restrict_email_domains: Optional[bool] = None
     allowed_email_domains: Optional[list[str]] = None
+    email_required: Optional[bool] = None
     captcha_enabled: Optional[bool] = None
     captcha_provider: Optional[CaptchaProvider] = None
     captcha_site_key: Optional[str] = None

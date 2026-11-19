@@ -44,6 +44,10 @@ class UpdateCabinetAuthSettingsUseCase(
                     )
             before = await self._settings_repository.get_cabinet_auth_settings()
             settings = await self._settings_repository.update_cabinet_auth_settings(data)
+            if settings.email_required and not settings.email_enabled:
+                raise ValidationError(
+                    "Email sign-in is turned off", code=ErrorCode.CABINET_EMAIL_DISABLED
+                )
             if settings.captcha_enabled and not settings.is_captcha_configured:
                 raise ValidationError(
                     "Captcha keys are not set", code=ErrorCode.CAPTCHA_NOT_CONFIGURED

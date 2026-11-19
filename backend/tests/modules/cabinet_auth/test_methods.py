@@ -140,3 +140,30 @@ async def test_methods_expose_allowed_domains(
             UpdateCabinetAuthSettingsDto(restrict_email_domains=False)
         )
     assert (await use_case.execute()).allowed_email_domains is None
+
+
+async def test_email_required_only_while_email_sign_in_works(
+    settings_repository: SettingsRepository, cabinet_config: AppConfig, uow: UnitOfWork
+) -> None:
+    async def methods_email_required() -> bool:
+        use_case = GetCabinetMethodsUseCase(settings_repository, cabinet_config, uow)
+        return (await use_case.execute()).email_required
+
+    async with uow:
+        await settings_repository.update_cabinet_auth_settings(
+            UpdateCabinetAuthSettingsDto(email_enabled=True, email_required=True)
+        )
+    # no SMTP: no way to send the code
+    assert not await methods_email_required()
+
+    async with uow:
+        await settings_repository.update_email_settings(
+            UpdateEmailSettingsDto(host="smtp.example.com", from_address="a@b.c")
+        )
+    assert await methods_email_required()
+
+    async with uow:
+        await settings_repository.update_cabinet_auth_settings(
+            UpdateCabinetAuthSettingsDto(email_enabled=False)
+        )
+    assert not await methods_email_required()

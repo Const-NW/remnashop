@@ -93,6 +93,7 @@ async def test_methods_is_public_and_lowercases_providers(
         "allowed_email_domains": list(DEFAULT_ALLOWED_EMAIL_DOMAINS),
         "captcha": None,
         "bot_username": None,
+        "email_required": False,
     }
 
     enabled = await client.patch(
@@ -214,3 +215,28 @@ async def test_turning_off_every_browser_sign_in_revokes_cabinet_sessions(
         f"{API_V1}/settings/cabinet-auth", json={"telegram_enabled": True}, headers=headers
     )
     assert await session_repository.find_active_by_id(second) is not None
+
+
+async def test_email_required_needs_email_sign_in(
+    client: httpx.AsyncClient,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> None:
+    headers = await _owner_headers(user_repository, session_repository, uow, config)
+    # the form turns both off in one save
+    both_off = await client.patch(
+        f"{API_V1}/settings/cabinet-auth",
+        json={"email_enabled": False, "email_required": False},
+        headers=headers,
+    )
+    assert both_off.status_code == 200
+    assert both_off.json()["email_required"] is False
+
+    # last: the rollback takes the uncommitted test session with it
+    rejected = await client.patch(
+        f"{API_V1}/settings/cabinet-auth", json={"email_required": True}, headers=headers
+    )
+    assert rejected.status_code == 400
+    assert rejected.json()["code"] == "CABINET_EMAIL_DISABLED"

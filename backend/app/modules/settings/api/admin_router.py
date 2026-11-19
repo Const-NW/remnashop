@@ -307,6 +307,7 @@ async def update_cabinet_auth_settings(
             email_enabled=payload.email_enabled,
             restrict_email_domains=payload.restrict_email_domains,
             allowed_email_domains=payload.allowed_email_domains,
+            email_required=payload.email_required,
             captcha_enabled=payload.captcha_enabled,
             captcha_provider=payload.captcha_provider,
             captcha_site_key=payload.captcha_site_key,

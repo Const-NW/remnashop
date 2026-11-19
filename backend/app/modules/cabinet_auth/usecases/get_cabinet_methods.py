@@ -23,6 +23,7 @@ class GetCabinetMethodsUseCase:
             email = await self._settings_repository.get_email_settings()
         telegram = cabinet.telegram_enabled and bot.is_configured
         deeplink = cabinet.telegram_deeplink_enabled and bot.is_configured
+        email_sign_in = cabinet.email_enabled and email.is_configured
         providers: list[OAuthProvider] = []
         # authorize needs the cabinet URL for its redirect
         has_cabinet_url = bool(self._config.cabinet.url)
@@ -39,7 +40,7 @@ class GetCabinetMethodsUseCase:
         return CabinetMethodsDto(
             telegram_webapp=telegram,
             telegram_deeplink=deeplink,
-            email=cabinet.email_enabled and email.is_configured,
+            email=email_sign_in,
             oauth=providers,
             allowed_email_domains=(
                 cabinet.allowed_email_domains if cabinet.restrict_email_domains else None
@@ -52,4 +53,6 @@ class GetCabinetMethodsUseCase:
                 else None
             ),
             bot_username=bot_username,
+            # without email sign-in the code can't be sent
+            email_required=email_sign_in and cabinet.email_required,
         )
