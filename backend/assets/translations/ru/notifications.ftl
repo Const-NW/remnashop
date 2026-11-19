@@ -337,6 +337,7 @@ ntf-customer-promocode-discount-expiring = { $percent }% по промокоду
             [few] { $span } дня
            *[other] { $span } дней
         }
+        [minute] { $span } мин
        *[hour] { $span } ч
     }. Успейте оформить покупку.
     .title = Скидка скоро сгорит

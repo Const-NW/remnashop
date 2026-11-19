@@ -17,6 +17,12 @@ def test_hours_become_a_span(hours: int, span: int, unit: str) -> None:
     assert (args["span"], args["span_unit"], args["hours"]) == (span, unit, hours)
 
 
+def test_minutes_win_over_the_rounded_hour() -> None:
+    args = customer_render_args({"hours": 1, "minutes": 20}, Locale.RU)
+
+    assert (args["span"], args["span_unit"]) == (20, "minute")
+
+
 def test_whole_rubles_have_no_kopecks() -> None:
     args = customer_render_args({"amount": "1500.00", "currency": "RUB"}, Locale.RU)
 

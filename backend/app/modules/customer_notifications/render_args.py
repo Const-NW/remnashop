@@ -16,6 +16,9 @@ def customer_render_args(
         rendered["span_unit"], rendered["span"] = (
             ("day", hours // 24) if hours >= 24 else ("hour", hours)
         )
+    minutes = args.get("minutes")
+    if isinstance(minutes, int):
+        rendered["span_unit"], rendered["span"] = "minute", minutes
     if event_type == SubscriptionGrantedEvent.__name__:
         # a feed row stored before the plan name was has none
         rendered["has_plan_name"] = "yes" if args.get("plan_name") else "no"

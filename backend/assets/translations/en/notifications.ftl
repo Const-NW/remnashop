@@ -323,6 +323,10 @@ ntf-customer-promocode-discount-expiring = Your { $percent }% off with promocode
             [one] { $span } more day
            *[other] { $span } more days
         }
+        [minute] { $span ->
+            [one] { $span } more minute
+           *[other] { $span } more minutes
+        }
        *[hour] { $span ->
             [one] { $span } more hour
            *[other] { $span } more hours

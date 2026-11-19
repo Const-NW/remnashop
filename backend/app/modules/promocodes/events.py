@@ -29,3 +29,5 @@ class PromocodeDiscountExpiringEvent(UserEvent):
     code: str
     percent: int
     hours: int
+    # under an hour left: what the customer is told instead of "1 hour"
+    minutes: Optional[int] = None

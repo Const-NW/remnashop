@@ -205,7 +205,8 @@ async def _on_discount_expiring(event: PromocodeDiscountExpiringEvent, entry: St
     await _notify(
         entry,
         event.user.id,
-        {"code": event.code, "percent": event.percent, "hours": event.hours},
+        {"code": event.code, "percent": event.percent, "hours": event.hours}
+        | ({"minutes": event.minutes} if event.minutes is not None else {}),
     )
 
 
