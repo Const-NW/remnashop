@@ -16,7 +16,11 @@ from app.modules.dialogs.dto import (
     UpdateDialogWindowDto,
 )
 from app.modules.dialogs.events import DialogChangedEvent
-from app.modules.dialogs.export import EXPORT_VERSION, dialog_text_keys
+from app.modules.dialogs.export import (
+    EXPORT_VERSION,
+    LOCKED_CONDITIONS_EXPORT_VERSION,
+    dialog_text_keys,
+)
 from app.modules.dialogs.repository import DialogRepository
 from app.modules.dialogs.usecases._window_texts import validate_stored_window_texts
 from app.modules.dialogs.validation import validate_buttons
@@ -50,7 +54,7 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
         self._event_publisher = event_publisher
 
     async def _execute(self, actor: Actor, data: DialogExportDto) -> None:
-        if data.version != EXPORT_VERSION:
+        if data.version not in (EXPORT_VERSION, LOCKED_CONDITIONS_EXPORT_VERSION):
             raise ValidationError(
                 f"Unsupported export version {data.version}, expected {EXPORT_VERSION}",
                 code=ErrorCode.DIALOG_EXPORT_VERSION_UNSUPPORTED,
@@ -71,7 +75,12 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
             }
             navigable = imported_keys | {window.key for window in catalog.all_windows()}
             for imported in data.windows:
-                await self._apply_window(imported, known_keys, navigable)
+                await self._apply_window(
+                    imported,
+                    known_keys,
+                    navigable,
+                    catalog_conditions=data.version == LOCKED_CONDITIONS_EXPORT_VERSION,
+                )
 
             windows = await self._dialog_repository.list_all()
             await self._apply_texts(data, dialog_text_keys(windows))
@@ -90,6 +99,8 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
         window: DialogWindowExportDto,
         known_keys: set[str],
         navigable: set[str],
+        *,
+        catalog_conditions: bool,
     ) -> None:
         if window.key not in known_keys:
             if window.kind == DialogWindowKind.SEED:
@@ -109,21 +120,22 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
             if window.kind == DialogWindowKind.SEED
             else set()
         )
-        system_conditions = await self._dialog_repository.system_conditions(window.key)
-        # a system button's condition is the catalog's, whatever an older export says
-        buttons = [
-            replace(button, visibility_condition=system_conditions[button.text_key])
-            if button.text_key in system_conditions
-            else button
-            for button in window.buttons
-        ]
+        buttons = window.buttons
+        if catalog_conditions:
+            system_conditions = await self._dialog_repository.system_conditions(window.key)
+            buttons = [
+                replace(button, visibility_condition=system_conditions[button.text_key])
+                if button.text_key in system_conditions
+                else button
+                for button in buttons
+            ]
         validate_buttons(
             buttons,
             window_key=window.key,
             window_kind=window.kind,
             navigable=navigable,
             seed_actions=seed_actions,
-            system_conditions=system_conditions,
+            required_conditions=await self._dialog_repository.required_conditions(window.key),
         )
         await self._dialog_repository.update_window(
             window.key,

@@ -149,7 +149,7 @@ async def test_seed_window_cannot_be_disabled(
         await use_case(OWNER, ConfigureDialogWindowDto(key="menu.main", is_enabled=False))
 
 
-async def test_system_button_cannot_be_hidden(
+async def test_only_a_required_system_button_cannot_be_hidden(
     dialog_repository, translation_repository, settings_repository, uow, redis
 ) -> None:
     await _seed(dialog_repository)
@@ -168,11 +168,29 @@ async def test_system_button_cannot_be_hidden(
         link_type=ButtonLinkType.ACTION,
         action_key="get_trial",
     )
-    kept = await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[system]))
-    assert kept.buttons[0].is_system is True
-    hidden = DialogButtonInputDto(**{**system.__dict__, "is_hidden": True})
-    with pytest.raises(ValidationError):
-        await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[hidden]))
+    hidden = DialogButtonInputDto(
+        **{**system.__dict__, "is_hidden": True, "visibility_condition": "is_trial_eligible"}
+    )
+    kept = await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[hidden]))
+    assert [(b.is_system, b.is_hidden, b.visibility_condition) for b in kept.buttons] == [
+        (True, True, "is_trial_eligible")
+    ]
+
+    [button] = _SNAPSHOT["buttons"]
+    required = {**_SNAPSHOT, "buttons": [{**button, "required": True}]}
+    # committed: each refusal below rolls its transaction back
+    async with uow:
+        await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", required)
+    shown = DialogButtonInputDto(**{**hidden.__dict__, "is_hidden": False})
+    for buttons, code in (
+        ([hidden], ErrorCode.DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE),
+        ([shown], ErrorCode.DIALOG_REQUIRED_BUTTON_CONDITION_LOCKED),
+        ([], ErrorCode.DIALOG_REQUIRED_BUTTON_MISSING),
+    ):
+        with pytest.raises(ValidationError) as error:
+            await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=buttons))
+        assert error.value.code is code
+    await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=[system]))
 
 
 async def test_update_buttons_rejects_unknown_action(

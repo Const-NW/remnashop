@@ -94,6 +94,7 @@ def register_referrals_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="back",
+                    required=True,
                     text_key="btn-back.general",
                     row=4,
                     column=0,
@@ -121,6 +122,7 @@ def register_referrals_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="back",
+                    required=True,
                     text_key="btn-back.general",
                     row=0,
                     column=0,
@@ -140,6 +142,7 @@ def register_referrals_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="confirm_reset_code",
+                    required=True,
                     text_key="btn-referrals.confirm-reset-code",
                     row=0,
                     column=0,
@@ -148,6 +151,7 @@ def register_referrals_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="cancel",
+                    required=True,
                     text_key="btn-referrals.cancel-reset-code",
                     row=0,
                     column=1,

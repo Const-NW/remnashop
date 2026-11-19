@@ -4,7 +4,7 @@ from typing import Union
 import segno
 from aiogram import Bot
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
-from aiogram_dialog import DialogManager, ShowMode
+from aiogram_dialog import Data, DialogManager, ShowMode, StartMode
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Button, Keyboard
 from dishka import FromDishka
@@ -16,6 +16,7 @@ from app.core.exceptions import CooldownError, NotFoundError, ValidationError
 from app.modules.referrals import (
     MAX_BONUS_DAYS,
     GetOwnReferralStatsUseCase,
+    GetReferralSettingsUseCase,
     ListBonusDaysTargetsUseCase,
     RedeemBonusDaysDto,
     RedeemBonusDaysUseCase,
@@ -25,7 +26,22 @@ from app.modules.users import UserDto
 from app.telegram.i18n import format_wait, get_translator
 from app.telegram.notice import answer_notice
 from app.telegram.routers.referrals.getters import REDEEM_DAYS_KEY, referral_url
-from app.telegram.states import Referrals
+from app.telegram.states import MainMenu, Referrals
+
+
+@inject
+async def on_referrals_start(
+    start_data: Data,
+    manager: DialogManager,
+    get_referral_settings: FromDishka[GetReferralSettingsUseCase],
+    i18n: FromDishka[TranslatorHub],
+) -> None:
+    # a button can lead here with the program off: an old menu message, or one an admin placed
+    if (await get_referral_settings.system()).enabled:
+        return
+    user: UserDto = manager.middleware_data[USER_KEY]
+    await answer_notice(manager.event, get_translator(i18n, user).get("ntf-referrals.disabled"))
+    await manager.start(MainMenu.MAIN, mode=StartMode.RESET_STACK)
 
 
 @inject

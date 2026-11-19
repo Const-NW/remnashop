@@ -104,7 +104,7 @@ def validate_buttons(
     window_kind: DialogWindowKind,
     navigable: set[str],
     seed_actions: set[str],
-    system_conditions: dict[str, Optional[str]],
+    required_conditions: dict[str, Optional[str]],
 ) -> None:
     shown = [button for button in buttons if not button.is_hidden]
     if len(shown) > MAX_BUTTONS:
@@ -139,18 +139,35 @@ def validate_buttons(
                 f"'{button.text_key}' is not an editable dialog text key",
                 code=ErrorCode.DIALOG_TEXT_KEY_NOT_EDITABLE,
             )
-        if button.text_key in system_conditions:
-            if button.is_hidden:
-                raise ValidationError(
-                    f"System button '{button.text_key}' cannot be hidden",
-                    code=ErrorCode.DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE,
-                )
-            if button.visibility_condition != system_conditions[button.text_key]:
-                raise ValidationError(
-                    f"System button '{button.text_key}' keeps its visibility condition",
-                    code=ErrorCode.DIALOG_SYSTEM_BUTTON_CONDITION_LOCKED,
-                )
         _validate_button(button, window_kind, navigable, seed_actions)
+    _validate_required(buttons, window_key, required_conditions)
+
+
+def _validate_required(
+    buttons: list[DialogButtonInputDto],
+    window_key: str,
+    required_conditions: dict[str, Optional[str]],
+) -> None:
+    # a required button is what keeps the customer from getting stuck in the window
+    for button in buttons:
+        if button.text_key not in required_conditions:
+            continue
+        if button.is_hidden:
+            raise ValidationError(
+                f"Required button '{button.text_key}' cannot be hidden",
+                code=ErrorCode.DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE,
+            )
+        if button.visibility_condition != required_conditions[button.text_key]:
+            raise ValidationError(
+                f"Required button '{button.text_key}' keeps its visibility condition",
+                code=ErrorCode.DIALOG_REQUIRED_BUTTON_CONDITION_LOCKED,
+            )
+    missing = sorted(set(required_conditions) - {button.text_key for button in buttons})
+    if missing:
+        raise ValidationError(
+            f"'{window_key}' is missing required buttons: {', '.join(missing)}",
+            code=ErrorCode.DIALOG_REQUIRED_BUTTON_MISSING,
+        )
 
 
 def _validate_button(

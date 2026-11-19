@@ -1,3 +1,4 @@
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -15,6 +16,7 @@ from app.modules.subscriptions.usecases import (
     ListOwnSubscriptionsUseCase,
 )
 from app.modules.translations.repository import TranslationRepository
+from app.telegram.dialogs.rendering import UNAVAILABLE_BUTTONS_KEY
 from app.telegram.routers.menu.getters import menu_getter
 
 
@@ -53,9 +55,16 @@ def _menu_catalog():
     catalog._reset_for_tests()
 
 
-async def test_menu_getter_includes_rendered_buttons(
-    config, banner_repository, subscription_repository, uow, monkeypatch
-) -> None:
+async def _run_menu_getter(
+    config,
+    banner_repository,
+    subscription_repository,
+    uow,
+    monkeypatch,
+    *,
+    referral_enabled: bool = True,
+    cabinet_auth: Optional[MagicMock] = None,
+) -> dict:
     dialog_manager = MagicMock()
     dialog_manager.middleware_data = {
         USER_KEY: MagicMock(
@@ -96,13 +105,24 @@ async def test_menu_getter_includes_rendered_buttons(
         ),
         get_available_trial=get_available_trial,
         get_cabinet_auth_settings=MagicMock(
-            system=AsyncMock(return_value=MagicMock(telegram_enabled=True))
+            system=AsyncMock(return_value=cabinet_auth or MagicMock(telegram_enabled=True))
         ),
         get_shop_settings=_shop_settings(),
-        get_referral_settings=_referral_settings(),
+        get_referral_settings=MagicMock(
+            system=AsyncMock(return_value=MagicMock(enabled=referral_enabled))
+        ),
         list_visible_legal_documents=MagicMock(execute=AsyncMock(return_value=[])),
         i18n=i18n,
         dialog_config_cache=fake_cache,
+    )
+    return data
+
+
+async def test_menu_getter_includes_rendered_buttons(
+    config, banner_repository, subscription_repository, uow, monkeypatch
+) -> None:
+    data = await _run_menu_getter(
+        config, banner_repository, subscription_repository, uow, monkeypatch
     )
 
     assert data["buttons"] == [[{"id": 1, "text": "x"}]]
@@ -112,6 +132,26 @@ async def test_menu_getter_includes_rendered_buttons(
     assert "subscription_text" not in data
     assert data["can_purchase"] is True
     assert data["referral_enabled"] is True
+    assert data[UNAVAILABLE_BUTTONS_KEY] == {"legal_documents"}
+
+
+async def test_menu_getter_drops_buttons_of_features_that_are_off(
+    config, banner_repository, subscription_repository, uow, monkeypatch
+) -> None:
+    # whatever condition an admin gave the buttons
+    monkeypatch.setattr(type(config.cabinet), "url", "https://cabinet.example.com")
+    data = await _run_menu_getter(
+        config,
+        banner_repository,
+        subscription_repository,
+        uow,
+        monkeypatch,
+        referral_enabled=False,
+        cabinet_auth=MagicMock(telegram_enabled=False, has_browser_sign_in=False),
+    )
+
+    assert data[UNAVAILABLE_BUTTONS_KEY] == {"legal_documents", "referrals.main"}
+    assert data["cabinet_url"] == ""
 
 
 async def test_menu_getter_passes_name_variable_to_menu_text(

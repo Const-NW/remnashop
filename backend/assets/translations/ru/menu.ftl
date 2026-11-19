@@ -76,7 +76,10 @@ frg-subscription-unlimited = Безлимит
 frg-subscription-traffic-limit = { $traffic_limit } ГБ
 msg-window-gone = Этот экран больше недоступен.
 msg-paysupport = Чтобы запросить возврат средств, напишите в поддержку.
-msg-menu-devices = Ваши устройства ({ $devices_current }/{ $devices_max })
+msg-menu-devices = Ваши устройства ({ $devices_max ->
+    [0] { $devices_current }
+   *[other] { $devices_current }/{ $devices_max }
+})
 msg-menu-devices-confirm-delete = Удалить это устройство?
 msg-menu-devices-confirm-delete-all = Удалить все устройства? Ссылка подключения сменится, все устройства потеряют доступ — каждое придётся подключать заново по новой ссылке.
 msg-menu-devices-confirm-reissue = Перевыпустить ссылку подключения? Старая ссылка перестанет работать.
@@ -511,6 +514,7 @@ gateway-name =
     .CISPAY = cisPay
 
 ntf-referrals =
+    .disabled = ❌ Реферальная программа сейчас не работает.
     .no-subscription = ❌ У вас нет подписки, к которой можно добавить бонусные дни.
     .days-redeemed = ✅ Бонусные дни успешно добавлены к вашей подписке.
     .redeem-failed = ❌ Бонусные дни нельзя добавить к этой подписке.

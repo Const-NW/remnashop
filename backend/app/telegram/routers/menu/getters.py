@@ -167,7 +167,13 @@ async def menu_getter(
     data["legal_available"] = bool(
         await list_visible_legal_documents.execute(PurchaseChannel.BOT, user.language)
     )
-    data[UNAVAILABLE_BUTTONS_KEY] = set() if data["legal_available"] else {"legal_documents"}
+    # off features hide their buttons whatever condition an admin gave them
+    unavailable: set[str] = set()
+    if not data["legal_available"]:
+        unavailable.add("legal_documents")
+    if not referral_enabled:
+        unavailable.add("referrals.main")
+    data[UNAVAILABLE_BUTTONS_KEY] = unavailable
     shown = menu_subscription(data["subscription"], owned)
     data["connect_problem"] = connect_problem(shown)
     subscription_values = subscription_menu_values(

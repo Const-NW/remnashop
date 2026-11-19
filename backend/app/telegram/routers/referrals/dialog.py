@@ -20,6 +20,7 @@ from app.telegram.routers.referrals.handlers import (
     on_redeem_all_days,
     on_redeem_days_input,
     on_redeem_target_selected,
+    on_referrals_start,
 )
 from app.telegram.states import Referrals
 
@@ -84,4 +85,11 @@ confirm_reset_code = Window(
     getter=confirm_reset_code_getter,
 )
 
-router = Dialog(referrals_main, redeem_amount, redeem_target, referrals_about, confirm_reset_code)
+router = Dialog(
+    referrals_main,
+    redeem_amount,
+    redeem_target,
+    referrals_about,
+    confirm_reset_code,
+    on_start=on_referrals_start,
+)

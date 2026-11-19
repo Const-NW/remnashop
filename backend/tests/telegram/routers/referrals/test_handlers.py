@@ -20,9 +20,10 @@ from app.telegram.routers.referrals.handlers import (
     on_redeem_days_input,
     on_redeem_target_selected,
     on_referral_qr,
+    on_referrals_start,
 )
 from app.telegram.routers.subscriptions.catalog import register_subscriptions_catalog
-from app.telegram.states import Referrals
+from app.telegram.states import MainMenu, Referrals
 
 _LOCALES_DIR = Path(__file__).parents[4] / "assets" / "translations"
 
@@ -223,3 +224,24 @@ async def test_qr_sends_the_referral_link_as_a_png() -> None:
     photo = callback.message.answer_photo.await_args.args[0]
     assert photo.data.startswith(b"\x89PNG")
     callback.answer.assert_awaited_once()
+
+
+async def test_referrals_window_sends_back_to_the_menu_with_the_program_off(
+    monkeypatch,
+) -> None:
+    notices: list[str] = []
+
+    async def _notice(event: object, text: str) -> None:
+        notices.append(text)
+
+    monkeypatch.setattr("app.telegram.routers.referrals.handlers.answer_notice", _notice)
+    i18n = MagicMock()
+    i18n.get_translator_by_locale.return_value = MagicMock(get=lambda key, **kwargs: key)
+    for enabled in (True, False):
+        manager = AsyncMock()
+        manager.middleware_data = {USER_KEY: MagicMock(language=Locale.EN)}
+        settings = MagicMock(system=AsyncMock(return_value=MagicMock(enabled=enabled)))
+        await on_referrals_start.__dishka_orig_func__(None, manager, settings, i18n)
+        assert manager.start.await_count == (0 if enabled else 1)
+    assert manager.start.await_args.args == (MainMenu.MAIN,)
+    assert notices == ["ntf-referrals.disabled"]

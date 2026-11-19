@@ -39,13 +39,17 @@ class DialogRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    def _to_button_dto(self, row: DialogButton, system_text_keys: set[str]) -> DialogButtonDto:
+    def _to_button_dto(
+        self, row: DialogButton, system_text_keys: set[str], required_text_keys: set[str]
+    ) -> DialogButtonDto:
         dto = DialogButtonDto.model_validate(row, from_attributes=True)
         dto.is_system = row.text_key in system_text_keys
+        dto.is_required = row.text_key in required_text_keys
         return dto
 
     def _to_dto(self, row: DialogWindow) -> DialogWindowDto:
         system_text_keys = _system_text_keys(row)
+        required_text_keys = _required_text_keys(row)
         return DialogWindowDto(
             id=row.id,
             key=row.key,
@@ -56,7 +60,9 @@ class DialogRepository:
             is_enabled=row.is_enabled,
             position=row.position,
             slot=row.slot,
-            buttons=[self._to_button_dto(b, system_text_keys) for b in row.buttons],
+            buttons=[
+                self._to_button_dto(b, system_text_keys, required_text_keys) for b in row.buttons
+            ],
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -130,18 +136,25 @@ class DialogRepository:
             # The catalog owns a seed window's place in its flow and its default layout;
             # buttons the admin edited stay, untouched ones follow the new layout.
             existing.position = position
-            untouched = _layout(existing.buttons) == _snapshot_layout(existing.default_snapshot)
-            if untouched and existing.default_snapshot != default_snapshot:
+            previous_conditions = _system_conditions(existing)
+            shipped_layout = _snapshot_layout(existing.default_snapshot)
+            untouched = _layout(existing.buttons) == shipped_layout
+            # recreated buttons get new ids, which kills them in messages already sent
+            if untouched and shipped_layout != _snapshot_layout(default_snapshot):
                 for button in list(existing.buttons):
                     await self.session.delete(button)
                 await self.session.flush()
                 for raw in default_snapshot.get("buttons", []):
                     self.session.add(self._button_from_snapshot(existing.id, raw))
             existing.default_snapshot = default_snapshot
-            # a system button's condition belongs to the catalog, edited layout or not
+            # a condition the admin left as shipped follows the catalog; an edited one stays
             conditions = _system_conditions(existing)
             for button in existing.buttons:
-                if button.text_key in conditions:
+                if (
+                    button.text_key in conditions
+                    and button.text_key in previous_conditions
+                    and button.visibility_condition == previous_conditions[button.text_key]
+                ):
                     button.visibility_condition = conditions[button.text_key]
             await self.session.flush()
             await self.session.refresh(existing)
@@ -272,6 +285,11 @@ class DialogRepository:
     async def system_conditions(self, key: str) -> dict[str, Optional[str]]:
         return _system_conditions(await self._get_row_or_raise(key))
 
+    async def required_conditions(self, key: str) -> dict[str, Optional[str]]:
+        row = await self._get_row_or_raise(key)
+        required = _required_text_keys(row)
+        return {k: v for k, v in _system_conditions(row).items() if k in required}
+
     async def reset_to_snapshot(self, key: str) -> DialogWindowDto:
         row = await self.session.scalar(
             select(DialogWindow).where(DialogWindow.key == key).with_for_update()
@@ -301,6 +319,12 @@ class DialogRepository:
 
 def _system_text_keys(row: DialogWindow) -> set[str]:
     return set(_system_conditions(row))
+
+
+def _required_text_keys(row: DialogWindow) -> set[str]:
+    if row.kind != DialogWindowKind.SEED:
+        return set()
+    return {b["text_key"] for b in row.default_snapshot.get("buttons", []) if b.get("required")}
 
 
 def _system_conditions(row: DialogWindow) -> dict[str, Optional[str]]:

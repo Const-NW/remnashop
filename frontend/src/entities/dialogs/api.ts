@@ -28,6 +28,7 @@ export interface DialogButtonItem {
   url_value: string | null;
   is_hidden: boolean;
   is_system: boolean;
+  is_required: boolean;
 }
 
 export interface DialogWindow {

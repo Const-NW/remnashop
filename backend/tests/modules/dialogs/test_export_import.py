@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from app.core.bot_signals import RedisBotSignals
@@ -11,7 +13,7 @@ from app.modules.dialogs.dto import (
     DialogTextExportDto,
     DialogWindowExportDto,
 )
-from app.modules.dialogs.export import EXPORT_VERSION
+from app.modules.dialogs.export import EXPORT_VERSION, LOCKED_CONDITIONS_EXPORT_VERSION
 from app.modules.dialogs.repository import DialogRepository
 from app.modules.dialogs.usecases import ExportDialogsUseCase, ImportDialogsUseCase
 from app.modules.users.dto import UserDto
@@ -44,6 +46,7 @@ _SNAPSHOT = {
 def _catalog():
     catalog._reset_for_tests()
     catalog.register_action_key("get_trial")
+    catalog.register_condition("trial_available", lambda data: True)
     catalog.register_window(
         catalog.CatalogWindow(
             key="menu.main",
@@ -233,3 +236,41 @@ async def test_import_rejects_an_unknown_version(
             RedisBotSignals(redis),
             RecordingEventPublisher(),
         )(OWNER, DialogExportDto(version=99, windows=[], texts=[]))
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [(EXPORT_VERSION, "trial_available"), (LOCKED_CONDITIONS_EXPORT_VERSION, None)],
+)
+async def test_import_takes_system_button_conditions_from_the_file_only_once_editable(
+    dialog_repository: DialogRepository,
+    translation_repository,
+    settings_repository,
+    uow,
+    redis,
+    version: int,
+    expected: object,
+) -> None:
+    # before conditions were editable, an export carried whatever the catalog said then
+    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    export = await _export(dialog_repository, translation_repository, settings_repository, uow)
+    [window] = export.windows
+    [button] = window.buttons
+    edited = replace(
+        export,
+        version=version,
+        windows=[
+            replace(window, buttons=[replace(button, visibility_condition="trial_available")])
+        ],
+    )
+
+    await ImportDialogsUseCase(
+        dialog_repository,
+        translation_repository,
+        uow,
+        RedisBotSignals(redis),
+        RecordingEventPublisher(),
+    )(OWNER, edited)
+
+    restored = await dialog_repository.get_by_key_or_raise("menu.main")
+    assert [b.visibility_condition for b in restored.buttons] == [expected]
