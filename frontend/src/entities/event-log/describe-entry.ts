@@ -88,6 +88,9 @@ export function eventTitle(entry: EventLogEntry, t: TFunction): string {
   if (entry.event_type === "SubscriptionExpiredAgoEvent" && typeof hours === "number") {
     return t("eventLog.eventVariants.subscriptionExpiredDays", { count: Math.round(hours / HOURS_PER_DAY) });
   }
+  if (entry.event_type === "SubscriptionPurchasedEvent" && entry.payload?.is_trial === true) {
+    return t("eventLog.eventVariants.trialActivated");
+  }
   const variant = entry.payload?.[TITLE_VARIANT_FIELD_OVERRIDES[entry.event_type] ?? TITLE_VARIANT_FIELD];
   if (typeof variant !== "string") return title;
   return t(`eventLog.eventVariants.${entry.event_type}.${variant}` as ParseKeys, { defaultValue: title });

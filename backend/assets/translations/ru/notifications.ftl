@@ -18,7 +18,10 @@ ntf-backup-failed = Резервная копия { $kind } не создана:
 ntf-bonus-days-renewal-stuck = Бонус-дни ({ $days }) пользователя #{ $user_id } не применены к подписке #{ $subscription_id }: { $error }. Примените вручную.
     .title = Бонус-дни не применены!
     .emoji = ⚠️
-ntf-subscription-purchased = { $user } купил подписку ({ $purchase_type })
+ntf-subscription-purchased = { $is_trial ->
+        [yes] { $user } активировал пробную подписку
+       *[no] { $user } купил подписку ({ $purchase_type })
+    }
     .title = { $is_trial ->
         [yes] Получение пробной подписки!
        *[no] { $purchase_type ->

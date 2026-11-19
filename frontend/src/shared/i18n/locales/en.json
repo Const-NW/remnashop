@@ -898,6 +898,7 @@
       "ConnectGuideChangedEvent": "Connect guide changed"
     },
     "eventVariants": {
+      "trialActivated": "Trial activated",
       "CabinetUserRegisteredEvent": {
         "EMAIL": "Cabinet sign-up (Email)",
         "GOOGLE": "Cabinet sign-up (Google)",

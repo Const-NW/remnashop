@@ -18,7 +18,10 @@ ntf-backup-failed = { $kind } backup failed: { $error }
 ntf-bonus-days-renewal-stuck = { $days } bonus days of user #{ $user_id } were not applied to subscription #{ $subscription_id }: { $error }. Apply them by hand.
     .title = Bonus days not applied!
     .emoji = ⚠️
-ntf-subscription-purchased = { $user } bought a subscription ({ $purchase_type })
+ntf-subscription-purchased = { $is_trial ->
+        [yes] { $user } activated a trial
+       *[no] { $user } bought a subscription ({ $purchase_type })
+    }
     .title = { $is_trial ->
         [yes] Trial subscription received!
        *[no] { $purchase_type ->
