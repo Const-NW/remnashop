@@ -1,8 +1,19 @@
 from dataclasses import replace
 from datetime import datetime, timedelta
-from typing import Any, Final, Literal, Optional
+from typing import Any, Final, Literal, Optional, cast
 
-from sqlalchemy import ColumnElement, Numeric, and_, delete, func, or_, select, update
+from sqlalchemy import (
+    ColumnElement,
+    Numeric,
+    Table,
+    and_,
+    bindparam,
+    delete,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX
@@ -572,6 +583,20 @@ class SubscriptionRepository:
                 Subscription.panel_created_at.is_distinct_from(at),
             )
             .values(panel_created_at=at)
+        )
+
+    async def set_panel_created_at_many(self, created_at: dict[int, datetime]) -> None:
+        """One executemany for a whole panel sync, keyed by remnawave_user_id."""
+        table = cast(Table, Subscription.__table__)
+        await self.session.execute(
+            update(table)
+            .where(
+                table.c.remnawave_user_id == bindparam("panel_id"),
+                table.c.status != SubscriptionStatus.DELETED,
+                table.c.panel_created_at.is_distinct_from(bindparam("at")),
+            )
+            .values(panel_created_at=bindparam("at")),
+            [{"panel_id": panel_id, "at": at} for panel_id, at in created_at.items()],
         )
 
     async def apply_state(self, state: SubscriptionState) -> SubscriptionDto:
