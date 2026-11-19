@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pytest
 
 from app.core.constants import CUSTOM_DIALOG_WINDOW_SLOTS, DEFAULT_BANNER_NAME
@@ -192,11 +194,10 @@ async def test_get_by_key_or_raise_missing(dialog_repository: DialogRepository) 
         await dialog_repository.get_by_key_or_raise("nope")
 
 
-async def test_reseed_gives_edited_system_buttons_the_catalog_condition(
-    dialog_repository: DialogRepository,
+async def _move_with_condition(
+    dialog_repository: DialogRepository, condition: Optional[str]
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
-    # moved, so the layout counts as edited, and given a condition of its own
+    # moved, so the layout counts as edited
     await dialog_repository.replace_buttons(
         "menu.main",
         [
@@ -206,14 +207,67 @@ async def test_reseed_gives_edited_system_buttons_the_catalog_condition(
                 text_key="btn-menu.subscription",
                 link_type=ButtonLinkType.NAVIGATE,
                 target_window_key="subscription.main",
-                visibility_condition="trial_available",
+                visibility_condition=condition,
             )
         ],
     )
-    [button] = _SNAPSHOT["buttons"]
-    gated = {**_SNAPSHOT, "buttons": [{**button, "visibility_condition": "has_subscriptions"}]}
 
+
+async def _reseed_with_condition(dialog_repository: DialogRepository, condition: str) -> None:
+    [button] = _SNAPSHOT["buttons"]
+    gated = {**_SNAPSHOT, "buttons": [{**button, "visibility_condition": condition}]}
     await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", gated)
+
+
+async def test_reseed_moves_a_shipped_condition_to_the_catalog_one(
+    dialog_repository: DialogRepository,
+) -> None:
+    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await _move_with_condition(dialog_repository, None)
+
+    await _reseed_with_condition(dialog_repository, "has_subscriptions")
 
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     assert [(b.row, b.visibility_condition) for b in window.buttons] == [(2, "has_subscriptions")]
+
+
+async def test_reseed_keeps_a_condition_the_admin_chose(
+    dialog_repository: DialogRepository,
+) -> None:
+    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await _move_with_condition(dialog_repository, "trial_available")
+
+    await _reseed_with_condition(dialog_repository, "has_subscriptions")
+
+    window = await dialog_repository.get_by_key_or_raise("menu.main")
+    assert [(b.row, b.visibility_condition) for b in window.buttons] == [(2, "trial_available")]
+
+
+async def test_required_comes_from_the_catalog_snapshot(
+    dialog_repository: DialogRepository,
+) -> None:
+    [button] = _SNAPSHOT["buttons"]
+    snapshot = {**_SNAPSHOT, "buttons": [{**button, "required": True}]}
+    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", snapshot)
+
+    window = await dialog_repository.get_by_key_or_raise("menu.main")
+    assert [(b.is_system, b.is_required) for b in window.buttons] == [(True, True)]
+    assert await dialog_repository.required_conditions("menu.main") == {
+        "btn-menu.subscription": None
+    }
+
+
+async def test_reseed_keeps_button_ids_while_the_layout_stays(
+    dialog_repository: DialogRepository,
+) -> None:
+    # an id lives in the callback data of messages already sent
+    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    before = await dialog_repository.get_by_key_or_raise("menu.main")
+    [button] = _SNAPSHOT["buttons"]
+    flagged = {**_SNAPSHOT, "buttons": [{**button, "required": True}]}
+
+    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", flagged)
+
+    after = await dialog_repository.get_by_key_or_raise("menu.main")
+    assert [b.id for b in after.buttons] == [b.id for b in before.buttons]
+    assert [b.is_required for b in after.buttons] == [True]

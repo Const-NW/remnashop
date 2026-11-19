@@ -26,8 +26,10 @@ class DialogButtonDto(BaseDto, TimestampMixin):
     target_window_key: Optional[str] = None
     url_value: Optional[str] = None
     is_hidden: bool = False
-    # Shipped with a seed window; can be edited but never hidden.
+    # shipped with a seed window
     is_system: bool = False
+    # a system button that can't be hidden
+    is_required: bool = False
 
 
 class DialogWindowDto(BaseDto, TimestampMixin):

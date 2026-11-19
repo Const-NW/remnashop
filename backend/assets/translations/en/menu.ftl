@@ -76,7 +76,10 @@ frg-subscription-unlimited = Unlimited
 frg-subscription-traffic-limit = { $traffic_limit } GB
 msg-window-gone = This screen is no longer available.
 msg-paysupport = To request a refund, contact support.
-msg-menu-devices = Your devices ({ $devices_current }/{ $devices_max })
+msg-menu-devices = Your devices ({ $devices_max ->
+    [0] { $devices_current }
+   *[other] { $devices_current }/{ $devices_max }
+})
 msg-menu-devices-confirm-delete = Delete this device?
 msg-menu-devices-confirm-delete-all = Delete every device? The connection link changes and every device loses access — each one has to be connected again with the new link.
 msg-menu-devices-confirm-reissue = Reissue the connection link? The old link will stop working.
@@ -503,6 +506,7 @@ gateway-name =
     .CISPAY = cisPay
 
 ntf-referrals =
+    .disabled = ❌ The referral program isn't running right now.
     .no-subscription = ❌ You have no subscription the bonus days can be added to.
     .days-redeemed = ✅ Bonus days have been added to your subscription.
     .redeem-failed = ❌ Bonus days can't be added to this subscription.

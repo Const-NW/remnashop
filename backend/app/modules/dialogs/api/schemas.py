@@ -25,6 +25,7 @@ class DialogButtonResponse(BaseModel):
     url_value: Optional[str] = None
     is_hidden: bool = False
     is_system: bool = False
+    is_required: bool = False
 
 
 class DialogWindowResponse(BaseModel):

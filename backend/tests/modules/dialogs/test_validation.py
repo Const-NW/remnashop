@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -40,7 +41,7 @@ def _validate(buttons: list[DialogButtonInputDto]) -> None:
         window_kind=DialogWindowKind.CUSTOM,
         navigable=set(),
         seed_actions=set(),
-        system_conditions={},
+        required_conditions={},
     )
 
 
@@ -113,23 +114,42 @@ def test_web_app_button_takes_only_https() -> None:
         )
 
 
-def test_a_system_button_keeps_the_catalog_condition() -> None:
-    [button] = _url_buttons([0])
+def _validate_seed(buttons: list[DialogButtonInputDto], required: dict[str, Optional[str]]) -> None:
+    validate_buttons(
+        buttons,
+        window_key="menu.main",
+        window_kind=DialogWindowKind.SEED,
+        navigable=set(),
+        seed_actions=set(),
+        required_conditions=required,
+    )
 
-    def _check(condition: object) -> None:
-        validate_buttons(
-            [DialogButtonInputDto(**{**button.__dict__, "visibility_condition": condition})],
-            window_key="menu.main",
-            window_kind=DialogWindowKind.SEED,
-            navigable=set(),
-            seed_actions=set(),
-            system_conditions={button.text_key: None},
-        )
 
-    _check(None)
+def _code(buttons: list[DialogButtonInputDto], required: dict[str, Optional[str]]) -> ErrorCode:
     with pytest.raises(ValidationError) as error:
-        _check("trial_available")
-    assert error.value.code is ErrorCode.DIALOG_SYSTEM_BUTTON_CONDITION_LOCKED
+        _validate_seed(buttons, required)
+    return error.value.code
+
+
+def test_a_system_button_is_free_unless_required() -> None:
+    catalog.register_condition("test_condition", lambda data: True)
+    try:
+        [button] = _url_buttons([0])
+        conditioned = DialogButtonInputDto(
+            **{**button.__dict__, "visibility_condition": "test_condition"}
+        )
+        hidden = DialogButtonInputDto(**{**button.__dict__, "is_hidden": True})
+        required = {button.text_key: None}
+
+        _validate_seed([conditioned], {})
+        _validate_seed([hidden], {})
+        _validate_seed([], {})
+        _validate_seed([button], required)
+        assert _code([hidden], required) is ErrorCode.DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE
+        assert _code([conditioned], required) is ErrorCode.DIALOG_REQUIRED_BUTTON_CONDITION_LOCKED
+        assert _code([], required) is ErrorCode.DIALOG_REQUIRED_BUTTON_MISSING
+    finally:
+        catalog._reset_for_tests()
 
 
 @pytest.mark.parametrize("locale", [Locale.EN, Locale.RU])

@@ -95,7 +95,7 @@ export function ButtonInspector({
         label={t("dialogs.inspector.enabledLabel")}
         checked={!button.is_hidden}
         onChange={(value) => onChange({ ...button, is_hidden: !value })}
-        disabled={!canEditButtons || button.is_system}
+        disabled={!canEditButtons || button.is_required}
       />
 
       <Field label={t("dialogs.inspector.buttonLabel")} required hint={isTextSeeded ? undefined : t("dialogs.inspector.buttonLabelPending")}>
@@ -191,13 +191,16 @@ export function ButtonInspector({
         </Field>
       )}
 
-      <Field label={t("dialogs.inspector.buttonCondition")}>
+      <Field
+        label={t("dialogs.inspector.buttonCondition")}
+        hint={button.is_required ? t("dialogs.inspector.buttonRequiredHint") : undefined}
+      >
         <SelectDropdown
           variant="well"
           size="compact"
           icon={Eye}
           value={button.visibility_condition ?? ""}
-          disabled={!canEditButtons || button.is_system}
+          disabled={!canEditButtons || button.is_required}
           placeholder={t("dialogs.inspector.buttonConditionNone")}
           options={[
             { value: "", label: t("dialogs.inspector.buttonConditionNone") },

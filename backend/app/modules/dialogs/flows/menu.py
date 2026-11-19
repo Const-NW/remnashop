@@ -124,6 +124,7 @@ def register_menu_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="connect",
+                    required=True,
                     text_key="btn-menu.connect",
                     row=0,
                     column=0,
@@ -169,6 +170,7 @@ def register_menu_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="subscription",
+                    required=True,
                     text_key="btn-menu.subscription",
                     row=2,
                     column=1,
@@ -178,6 +180,7 @@ def register_menu_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="subscriptions",
+                    required=True,
                     text_key="btn-menu.subscriptions",
                     row=2,
                     column=2,
@@ -187,6 +190,7 @@ def register_menu_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="purchase",
+                    required=True,
                     text_key="btn-menu.purchase",
                     row=3,
                     column=0,
@@ -269,6 +273,7 @@ def register_menu_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="back",
+                    required=True,
                     text_key="btn-back.general",
                     row=2,
                     column=0,
@@ -288,6 +293,7 @@ def register_menu_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="confirm_delete",
+                    required=True,
                     text_key="btn-devices.confirm-delete",
                     row=0,
                     column=0,
@@ -296,6 +302,7 @@ def register_menu_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="back",
+                    required=True,
                     text_key="btn-back.general",
                     row=0,
                     column=1,
@@ -315,6 +322,7 @@ def register_menu_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="confirm_delete_all",
+                    required=True,
                     text_key="btn-devices.confirm-delete",
                     row=0,
                     column=0,
@@ -323,6 +331,7 @@ def register_menu_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="back",
+                    required=True,
                     text_key="btn-back.general",
                     row=0,
                     column=1,
@@ -342,6 +351,7 @@ def register_menu_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="confirm_reissue",
+                    required=True,
                     text_key="btn-devices.confirm-reissue",
                     row=0,
                     column=0,
@@ -350,6 +360,7 @@ def register_menu_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="cancel",
+                    required=True,
                     text_key="btn-devices.cancel-reissue",
                     row=0,
                     column=1,

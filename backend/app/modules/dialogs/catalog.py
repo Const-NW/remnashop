@@ -51,6 +51,8 @@ class CatalogButton:
     url_value: Optional[str] = None
     visibility_condition: Optional[str] = None
     style: Optional[ButtonStyleKind] = None
+    # hiding it would strand the customer in the window or cut off a core flow
+    required: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -244,6 +246,7 @@ def window_snapshot(key: str) -> dict:
                 "visibility_condition": b.visibility_condition,
                 "style": b.style.value if b.style else None,
                 "is_hidden": False,
+                "required": b.required,
             }
             for b in window.buttons
         ],

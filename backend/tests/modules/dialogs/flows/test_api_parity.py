@@ -6,7 +6,7 @@ import pytest
 
 from app.core.bot_signals import RedisBotSignals
 from app.core.db.uow import UnitOfWork
-from app.core.enums import ButtonLinkType, DialogWindowKind, Locale, Role
+from app.core.enums import DialogWindowKind, Locale, Role
 from app.modules.dialogs import catalog
 from app.modules.dialogs.dto import DialogButtonInputDto, UpdateDialogWindowButtonsDto
 from app.modules.dialogs.repository import DialogRepository
@@ -94,22 +94,22 @@ async def test_update_buttons_accepts_a_real_action_from_metadata_alone(
         RedisBotSignals(redis),
         RecordingEventPublisher(),
     )
-    # a seed window's action key, written back through the admin API
-
-    updated = await use_case(
-        OWNER,
-        UpdateDialogWindowButtonsDto(
-            key="menu.main",
-            buttons=[
-                DialogButtonInputDto(
-                    row=0,
-                    column=0,
-                    text_key="btn-menu.trial",
-                    link_type=ButtonLinkType.ACTION,
-                    action_key="get_trial",
-                    visibility_condition="trial_available",
-                )
-            ],
-        ),
-    )
-    assert updated.buttons[0].action_key == "get_trial"
+    # a seed window's buttons, written back through the admin API
+    buttons = [
+        DialogButtonInputDto(
+            row=b.row,
+            column=b.column,
+            text_key=b.text_key,
+            style=b.style,
+            visibility_condition=b.visibility_condition,
+            link_type=b.link_type,
+            action_key=b.action_key,
+            target_window_key=b.target_window_key,
+            url_value=b.url_value,
+            is_hidden=b.is_hidden,
+        )
+        for b in window.buttons
+    ]
+    updated = await use_case(OWNER, UpdateDialogWindowButtonsDto(key="menu.main", buttons=buttons))
+    trial = next(b for b in updated.buttons if b.text_key == "btn-menu.trial")
+    assert trial.action_key == "get_trial"

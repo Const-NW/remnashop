@@ -37,6 +37,7 @@ def register_subscriptions_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="purchase",
+                    required=True,
                     text_key="btn-subscriptions.purchase",
                     row=0,
                     column=0,
@@ -46,6 +47,7 @@ def register_subscriptions_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="back",
+                    required=True,
                     text_key="btn-back.general",
                     row=1,
                     column=0,
@@ -73,6 +75,7 @@ def register_subscriptions_metadata() -> None:
             buttons=(
                 catalog.CatalogButton(
                     key="connect",
+                    required=True,
                     text_key="btn-menu.connect",
                     row=0,
                     column=0,
@@ -91,6 +94,7 @@ def register_subscriptions_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="renew",
+                    required=True,
                     text_key="btn-subscription.renew",
                     row=2,
                     column=0,
@@ -118,6 +122,7 @@ def register_subscriptions_metadata() -> None:
                 ),
                 catalog.CatalogButton(
                     key="back",
+                    required=True,
                     text_key="btn-back.general",
                     row=3,
                     column=0,

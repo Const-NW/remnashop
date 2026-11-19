@@ -336,6 +336,7 @@ export function DialogCanvasEditor() {
       url_value: null,
       is_hidden: false,
       is_system: false,
+      is_required: false,
     };
     setPendingButtons([...buttons, newButton]);
     setSelection({ kind: "button", buttonKey: buttonKey(newButton) });
@@ -356,7 +357,11 @@ export function DialogCanvasEditor() {
 
   // the same check the button inspector renders under
   const showsButtonDelete =
-    selectedButton !== undefined && catalog !== null && previewLocale !== null && entriesState.kind === "ready";
+    selectedButton !== undefined &&
+    !selectedButton.is_required &&
+    catalog !== null &&
+    previewLocale !== null &&
+    entriesState.kind === "ready";
 
   function renderInspector() {
     if (!selectedWindow) return null;

@@ -6,7 +6,9 @@ from app.modules.dialogs.dto import DialogWindowDto
 # Bumped when the payload's meaning changes: banner_name went from a fixed
 # category to a free name, and a button's icon moved out into translations.
 # An older file would import cleanly and land wrong, so it is refused instead.
-EXPORT_VERSION: Final[int] = 2
+EXPORT_VERSION: Final[int] = 3
+# system buttons' conditions were locked to the catalog's, so the file's are stale
+LOCKED_CONDITIONS_EXPORT_VERSION: Final[int] = 2
 
 
 def dialog_text_keys(windows: list[DialogWindowDto]) -> set[str]:
