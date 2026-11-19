@@ -237,7 +237,7 @@ export function EventsTab({ userId, by }: { userId: number; by: "actor" | "targe
           <Row
             key={entry.id}
             size="sm"
-            glyph={<EventTypeIcon eventType={entry.event_type} className="size-4" />}
+            glyph={<EventTypeIcon entry={entry} className="size-4" />}
             label={eventTitle(entry, t)}
             onClick={() => setOpenedEntry(entry)}
           >

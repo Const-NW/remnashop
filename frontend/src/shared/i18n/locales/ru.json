@@ -966,6 +966,7 @@
       "ConnectGuideChangedEvent": "Инструкция подключения изменена"
     },
     "eventVariants": {
+      "trialActivated": "Пробная подписка активирована",
       "CabinetUserRegisteredEvent": {
         "EMAIL": "Регистрация в кабинете (Email)",
         "GOOGLE": "Регистрация в кабинете (Google)",

@@ -82,11 +82,18 @@ const TITLE_VARIANT_FIELD_OVERRIDES: Readonly<Record<string, string>> = {
 
 const HOURS_PER_DAY = 24;
 
+export function isTrialActivation(entry: Pick<EventLogEntry, "event_type" | "payload">): boolean {
+  return entry.event_type === "SubscriptionPurchasedEvent" && entry.payload?.is_trial === true;
+}
+
 export function eventTitle(entry: EventLogEntry, t: TFunction): string {
   const title = t(`eventLog.events.${entry.event_type}` as ParseKeys);
   const hours = entry.payload?.hours;
   if (entry.event_type === "SubscriptionExpiredAgoEvent" && typeof hours === "number") {
     return t("eventLog.eventVariants.subscriptionExpiredDays", { count: Math.round(hours / HOURS_PER_DAY) });
+  }
+  if (isTrialActivation(entry)) {
+    return t("eventLog.eventVariants.trialActivated");
   }
   const variant = entry.payload?.[TITLE_VARIANT_FIELD_OVERRIDES[entry.event_type] ?? TITLE_VARIANT_FIELD];
   if (typeof variant !== "string") return title;

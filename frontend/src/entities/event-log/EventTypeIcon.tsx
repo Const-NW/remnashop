@@ -89,6 +89,9 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import type { EventLogEntry } from "@entities/event-log/api";
+import { isTrialActivation } from "@entities/event-log/describe-entry";
+
 const EVENT_ICONS: Record<string, LucideIcon> = {
   LoginSucceededEvent: LogIn,
   LoginFailedEvent: ShieldX,
@@ -248,7 +251,13 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   SubscriptionConfigSyncedEvent: RefreshCcw,
 };
 
-export function EventTypeIcon({ eventType, className }: { eventType: string; className?: string }) {
-  const Icon = EVENT_ICONS[eventType] ?? History;
+export function EventTypeIcon({
+  entry,
+  className,
+}: {
+  entry: Pick<EventLogEntry, "event_type" | "payload">;
+  className?: string;
+}) {
+  const Icon = isTrialActivation(entry) ? Gift : (EVENT_ICONS[entry.event_type] ?? History);
   return <Icon className={className} />;
 }

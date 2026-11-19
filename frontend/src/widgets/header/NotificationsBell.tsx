@@ -280,7 +280,7 @@ export function NotificationsBell({ isOpen, anchorRef, popoverRef, onToggle, onC
                 className={`${ROW_CLASS} enabled:hover:bg-white/[0.06] disabled:cursor-default`}
               >
                 <span className="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-foreground">
-                  <EventTypeIcon eventType={entry.event_type} className="size-3.5" />
+                  <EventTypeIcon entry={entry} className="size-3.5" />
                 </span>
                 <CellText
                   title={eventTitle(entry, t)}

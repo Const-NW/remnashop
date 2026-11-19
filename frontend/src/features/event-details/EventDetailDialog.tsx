@@ -178,7 +178,7 @@ function EventDetailDialogBody({ entry }: { entry: EventLogEntry }) {
   return (
     <>
       <DialogHeader
-        glyph={<EventTypeIcon eventType={entry.event_type} className="size-4" />}
+        glyph={<EventTypeIcon entry={entry} className="size-4" />}
         title={eventTitle(entry, t)}
       />
 
