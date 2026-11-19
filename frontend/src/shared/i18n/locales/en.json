@@ -1620,7 +1620,7 @@
       "testPaymentCreating": "Creating…",
       "testPaymentPaid": "Test payment received.",
       "testPaymentStatus": {
-        "PENDING": "Waiting for the test payment… It will not grant a subscription or count in statistics.",
+        "PENDING": "Waiting for the test payment…",
         "PAID": "Test payment received — the gateway works.",
         "FAILED": "The test payment failed.",
         "CANCELED": "The test payment was not paid and was canceled.",
@@ -4456,6 +4456,7 @@
     "GATEWAY_NOT_IMPLEMENTED": "This gateway isn’t supported.",
     "GATEWAY_NOT_SUPPORTED": "This gateway isn’t supported yet.",
     "GATEWAY_NOT_TESTABLE": "This gateway can’t be tested from the dashboard.",
+    "GATEWAY_TEST_NO_TELEGRAM": "Link Telegram to your account to pay a test invoice with Stars.",
     "GATEWAY_REORDER_INCOMPLETE": "The new order must include every gateway exactly once.",
     "GATEWAY_REQUIRED": "Choose a payment method.",
     "HTTP_ERROR": "Request failed.",

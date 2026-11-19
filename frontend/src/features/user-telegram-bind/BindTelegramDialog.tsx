@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { bindUserTelegram, listUsers, type UserBase } from "@entities/user/api";
+import { MergeAccountsDialog } from "@features/user-merge/MergeAccountsDialog";
 import { ApiError, getErrorMessage } from "@shared/api/http";
 import { toast } from "@shared/lib/toast";
 import { Button } from "@shared/ui/Button";
@@ -19,8 +20,8 @@ const OWNER_LOOKUP_LIMIT = 10;
 interface BindTelegramDialogProps {
   user: UserBase;
   onBound: (user: UserBase) => void;
-  /** the id is taken by `other`; the caller opens the merge with it */
-  onMergeWith: (other: UserBase) => void;
+  /** the id was taken and the two accounts got merged; `removed` is now deleted */
+  onMerged: (merged: UserBase, removed: UserBase) => void;
   onClose: () => void;
 }
 
@@ -32,13 +33,14 @@ export function BindTelegramDialog({ onClose, ...props }: BindTelegramDialogProp
   );
 }
 
-function BindTelegramForm({ user, onBound, onMergeWith }: Omit<BindTelegramDialogProps, "onClose">) {
+function BindTelegramForm({ user, onBound, onMerged }: Omit<BindTelegramDialogProps, "onClose">) {
   const { t } = useTranslation();
   const close = useModalClose();
   const [value, setValue] = useState(user.telegram_id === null ? "" : String(user.telegram_id));
   const [error, setError] = useState<string | null>(null);
   const [owner, setOwner] = useState<UserBase | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMerging, setIsMerging] = useState(false);
   const telegramId = /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
 
   const handleSubmit = async (event: FormEvent) => {
@@ -90,25 +92,37 @@ function BindTelegramForm({ user, onBound, onMergeWith }: Omit<BindTelegramDialo
           </Field>
         </div>
         <div className={`${GLASS_DIALOG_FOOTER_CLASS} shrink-0 justify-end`}>
-          {owner && (
+          <Button variant="glass" type="button" onClick={close}>
+            {t("common.cancel")}
+          </Button>
+          {owner ? (
             <Button
-              variant="glass"
+              variant="glassAccent"
               type="button"
-              // replaces this dialog in place; closing it first would clear the hand-off
-              onClick={() => onMergeWith(owner)}
+              onClick={() => setIsMerging(true)}
             >
               <GitMerge className="size-4" />
               {t("users.telegram.mergeWith", { id: owner.id })}
             </Button>
+          ) : (
+            <Button variant="glassAccent" type="submit" disabled={telegramId === null || error !== null} isLoading={isSubmitting}>
+              {t("common.save")}
+            </Button>
           )}
-          <Button variant="glass" type="button" onClick={close}>
-            {t("common.cancel")}
-          </Button>
-          <Button variant="glassAccent" type="submit" disabled={telegramId === null || error !== null} isLoading={isSubmitting}>
-            {t("common.save")}
-          </Button>
         </div>
       </form>
+      {/* nested: morphs out of this dialog and back on cancel */}
+      {isMerging && owner && (
+        <MergeAccountsDialog
+          user={user}
+          initialOther={owner}
+          onMerged={(merged, removed) => {
+            onMerged(merged, removed);
+            close();
+          }}
+          onClose={() => setIsMerging(false)}
+        />
+      )}
     </>
   );
 }

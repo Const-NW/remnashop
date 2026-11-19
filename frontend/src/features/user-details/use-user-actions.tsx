@@ -91,8 +91,6 @@ export function useUserActions({
       | "deleteSubscriptions"
       | "delete";
     user: UserBase;
-    /** the merge counterpart, preset when a Telegram ID turned out taken */
-    other?: UserBase;
   } | null>(null);
 
   const available = (user: UserBase): UserAction[] => {
@@ -126,8 +124,10 @@ export function useUserActions({
         ? ["demote" as const]
         : []),
       // bound: only unbinding is offered; a new id goes on after that. Staff link
-      // Telegram from their profile by signing in with it, never by a typed id
-      ...(user.telegram_id === null && user.role === "USER" && permissions.includes("USERS_TELEGRAM_BIND")
+      // Telegram from their profile by signing in with it; only the owner types their own
+      ...(user.telegram_id === null &&
+      (user.role === "USER" || (isSelf && currentRole === "OWNER")) &&
+      permissions.includes("USERS_TELEGRAM_BIND")
         ? ["bindTelegram" as const]
         : []),
       ...(user.telegram_id !== null && canTouchStaff && permissions.includes("USERS_TELEGRAM_UNBIND")
@@ -264,15 +264,15 @@ export function useUserActions({
       <BindTelegramDialog
         user={pending.user}
         onBound={onUpdated}
-        onMergeWith={(other) =>
-          setPending({ action: "merge", user: pending.user, other })
-        }
+        onMerged={(merged, removed) => {
+          onUpdated(merged);
+          onDeleted(removed);
+        }}
         onClose={close}
       />
     ) : pending.action === "merge" ? (
       <MergeAccountsDialog
         user={pending.user}
-        initialOther={pending.other}
         onMerged={(merged, removed) => {
           onUpdated(merged);
           onDeleted(removed);

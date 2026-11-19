@@ -29,9 +29,10 @@ async function morphPanels(
   const parentClip = `inset(${[from.top - to.top, to.right - from.right, to.bottom - from.bottom, from.left - to.left]
     .map((value) => `${Math.max(0, value)}px`)
     .join(" ")} ${PANEL_CLIP_RADIUS})`;
+  // max-width too: the parent's size class would cap a wider nested panel's frame
   const boxes = [
-    { width: `${from.width}px`, height: `${from.height}px` },
-    { width: `${to.width}px`, height: `${to.height}px` },
+    { width: `${from.width}px`, maxWidth: `${from.width}px`, height: `${from.height}px` },
+    { width: `${to.width}px`, maxWidth: `${to.width}px`, height: `${to.height}px` },
   ];
   const clips = [{ clipPath: parentClip }, { clipPath: `inset(0 ${PANEL_CLIP_RADIUS})` }];
   if (direction === "out") {
