@@ -512,6 +512,79 @@ async def test_renew_adds_a_calendar_month_or_exact_days(
     assert abs(bonus.expire_at - (renewed.expire_at + timedelta(days=30))) < timedelta(seconds=1)
 
 
+async def test_monthly_renewals_come_back_to_the_anchor_day(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    session: AsyncSession,
+) -> None:
+    buyer = await _create_buyer(user_repository, 413)
+    plan = await _create_plan(plan_repository, "renew-anchor")
+    use_case = PurchaseSubscriptionUseCase(
+        subscription_repository,
+        make_eligibility(subscription_repository.session),
+        remnawave_sdk,
+        uow,
+        event_publisher,
+        SubscriptionLifecycleService(subscription_repository),
+        PricingRepository(subscription_repository.session),
+        idempotency_repository,
+        UserRepository(subscription_repository.session),
+        AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
+    )
+
+    def _order(purchase_type: PurchaseType, **extra: Any) -> PurchaseSubscriptionDto:
+        return PurchaseSubscriptionDto(
+            user_id=buyer.id,
+            plan_snapshot=snapshot_from_plan(
+                plan, price_paid=Decimal("299.00"), currency=Currency.RUB, duration_days=30
+            ),
+            duration_days=30,
+            price_paid=Decimal("299.00"),
+            currency=Currency.RUB,
+            purchase_type=purchase_type,
+            **extra,
+        )
+
+    original = await use_case(buyer, _order(PurchaseType.NEW))
+    assert original.term_anchor_day == datetime_now().day
+
+    # bought on January 31st, cut to February 28th by the shorter month
+    cut = datetime(2027, 2, 28, 12, tzinfo=original.expire_at.tzinfo)
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == original.id)
+        .values(expire_at=cut, term_anchor_day=31)
+    )
+    remnawave_store[original.remnawave_user_id]["expireAt"] = cut.isoformat()
+
+    ends = []
+    for _ in range(3):
+        renewed = await use_case(
+            buyer, _order(PurchaseType.RENEW, target_subscription_id=original.id)
+        )
+        ends.append(renewed.expire_at.date().isoformat())
+    assert ends == ["2027-03-31", "2027-04-30", "2027-05-31"]
+    assert renewed.term_anchor_day == 31
+
+    # plain days move the end off the anchor (May 31st + 60 days = July 30th);
+    # the next month counts from there
+    for _ in range(2):
+        await use_case(
+            buyer,
+            _order(PurchaseType.RENEW, target_subscription_id=original.id, exact_days=True),
+        )
+    renewed = await use_case(buyer, _order(PurchaseType.RENEW, target_subscription_id=original.id))
+    assert renewed.expire_at.date().isoformat() == "2027-08-30"
+    assert renewed.term_anchor_day == 30
+
+
 async def test_a_paid_renew_takes_the_plans_tag_and_a_bonus_one_keeps_it(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,

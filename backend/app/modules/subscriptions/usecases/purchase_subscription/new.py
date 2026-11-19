@@ -27,7 +27,7 @@ from app.modules.subscriptions.panel import (
     subscription_row,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
-from app.modules.subscriptions.unlimited import expiry_after, term_days
+from app.modules.subscriptions.unlimited import expiry_after, term_anchor, term_days
 from app.modules.users import UserRepository
 
 
@@ -92,6 +92,7 @@ class NewPurchase:
 
         now = datetime_now()
         expire_at = expiry_after(now, data.duration_days, exact_days=data.exact_days)
+        anchor_day = term_anchor(now, data.duration_days, exact_days=data.exact_days)
         data = _credit_actual_days(data, now, expire_at)
         plan = data.plan_snapshot
         panel_user = await self._remnawave_sdk.users.create_user(
@@ -121,7 +122,7 @@ class NewPurchase:
                         data.user_id, lock=True, pending=await self._open_orders(data)
                     )
                 subscription = await self._subscription_repository.create(
-                    subscription_row(data, panel_user)
+                    subscription_row(data, panel_user, term_anchor_day=anchor_day)
                 )
                 await self._finish(actor, data, subscription)
         except _AlreadyProvisionedError as done:
@@ -183,6 +184,7 @@ class NewPurchase:
         # is still replaced by a subscription the customer has paid for
         now = datetime_now()
         expire_at = expiry_after(now, data.duration_days, exact_days=data.exact_days)
+        anchor_day = term_anchor(now, data.duration_days, exact_days=data.exact_days)
         data = _credit_actual_days(data, now, expire_at)
         plan = data.plan_snapshot
         panel_user = await self._remnawave_sdk.users.update_user(
@@ -207,7 +209,12 @@ class NewPurchase:
                     )
                 await self._subscription_repository.mark_deleted(trial.id)
                 subscription = await self._subscription_repository.create(
-                    subscription_row(data, panel_user, status=SubscriptionStatus(panel_user.status))
+                    subscription_row(
+                        data,
+                        panel_user,
+                        status=SubscriptionStatus(panel_user.status),
+                        term_anchor_day=anchor_day,
+                    )
                 )
                 await self._finish(actor, data, subscription)
         except _AlreadyProvisionedError as done:
@@ -262,6 +269,6 @@ class NewPurchase:
 def _credit_actual_days(
     data: PurchaseSubscriptionDto, now: datetime, expire_at: datetime
 ) -> PurchaseSubscriptionDto:
-    # a calendar month is 28-31 days: proration divides by the days it really holds
+    # proration divides by the days the term really holds
     days = term_days(now, expire_at, data.duration_days)
     return replace(data, plan_snapshot=replace(data.plan_snapshot, credit_days=days))

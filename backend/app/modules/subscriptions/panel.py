@@ -200,6 +200,7 @@ def subscription_row(
     panel_user: UserResponseDto,
     expire_at: Optional[datetime] = None,
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
+    term_anchor_day: Optional[int] = None,
 ) -> CreateSubscriptionDto:
     plan = data.plan_snapshot
     return CreateSubscriptionDto(
@@ -217,6 +218,7 @@ def subscription_row(
         url=panel_user.subscription_url,
         plan_snapshot=plan,
         panel_created_at=panel_user.created_at,
+        term_anchor_day=term_anchor_day,
     )
 
 

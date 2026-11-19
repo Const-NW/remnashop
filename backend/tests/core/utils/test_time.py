@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import pytest
 
@@ -83,3 +84,26 @@ def test_add_term_counts_months_and_years_by_the_calendar(
     start: datetime, days: int, expected: datetime
 ) -> None:
     assert add_term(start, days) == expected
+
+
+@pytest.mark.parametrize(
+    ("start", "anchor", "expected"),
+    [
+        # cut to a shorter month's end, back on the anchor the month after
+        (_utc(2027, 2, 28), 31, _utc(2027, 3, 31)),
+        (_utc(2027, 4, 30), 31, _utc(2027, 5, 31)),
+        (_utc(2028, 2, 29), 30, _utc(2028, 3, 30)),
+        # an end moved off the anchor counts from its own day
+        (_utc(2027, 2, 15), 31, _utc(2027, 3, 15)),
+        (_utc(2027, 3, 30), 31, _utc(2027, 4, 30)),
+        (_utc(2027, 2, 28), None, _utc(2027, 3, 28)),
+    ],
+)
+def test_add_term_comes_back_to_the_anchor_day(
+    start: datetime, anchor: Optional[int], expected: datetime
+) -> None:
+    assert add_term(start, 30, anchor) == expected
+
+
+def test_plain_days_ignore_the_anchor() -> None:
+    assert add_term(_utc(2027, 2, 28), 7, 31) == _utc(2027, 3, 7)

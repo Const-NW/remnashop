@@ -109,6 +109,7 @@ class SubscriptionRepository:
             link_reset_at=row.link_reset_at,
             first_connected_at=row.first_connected_at,
             panel_created_at=row.panel_created_at,
+            term_anchor_day=row.term_anchor_day,
             paused_by_channel_leave=row.paused_by_channel_leave,
             addon_entitlements=entitlements,
             created_at=row.created_at,
@@ -385,6 +386,7 @@ class SubscriptionRepository:
             url=data.url,
             plan_snapshot=data.plan_snapshot.to_json(),
             panel_created_at=data.panel_created_at,
+            term_anchor_day=data.term_anchor_day,
             device_single_reset_at=None,
             device_all_reset_at=None,
             link_reset_at=None,
@@ -583,6 +585,13 @@ class SubscriptionRepository:
                 Subscription.panel_created_at.is_distinct_from(at),
             )
             .values(panel_created_at=at)
+        )
+
+    async def set_term_anchor_day(self, subscription_id: int, day: int) -> None:
+        await self.session.execute(
+            update(Subscription)
+            .where(Subscription.id == subscription_id)
+            .values(term_anchor_day=day)
         )
 
     async def set_panel_created_at_many(self, created_at: dict[int, datetime]) -> None:
