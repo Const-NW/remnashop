@@ -60,6 +60,17 @@ async def test_fetch_panel_index_keeps_first_connection() -> None:
     assert index.first_connected_at == {1: datetime(2025, 12, 1, 10, tzinfo=timezone.utc)}
 
 
+async def test_fetch_panel_index_keeps_creation_date() -> None:
+    store: dict[int, dict[str, Any]] = {}
+    _put(store, 1, "u1")
+    store[1]["createdAt"] = "2025-03-31T12:00:00.000Z"
+    transport, _, _ = make_fake_remnawave_transport(store)
+
+    index = await fetch_panel_index(_sdk(transport))
+
+    assert index.created_at == {1: datetime(2025, 3, 31, 12, tzinfo=timezone.utc)}
+
+
 async def test_fetch_panel_index_keeps_status_and_expiry() -> None:
     store: dict[int, dict[str, Any]] = {}
     _put(store, 1, "u1")

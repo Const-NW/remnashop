@@ -211,6 +211,7 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     device_all_reset_at: Optional[datetime] = None
     link_reset_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
+    panel_created_at: Optional[datetime] = None
     paused_by_channel_leave: bool = False
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 
@@ -314,6 +315,7 @@ class CreateSubscriptionDto:
     tag: Optional[str] = None
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
+    panel_created_at: Optional[datetime] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -459,6 +461,7 @@ class SyncSubscriptionStatusDto:
     source: StatusSyncSource
     expire_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
+    panel_created_at: Optional[datetime] = None
     # None: the source only knows status and dates
     config: Optional[PanelConfigDto] = None
 

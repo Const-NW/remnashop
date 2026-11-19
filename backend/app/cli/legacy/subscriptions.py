@@ -143,6 +143,7 @@ def transform_subscriptions(
             status=status,
             remnawave_user_id=panel_id,
             first_connected_at=index.first_connected_at.get(panel_id),
+            panel_created_at=index.created_at.get(panel_id),
             paused_by_channel_leave=bool(row.get("disabled_by_channel_leave")),
             plan_snapshot=convert_plan_snapshot(
                 old_snapshot, public_code=public_code, price_paid=price, currency=currency

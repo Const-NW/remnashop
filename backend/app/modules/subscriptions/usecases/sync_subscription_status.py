@@ -50,6 +50,10 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
                 await self._subscription_repository.set_first_connected_at(
                     data.remnawave_user_id, data.first_connected_at
                 )
+            if data.panel_created_at is not None:
+                await self._subscription_repository.set_panel_created_at(
+                    data.remnawave_user_id, data.panel_created_at
+                )
 
             subscription = await self._sync_status(subscription, data)
             if data.config is not None and subscription.status is not SubscriptionStatus.DELETED:

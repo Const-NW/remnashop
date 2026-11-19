@@ -216,6 +216,7 @@ def subscription_row(
         expire_at=expire_at or panel_user.expire_at,
         url=panel_user.subscription_url,
         plan_snapshot=plan,
+        panel_created_at=panel_user.created_at,
     )
 
 

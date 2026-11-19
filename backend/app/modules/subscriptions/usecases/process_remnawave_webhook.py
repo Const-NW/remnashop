@@ -127,6 +127,7 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
                     source="webhook",
                     expire_at=None if is_deletion else payload.data.expire_at,
                     first_connected_at=payload.data.first_connected_at,
+                    panel_created_at=payload.data.created_at,
                     # limits, squads, tag and link changed in the panel come over too
                     config=None if is_deletion else panel_config(payload.data),
                 )

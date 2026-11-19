@@ -57,3 +57,5 @@ class Subscription(BaseSql, TimestampMixin):
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
+    # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets
+    panel_created_at: Mapped[Optional[datetime]]

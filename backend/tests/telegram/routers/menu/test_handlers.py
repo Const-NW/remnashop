@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -117,6 +118,7 @@ def _subscription(
     strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET,
 ) -> MagicMock:
     return MagicMock(
+        id=7,
         status=status,
         is_trial=is_trial,
         traffic_limit_strategy=strategy,
@@ -125,7 +127,7 @@ def _subscription(
 
 
 async def _show(
-    subscription: MagicMock, manager: MagicMock, panel_created_at: object = None
+    subscription: MagicMock, manager: MagicMock, anchor: Optional[AsyncMock] = None
 ) -> MagicMock:
     callback = MagicMock(answer=AsyncMock())
     runner = MagicMock(get=lambda key, **kwargs: f"{key}{sorted(kwargs.items())}")
@@ -135,7 +137,7 @@ async def _show(
         manager,
         list_own_active_subscriptions=AsyncMock(return_value=[subscription]),
         list_own_subscriptions=AsyncMock(return_value=[subscription]),
-        panel_usage=MagicMock(created_at=AsyncMock(return_value=panel_created_at)),
+        get_traffic_reset_anchor=anchor or AsyncMock(return_value=None),
         i18n=MagicMock(get_translator_by_locale=MagicMock(return_value=runner)),
     )
     return callback
@@ -170,13 +172,15 @@ async def test_a_rolling_reset_counts_from_the_panel_user(monkeypatch: pytest.Mo
     monkeypatch.setattr("app.telegram.routers.menu.handlers.next_traffic_reset", _reset)
     panel_created = datetime(2025, 3, 31, tzinfo=timezone.utc)
     limited = SubscriptionStatus.LIMITED
+    anchor = AsyncMock(return_value=panel_created)
 
     await _show(
-        _subscription(limited, strategy=TrafficLimitStrategy.MONTH_ROLLING),
-        _manager(),
-        panel_created,
+        _subscription(limited, strategy=TrafficLimitStrategy.MONTH_ROLLING), _manager(), anchor
     )
-    # the panel unreachable: our own row's date
+    # no anchor anywhere: no date rather than our own row's
     await _show(_subscription(limited, strategy=TrafficLimitStrategy.MONTH_ROLLING), _manager())
+    # other strategies don't need one
+    await _show(_subscription(limited, strategy=TrafficLimitStrategy.MONTH), _manager(), anchor)
 
-    assert seen == [panel_created, _NOW]
+    assert seen == [panel_created, None, None]
+    assert anchor.await_count == 1

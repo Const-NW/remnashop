@@ -389,6 +389,39 @@ async def test_sync_records_first_connected_at_only_once(
     assert abs((stored - first).total_seconds()) < 1
 
 
+async def test_sync_keeps_the_panel_users_creation_date(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    subscription_id = await _create_subscription(
+        subscription_repository, user_repository, 71902, SubscriptionStatus.ACTIVE
+    )
+    use_case = SyncSubscriptionStatusUseCase(
+        subscription_repository,
+        uow,
+        event_publisher,
+        SubscriptionLifecycleService(subscription_repository),
+    )
+    first = datetime_now() - timedelta(days=40)
+    # a panel restored from a backup may report another date: the panel wins
+    second = first - timedelta(days=5)
+
+    for at in (first, second):
+        await use_case.system(
+            SyncSubscriptionStatusDto(
+                remnawave_user_id=71902,
+                status=SubscriptionStatus.ACTIVE,
+                source="webhook",
+                panel_created_at=at,
+            )
+        )
+        stored = await subscription_repository.get_by_id(subscription_id)
+        assert stored.panel_created_at is not None
+        assert abs((stored.panel_created_at - at).total_seconds()) < 1
+
+
 async def test_synced_event_carries_the_owner(
     session: AsyncSession,
     subscription_repository: SubscriptionRepository,

@@ -153,6 +153,7 @@ def imported_row(
         expire_at=user.expire_at,
         url=config.url,
         plan_snapshot=snapshot,
+        panel_created_at=user.created_at,
     )
 
 
@@ -169,6 +170,7 @@ def from_panel(
         status=SubscriptionStatus(user.status),
         source=source,
         expire_at=user.expire_at,
+        panel_created_at=user.created_at,
         config=panel_config(user),
     )
 

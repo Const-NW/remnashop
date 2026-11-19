@@ -97,6 +97,7 @@ class SubscriptionRepository:
             device_all_reset_at=row.device_all_reset_at,
             link_reset_at=row.link_reset_at,
             first_connected_at=row.first_connected_at,
+            panel_created_at=row.panel_created_at,
             paused_by_channel_leave=row.paused_by_channel_leave,
             addon_entitlements=entitlements,
             created_at=row.created_at,
@@ -372,6 +373,7 @@ class SubscriptionRepository:
             expire_at=data.expire_at,
             url=data.url,
             plan_snapshot=data.plan_snapshot.to_json(),
+            panel_created_at=data.panel_created_at,
             device_single_reset_at=None,
             device_all_reset_at=None,
             link_reset_at=None,
@@ -559,6 +561,17 @@ class SubscriptionRepository:
                 Subscription.first_connected_at.is_(None),
             )
             .values(first_connected_at=at)
+        )
+
+    async def set_panel_created_at(self, remnawave_user_id: int, at: datetime) -> None:
+        await self.session.execute(
+            update(Subscription)
+            .where(
+                Subscription.remnawave_user_id == remnawave_user_id,
+                Subscription.status != SubscriptionStatus.DELETED,
+                Subscription.panel_created_at.is_distinct_from(at),
+            )
+            .values(panel_created_at=at)
         )
 
     async def apply_state(self, state: SubscriptionState) -> SubscriptionDto:
