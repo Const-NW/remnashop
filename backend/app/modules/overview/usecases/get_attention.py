@@ -11,7 +11,7 @@ from remnapy.exceptions import ApiError
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import BackupKind, BackupRunStatus
+from app.core.enums import BackupKind, BackupRunStatus, PanelSyncDirection
 from app.core.exceptions import RemnawavePanelUnavailableError
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
@@ -33,6 +33,7 @@ from app.modules.subscriptions import (
     PanelSquadCatalog,
     SubscriptionStatsRepository,
     missing_squads,
+    read_panel_sync_status,
 )
 from app.modules.transactions import TransactionRepository, TransactionStatsRepository
 from app.modules.users import UserRepository
@@ -102,6 +103,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         perms = PermissionPolicy.effective_permissions(actor)
         items: list[AttentionItemDto] = await self._system_health()
         items += await self._smtp_failed(perms)
+        items += await self._panel_users_missing(perms)
         async with self._uow:
             items += await self._outbox_stuck()
             items += await self._gateway_failures(perms)
@@ -154,6 +156,23 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
             )
             for n in nodes
             if not n.is_connected and not n.is_disabled
+        ]
+
+    async def _panel_users_missing(self, perms: set[Permission]) -> list[AttentionItemDto]:
+        # until the next sync from the panel: pushing them back or deleting them
+        # doesn't rewrite this result
+        if Permission.SUBSCRIPTIONS_PANEL_SYNC_STATUS_VIEW not in perms:
+            return []
+        last = (await read_panel_sync_status(self._redis, PanelSyncDirection.FROM_PANEL)).last
+        if last is None or not last.missing:
+            return []
+        return [
+            AttentionItemDto(
+                kind=AttentionKind.PANEL_USERS_MISSING,
+                severity="warning",
+                count=last.missing,
+                since=last.finished_at,
+            )
         ]
 
     async def _plan_squads_missing(self, plans: list[PlanDto]) -> list[AttentionItemDto]:

@@ -217,6 +217,7 @@ class AttentionKind(StrEnum):
     BACKUP_OVERDUE = "backup_overdue"
     BROADCAST_FAILED = "broadcast_failed"
     PAID_NOT_FULFILLED = "paid_not_fulfilled"
+    PANEL_USERS_MISSING = "panel_users_missing"
     STALE_PENDING = "stale_pending"
     BROADCAST_STALLED = "broadcast_stalled"
     EMAIL_UNDELIVERABLE = "email_undeliverable"

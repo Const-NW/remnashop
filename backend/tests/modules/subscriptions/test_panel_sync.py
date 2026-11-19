@@ -13,6 +13,7 @@ from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, PanelSyncDirection, PlanType, Role, SubscriptionStatus
+from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import TOKEN_GRANTABLE_PERMISSIONS, Permission
@@ -496,7 +497,7 @@ async def test_diff_lists_fields_that_differ_and_pull_takes_them(
     assert (pulled.device_limit, pulled.tag) == (7, "VIP")
 
 
-async def test_pull_marks_a_subscription_gone_from_the_panel_deleted(
+async def test_pull_refuses_a_subscription_gone_from_the_panel(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
     remnawave_sdk: RemnawaveSDK,
@@ -507,16 +508,19 @@ async def test_pull_marks_a_subscription_gone_from_the_panel_deleted(
         subscription_repository, user_repository, telegram_id=89_041, remnawave_user_id=89_041
     )
 
-    pulled = await PullSubscriptionFromPanelUseCase(
-        subscription_repository,
-        user_repository,
-        remnawave_sdk,
-        _sync(subscription_repository, uow, event_publisher),
-        event_publisher,
-        uow,
-    )(OWNER, created.id)
+    with pytest.raises(ConflictError) as error:
+        await PullSubscriptionFromPanelUseCase(
+            subscription_repository,
+            user_repository,
+            remnawave_sdk,
+            _sync(subscription_repository, uow, event_publisher),
+            event_publisher,
+            uow,
+        )(OWNER, created.id)
 
-    assert pulled.status is SubscriptionStatus.DELETED
+    assert error.value.code is ErrorCode.SUBSCRIPTION_MISSING_IN_PANEL
+    # deleting it is the admin's call, not the pull's
+    assert (await subscription_repository.get_by_id(created.id)).status is SubscriptionStatus.ACTIVE
 
 
 def _named(username: str, **overrides: object) -> UserResponseDto:

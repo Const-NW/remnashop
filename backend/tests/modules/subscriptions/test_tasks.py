@@ -391,7 +391,7 @@ async def test_sync_from_panel_syncs_status_that_drifted_on_the_panel(
     assert refreshed.status == SubscriptionStatus.LIMITED
 
 
-async def test_sync_from_panel_marks_deleted_when_panel_identity_is_gone(
+async def test_sync_from_panel_counts_a_missing_panel_user_without_deleting(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
     settings_repository: SettingsRepository,
@@ -415,12 +415,14 @@ async def test_sync_from_panel_marks_deleted_when_panel_identity_is_gone(
     )
     # not in remnawave_store, so the fake transport 404s (tests/fakes/remnawave.py)
 
-    await _reconcile_use_case(
+    result = await _reconcile_use_case(
         subscription_repository, remnawave_sdk, uow, event_publisher, redis
     ).system(SyncFromPanelOptionsDto(adopt_unnamed=True, respect_subscription_limit=True))
 
+    # a panel restored from an old backup must not close live subscriptions
     refreshed = await subscription_repository.get_by_id(created.id)
-    assert refreshed.status == SubscriptionStatus.DELETED
+    assert refreshed.status == SubscriptionStatus.ACTIVE
+    assert (result.missing, result.updated) == (1, 0)
 
 
 async def test_sync_from_panel_skips_subscriptions_already_in_sync(
@@ -470,6 +472,7 @@ async def test_sync_from_panel_keeps_going_after_one_row_fails_to_sync(
     event_publisher: EventPublisher,
     monkeypatch: pytest.MonkeyPatch,
     redis: Redis,
+    remnawave_store: FakeUserStore,
 ) -> None:
     user = await user_repository.create(CreateUserDto(name="reconcile-iso", telegram_id=91010))
     created = [
@@ -487,6 +490,11 @@ async def test_sync_from_panel_keeps_going_after_one_row_fails_to_sync(
         )
         for remnawave_user_id in (91011, 91012)
     ]
+    extended = datetime_now() + timedelta(days=40)
+    for row in created:
+        remnawave_store[row.remnawave_user_id] = _user_payload(
+            user_id=row.remnawave_user_id, username=f"u{row.remnawave_user_id}", expire_at=extended
+        )
     use_case = _reconcile_use_case(
         subscription_repository, remnawave_sdk, uow, event_publisher, redis
     )
@@ -502,7 +510,7 @@ async def test_sync_from_panel_keeps_going_after_one_row_fails_to_sync(
     await use_case.system()
 
     refreshed = await subscription_repository.get_by_id(created[1].id)
-    assert refreshed.status == SubscriptionStatus.DELETED
+    assert abs(refreshed.expire_at - extended) < timedelta(seconds=1)
 
 
 @pytest.mark.parametrize("is_trial", [True, False])

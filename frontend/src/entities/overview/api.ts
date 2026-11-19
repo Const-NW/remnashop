@@ -156,6 +156,7 @@ export type AttentionKind =
   | "backup_overdue"
   | "broadcast_failed"
   | "paid_not_fulfilled"
+  | "panel_users_missing"
   | "stale_pending"
   | "broadcast_stalled"
   | "email_undeliverable"

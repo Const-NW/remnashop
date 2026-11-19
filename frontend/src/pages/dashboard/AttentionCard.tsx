@@ -24,6 +24,7 @@ import {
   ServerCrash,
   ServerOff,
   TimerOff,
+  UserX,
   Wrench,
   X,
 } from "lucide-react";
@@ -83,6 +84,7 @@ const KIND_ICON: Record<AttentionKind, ComponentType<{ className?: string }>> = 
   backup_overdue: DatabaseBackup,
   broadcast_failed: MegaphoneOff,
   paid_not_fulfilled: PackageX,
+  panel_users_missing: UserX,
   stale_pending: TimerOff,
   broadcast_stalled: Hourglass,
   email_undeliverable: MailWarning,
@@ -141,6 +143,12 @@ const KIND_LINK: Partial<Record<AttentionKind, AttentionLink>> = {
   broadcast_failed: broadcastsLink,
   broadcast_stalled: broadcastsLink,
   paid_not_fulfilled: transactionsLink(UNFULFILLED_STATUS),
+  panel_users_missing: {
+    to: "/dashboard/subscriptions",
+    label: "dashboard.attention.actions.subscriptions",
+    allowed: (permissions) =>
+      NAV_ITEMS.some((item) => item.key === "subscriptions" && isNavItemVisible(item, permissions)),
+  },
   stale_pending: transactionsLink("PENDING"),
   expiring_paid: {
     to: "/dashboard/analytics/retention",
@@ -258,6 +266,11 @@ function itemText(item: AttentionItem, t: TFunction, language: string): { title:
         title: t("dashboard.attention.paidNotFulfilled.title"),
         sub: counted("dashboard.attention.paidNotFulfilled.sub"),
       };
+    case "panel_users_missing":
+      return {
+        title: t("dashboard.attention.panelUsersMissing.title"),
+        sub: counted("dashboard.attention.panelUsersMissing.sub"),
+      };
     case "stale_pending":
       return { title: t("dashboard.attention.stalePending.title"), sub: counted("dashboard.attention.stalePending.sub") };
     case "email_undeliverable":
@@ -330,6 +343,7 @@ const KIND_KEY: Record<AttentionKind, string> = {
   broadcast_failed: "broadcastFailed",
   broadcast_stalled: "broadcastStalled",
   paid_not_fulfilled: "paidNotFulfilled",
+  panel_users_missing: "panelUsersMissing",
   stale_pending: "stalePending",
   email_undeliverable: "emailUndeliverable",
   expiring_paid: "expiringPaid",

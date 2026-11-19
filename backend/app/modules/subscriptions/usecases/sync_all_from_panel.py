@@ -117,7 +117,12 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
                     logger.exception(f"Panel read failed for subscription '{subscription.id}'")
                     failed += 1
                     continue
-                if fresh is not None and not differs_from_panel(subscription, fresh):
+                if fresh is None:
+                    # a panel restored from an old backup lacks users the shop
+                    # still sells to: an admin pushes them back or deletes them
+                    missing += 1
+                    continue
+                if not differs_from_panel(subscription, fresh):
                     continue
                 try:
                     await self._sync_use_case.system(
@@ -127,10 +132,7 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
                     logger.exception(f"Sync from the panel failed for '{subscription.id}'")
                     failed += 1
                     continue
-                if fresh is None:
-                    missing += 1
-                else:
-                    updated += 1
+                updated += 1
             else:
                 imported, over_limit, import_failed = await self._import_orphans(
                     actor, snapshot, linked, options
