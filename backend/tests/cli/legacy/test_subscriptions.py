@@ -27,8 +27,12 @@ SNAPSHOT: dict[str, Any] = {
     "traffic_limit_strategy": "MONTH",
 }
 CONNECTED = datetime(2025, 12, 1, tzinfo=timezone.utc)
+PANEL_CREATED = datetime(2025, 3, 31, tzinfo=timezone.utc)
 INDEX = PanelIndex(
-    by_username={"rs_1001": 55}, by_telegram_id={}, first_connected_at={55: CONNECTED}
+    by_username={"rs_1001": 55},
+    by_telegram_id={},
+    first_connected_at={55: CONNECTED},
+    created_at={55: PANEL_CREATED},
 )
 USERS = {1: {"telegram_id": 1001}, 2: {"telegram_id": 1002}}
 
@@ -107,6 +111,11 @@ def test_remnawave_user_id_from_panel_and_flag_renamed() -> None:
 def test_first_connection_from_panel_on_every_subscription() -> None:
     result = _run([_row(1), _row(2, "EXPIRED")], {1}, MigrationReport())
     assert [item["first_connected_at"] for item in result] == [CONNECTED, CONNECTED]
+
+
+def test_panel_creation_date_on_every_subscription() -> None:
+    result = _run([_row(1), _row(2, "EXPIRED")], {1}, MigrationReport())
+    assert [item["panel_created_at"] for item in result] == [PANEL_CREATED, PANEL_CREATED]
 
 
 def test_plan_snapshot_converted() -> None:

@@ -29,6 +29,9 @@ from app.modules.subscriptions.usecases.get_subscription_list_stats import (
 from app.modules.subscriptions.usecases.get_subscription_panel_diff import (
     GetSubscriptionPanelDiffUseCase,
 )
+from app.modules.subscriptions.usecases.get_traffic_reset_anchor import (
+    GetTrafficResetAnchorUseCase,
+)
 from app.modules.subscriptions.usecases.grant_addon import GrantAddOnUseCase
 from app.modules.subscriptions.usecases.grant_subscription import GrantSubscriptionUseCase
 from app.modules.subscriptions.usecases.handle_remnawave_webhook import (
@@ -99,6 +102,7 @@ __all__ = [
     "GetSubscriptionListStatsUseCase",
     "GetSubscriptionPanelDiffUseCase",
     "GetSubscriptionUseCase",
+    "GetTrafficResetAnchorUseCase",
     "GrantAddOnUseCase",
     "GrantSubscriptionUseCase",
     "HandleRemnawaveWebhookUseCase",

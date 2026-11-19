@@ -45,7 +45,9 @@ class SubscriptionLifecycleService:
         dto = await self._subscription_repository.get_by_id_for_update(subscription_id)
         state = _dto_to_state(dto)
         new_state = state.sync_expire_at(new_expire_at)
-        return await self._subscription_repository.apply_state(new_state)
+        await self._subscription_repository.apply_state(new_state)
+        # moved from outside the shop: the next calendar term counts from the new day
+        return await self._subscription_repository.set_term_anchor_day(subscription_id, None)
 
     async def renew(
         self,

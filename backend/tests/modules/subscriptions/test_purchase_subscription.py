@@ -41,7 +41,7 @@ from app.core.enums import (
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.ports import EventPublisher
-from app.core.utils.time import datetime_now
+from app.core.utils.time import add_term, datetime_now
 from app.modules.plans.addon_repository import AddOnRepository
 from app.modules.plans.dto import (
     CreateAddOnDto,
@@ -108,6 +108,11 @@ async def _create_plan(plan_repository: PlanRepository, public_code: str = "basi
         UpdatePlanSquadsDto(plan_id=plan.id, internal_squads=[uuid4()], external_squad=None)
     )
     return await plan_repository.update(UpdatePlanDto(plan_id=plan.id, is_active=True))
+
+
+def _days_between(start: Optional[datetime], end: datetime) -> int:
+    assert start is not None
+    return round((end - start) / timedelta(days=1))
 
 
 async def test_new_purchase_creates_subscription_with_real_remnawave_identity(
@@ -433,7 +438,7 @@ async def test_new_purchase_at_the_cap_never_touches_the_panel(
     assert len(remnawave_store) == panel_users_before
 
 
-async def test_renew_extends_expire_at_and_calls_remnawave_extend(
+async def test_renew_adds_a_calendar_month_or_exact_days(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
@@ -488,7 +493,97 @@ async def test_renew_extends_expire_at_and_calls_remnawave_extend(
     )
 
     assert renewed.id == original.id
-    assert renewed.expire_at == original.expire_at + timedelta(days=30)
+    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
+
+    # bonus days stay plain days, not a month
+    bonus = await use_case(
+        buyer,
+        PurchaseSubscriptionDto(
+            user_id=buyer.id,
+            plan_snapshot=renewed.plan_snapshot,
+            duration_days=30,
+            price_paid=Decimal("0"),
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.RENEW,
+            target_subscription_id=original.id,
+            exact_days=True,
+        ),
+    )
+    assert abs(bonus.expire_at - (renewed.expire_at + timedelta(days=30))) < timedelta(seconds=1)
+
+
+async def test_monthly_renewals_come_back_to_the_anchor_day(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    session: AsyncSession,
+) -> None:
+    buyer = await _create_buyer(user_repository, 413)
+    plan = await _create_plan(plan_repository, "renew-anchor")
+    use_case = PurchaseSubscriptionUseCase(
+        subscription_repository,
+        make_eligibility(subscription_repository.session),
+        remnawave_sdk,
+        uow,
+        event_publisher,
+        SubscriptionLifecycleService(subscription_repository),
+        PricingRepository(subscription_repository.session),
+        idempotency_repository,
+        UserRepository(subscription_repository.session),
+        AppConfig.get(),
+        SettingsRepository(subscription_repository.session),
+    )
+
+    def _order(purchase_type: PurchaseType, **extra: Any) -> PurchaseSubscriptionDto:
+        return PurchaseSubscriptionDto(
+            user_id=buyer.id,
+            plan_snapshot=snapshot_from_plan(
+                plan, price_paid=Decimal("299.00"), currency=Currency.RUB, duration_days=30
+            ),
+            duration_days=30,
+            price_paid=Decimal("299.00"),
+            currency=Currency.RUB,
+            purchase_type=purchase_type,
+            **extra,
+        )
+
+    original = await use_case(buyer, _order(PurchaseType.NEW))
+    assert original.term_anchor_day == datetime_now().day
+
+    # bought on January 31st, cut to February 28th by the shorter month
+    cut = datetime(2027, 2, 28, 12, tzinfo=original.expire_at.tzinfo)
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == original.id)
+        .values(expire_at=cut, term_anchor_day=31)
+    )
+    remnawave_store[original.remnawave_user_id]["expireAt"] = cut.isoformat()
+
+    ends = []
+    for _ in range(3):
+        renewed = await use_case(
+            buyer, _order(PurchaseType.RENEW, target_subscription_id=original.id)
+        )
+        ends.append(renewed.expire_at.date().isoformat())
+    assert ends == ["2027-03-31", "2027-04-30", "2027-05-31"]
+    assert renewed.term_anchor_day == 31
+
+    # plain days move the end off the anchor (May 31st + 60 days = July 30th);
+    # the next month counts from there
+    for _ in range(2):
+        renewed = await use_case(
+            buyer,
+            _order(PurchaseType.RENEW, target_subscription_id=original.id, exact_days=True),
+        )
+        assert renewed.term_anchor_day is None
+    renewed = await use_case(buyer, _order(PurchaseType.RENEW, target_subscription_id=original.id))
+    assert renewed.expire_at.date().isoformat() == "2027-08-30"
+    assert renewed.term_anchor_day == 30
 
 
 async def test_a_paid_renew_takes_the_plans_tag_and_a_bonus_one_keeps_it(
@@ -609,7 +704,7 @@ async def test_a_paid_renew_of_an_edited_plan_moves_to_its_terms_and_keeps_add_o
     assert (renewed.plan_snapshot.traffic_limit, renewed.plan_snapshot.device_limit) == (100, 3)
     panel_user = await remnawave_sdk.users.get_user_by_id(original.remnawave_user_id)
     assert panel_user.hwid_device_limit == 4
-    assert renewed.expire_at == original.expire_at + timedelta(days=30)
+    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
 
 
 async def test_a_renew_from_unlimited_to_a_finite_plan_keeps_add_ons(
@@ -790,7 +885,7 @@ async def test_a_paid_renew_lands_even_when_the_panel_refuses_the_tag(
         ),
     )
 
-    assert renewed.expire_at == original.expire_at + timedelta(days=30)
+    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
     # the row doesn't claim a tag the panel never took
     assert renewed.tag is None
 
@@ -2341,7 +2436,7 @@ async def test_a_renew_whose_db_write_failed_is_completed_by_the_retry_without_e
     with pytest.raises(RuntimeError):
         await use_case(buyer, renewal)
     after_first = (await remnawave_sdk.users.get_user_by_id(original.remnawave_user_id)).expire_at
-    assert after_first == _to_ms(before + timedelta(days=30))
+    assert after_first == _to_ms(add_term(before, 30))
 
     lifecycle.renew = real_renew  # type: ignore[method-assign]
     renewed = await use_case(buyer, renewal)
@@ -2354,6 +2449,52 @@ async def test_a_renew_whose_db_write_failed_is_completed_by_the_retry_without_e
     assert linked == original.id
     # a third delivery is a plain replay of the finished purchase
     assert (await use_case(buyer, renewal)).id == original.id
+
+
+async def test_a_renew_retry_keeps_the_anchor_it_pinned(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    session: AsyncSession,
+) -> None:
+    use_case, lifecycle, buyer, original, renewal = await _renew_fixture(
+        plan_repository,
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_sdk,
+        uow,
+        event_publisher,
+        telegram_id=433,
+        public_code="renew-retry-anchor",
+    )
+    end = datetime(2027, 1, 31, 12, tzinfo=original.expire_at.tzinfo)
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == original.id)
+        .values(expire_at=end, term_anchor_day=None)
+    )
+    remnawave_store[original.remnawave_user_id]["expireAt"] = end.isoformat()
+    real_renew = lifecycle.renew
+
+    async def _fail(*_args: object, **_kwargs: object) -> SubscriptionDto:
+        raise RuntimeError("DB write failed after the panel call landed")
+
+    lifecycle.renew = _fail  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError):
+        await use_case(buyer, renewal)
+    lifecycle.renew = real_renew  # type: ignore[method-assign]
+
+    renewed = await use_case(buyer, renewal)
+
+    # cut to February 28th; the retry still knows the term started on the 31st
+    assert renewed.expire_at.date().isoformat() == "2027-02-28"
+    assert renewed.term_anchor_day == 31
 
 
 async def test_a_renew_whose_panel_response_was_lost_is_not_applied_twice(
@@ -2393,7 +2534,7 @@ async def test_a_renew_whose_panel_response_was_lost_is_not_applied_twice(
     renewed = await use_case(buyer, renewal)
 
     after = (await remnawave_sdk.users.get_user_by_id(original.remnawave_user_id)).expire_at
-    assert after == _to_ms(before + timedelta(days=30))
+    assert after == _to_ms(add_term(before, 30))
     assert renewed.expire_at == after
 
 
@@ -2948,7 +3089,10 @@ async def test_a_free_renewal_adds_days_to_the_credit_but_not_money(
     )
 
     assert granted.plan_snapshot.credit_paid == Decimal("100")
-    assert granted.plan_snapshot.credit_days == 60
+    # two calendar months: the days they really hold
+    assert granted.plan_snapshot.credit_days == _days_between(
+        original.created_at, granted.expire_at
+    )
 
 
 async def test_a_renewal_in_another_currency_accumulates_in_the_snapshot_currency(
@@ -3008,7 +3152,9 @@ async def test_a_renewal_in_another_currency_accumulates_in_the_snapshot_currenc
 
     assert renewed.plan_snapshot.currency is Currency.RUB
     assert renewed.plan_snapshot.credit_paid == Decimal("600")
-    assert renewed.plan_snapshot.credit_days == 60
+    assert renewed.plan_snapshot.credit_days == _days_between(
+        original.created_at, renewed.expire_at
+    )
 
 
 def _trial_dto(buyer: UserDto, plan: PlanDto) -> PurchaseSubscriptionDto:
@@ -3144,6 +3290,8 @@ async def test_a_change_racing_a_renewal_credits_the_renewed_days(
             currency=Currency.RUB,
             purchase_type=purchase_type,
             target_subscription_id=target,
+            # plain days: the panel's atomic extend, no read through the gate below
+            exact_days=True,
         )
 
     old = await purchase_subscription_use_case(buyer, dto(old_plan, PurchaseType.NEW))
@@ -3282,6 +3430,8 @@ async def test_a_change_outrun_by_renewals_twice_gives_up_and_restores_the_panel
             currency=Currency.RUB,
             purchase_type=purchase_type,
             target_subscription_id=target,
+            # plain days: the panel's atomic extend, no read through the gate below
+            exact_days=True,
         )
 
     old = await purchase_subscription_use_case(buyer, dto(old_plan, PurchaseType.NEW))

@@ -100,7 +100,7 @@ async def test_cohort_counts_paid_coverage_per_month(
                 )
             await transaction_repository.mark_status(order.id, status)
             await session.execute(
-                update(Transaction).where(Transaction.id == order.id).values(updated_at=paid_at)
+                update(Transaction).where(Transaction.id == order.id).values(paid_at=paid_at)
             )
 
     await pay(829_101, [(cohort_day, 20), (later_day, 20)])  # gap in M1-M2
@@ -164,7 +164,7 @@ async def test_cohort_month_is_measured_at_the_payment_anniversary(
             )
         await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
         await session.execute(
-            update(Transaction).where(Transaction.id == order.id).values(updated_at=paid_at)
+            update(Transaction).where(Transaction.id == order.id).values(paid_at=paid_at)
         )
 
     result = await GetCohortRetentionUseCase(

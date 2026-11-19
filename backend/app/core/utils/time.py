@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import datetime, time, timedelta
 from typing import Literal, Optional, overload
 
@@ -48,3 +49,34 @@ def period_parts(days: int) -> tuple[Literal["unlimited", "year", "month", "day"
     if days % 30 == 0:
         return "month", days // 30
     return "day", days
+
+
+def anchored_day(start: datetime, anchor_day: Optional[int]) -> int:
+    """The day of the month a calendar term from `start` lands on: the anchor while
+    `start` still sits on it (or on its month's last day when the month is shorter),
+    else `start`'s own day, the anchor lost to an edit or a plain-day extension."""
+    if anchor_day is not None and start.day == min(
+        anchor_day, monthrange(start.year, start.month)[1]
+    ):
+        return anchor_day
+    return start.day
+
+
+def is_calendar_term(days: int) -> bool:
+    return period_parts(days)[0] in ("year", "month")
+
+
+def add_term(start: datetime, days: int, anchor_day: Optional[int] = None) -> datetime:
+    """`days` as period_parts reads them: years and months are calendar ones, landing
+    on the anchor day of the month or on its last day when the month is shorter."""
+    unit, count = period_parts(days)
+    if unit == "year":
+        months = 12 * count
+    elif unit == "month":
+        months = count
+    else:
+        return start + timedelta(days=days)
+    year, month = divmod(start.month - 1 + months, 12)
+    year += start.year
+    day = anchored_day(start, anchor_day)
+    return start.replace(year=year, month=month + 1, day=min(day, monthrange(year, month + 1)[1]))

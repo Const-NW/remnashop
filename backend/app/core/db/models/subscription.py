@@ -3,7 +3,7 @@ from typing import Any, Optional
 from uuid import UUID
 
 from remnapy.enums import TrafficLimitStrategy
-from sqlalchemy import ForeignKey, Index, text
+from sqlalchemy import ForeignKey, Index, SmallInteger, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,3 +57,8 @@ class Subscription(BaseSql, TimestampMixin):
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
+    # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets
+    panel_created_at: Mapped[Optional[datetime]]
+    # day of the month calendar terms land on: started on the 31st, back on the 31st
+    # after a shorter month cut a term to the 28th
+    term_anchor_day: Mapped[Optional[int]] = mapped_column(SmallInteger)

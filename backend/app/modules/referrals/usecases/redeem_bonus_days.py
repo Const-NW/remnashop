@@ -85,6 +85,7 @@ class RedeemBonusDaysUseCase(UseCase[RedeemBonusDaysDto, BonusDaysRedemptionDto,
             purchase_type=PurchaseType.RENEW,
             target_subscription_id=target.id,
             idempotency_key=key,
+            exact_days=True,
         )
         try:
             subscription = await self._purchase_subscription_use_case(actor, renewal)

@@ -64,6 +64,7 @@ class ResumeBonusRenewalUseCase(UseCase[ResumeBonusRenewalDto, None]):
                     target_subscription_id=target.id,
                     idempotency_key=data.idempotency_key,
                     refuse_disabled_target=False,
+                    exact_days=True,
                 ),
             )
         except Exception as error:

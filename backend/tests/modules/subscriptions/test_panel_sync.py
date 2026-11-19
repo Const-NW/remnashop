@@ -738,3 +738,40 @@ async def test_sync_from_panel_imports_past_the_subscription_cap_only_when_asked
     else:
         assert all(row is not None for row in imported)
         assert (result.imported, result.over_limit) == (2, 0)
+
+
+async def test_sync_from_panel_fills_a_missing_reset_anchor_without_counting_it(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> None:
+    row = await create_subscription(
+        subscription_repository, user_repository, telegram_id=89_131, remnawave_user_id=89_131
+    )
+    created = _old()
+    remnawave_store[89_131] = _panel_user(
+        89_131, expireAt=row.expire_at.isoformat(), createdAt=created
+    )
+
+    result = await SyncAllFromPanelUseCase(
+        subscription_repository,
+        user_repository,
+        plan_repository,
+        remnawave_sdk,
+        _sync(subscription_repository, uow, event_publisher),
+        uow,
+        redis,
+        event_publisher,
+        make_eligibility(subscription_repository.session),
+        AppConfig.get(),
+    ).system(_FROM)
+
+    assert result.updated == 0
+    stored = await subscription_repository.get_by_id(row.id)
+    assert stored.panel_created_at is not None
+    assert stored.panel_created_at.isoformat()[:19] == created[:19]

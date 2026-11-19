@@ -15,7 +15,11 @@ from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.plans import PlanRepository
-from app.modules.subscriptions.dto import PanelSyncResultDto, SyncFromPanelOptionsDto
+from app.modules.subscriptions.dto import (
+    PanelSyncResultDto,
+    SubscriptionDto,
+    SyncFromPanelOptionsDto,
+)
 from app.modules.subscriptions.eligibility import PurchaseEligibility
 from app.modules.subscriptions.events import PanelSyncCompletedEvent, StatusSyncSource
 from app.modules.subscriptions.panel_sync import (
@@ -76,6 +80,21 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
         async with holding_panel_sync(self._redis, PanelSyncDirection.FROM_PANEL):
             return await self._sync(actor, data)
 
+    async def _fill_reset_anchors(
+        self, subscriptions: list[SubscriptionDto], snapshot: dict[int, UserResponseDto]
+    ) -> None:
+        """The panel's createdAt for rows without it or with another one, read off the
+        listing: not counted as an update, nothing else on the row moves."""
+        anchors = {
+            s.remnawave_user_id: listed.created_at
+            for s in subscriptions
+            if (listed := snapshot.get(s.remnawave_user_id)) is not None
+            and s.panel_created_at != listed.created_at
+        }
+        if anchors:
+            async with self._uow:
+                await self._subscription_repository.set_panel_created_at_many(anchors)
+
     async def _sync(self, actor: Actor, options: SyncFromPanelOptionsDto) -> PanelSyncResultDto:
         async with self._uow:
             subscriptions = await self._subscription_repository.list_non_terminal()
@@ -83,6 +102,7 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
         updated = failed = missing = imported = over_limit = 0
         try:
             snapshot = {user.id: user async for user in panel_users(self._remnawave_sdk)}
+            await self._fill_reset_anchors(subscriptions, snapshot)
             for position, subscription in enumerate(subscriptions):
                 listed = snapshot.get(subscription.remnawave_user_id)
                 if listed is not None and not differs_from_panel(subscription, listed):

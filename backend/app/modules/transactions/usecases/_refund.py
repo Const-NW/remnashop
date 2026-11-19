@@ -46,4 +46,5 @@ async def rollback_input(
         currency=order.currency,
         has_later_paid_order=has_later_paid_order,
         idempotency_key=order.idempotency_key,
+        added_days=order.added_days,
     )

@@ -192,13 +192,19 @@ async def test_rollback_renew_shortens_db_and_panel(
     bought = await _buy(purchase, buyer, plan, PurchaseType.NEW)
     renewed = await _buy(purchase, buyer, plan, PurchaseType.RENEW, target=bought.id)
 
-    await service.rollback(OWNER, _data(PurchaseType.RENEW, renewed.id, target=renewed.id))
+    # a calendar month: 28-31 days, recorded on the order
+    added_days = round((renewed.expire_at - bought.expire_at) / timedelta(days=1))
+
+    await service.rollback(
+        OWNER,
+        replace(_data(PurchaseType.RENEW, renewed.id, target=renewed.id), added_days=added_days),
+    )
 
     after = await subscription_repository.get_by_id(renewed.id)
     assert after.status is SubscriptionStatus.ACTIVE
-    assert after.expire_at == renewed.expire_at - timedelta(days=30)
+    assert abs(after.expire_at - bought.expire_at) < timedelta(seconds=1)
     assert after.plan_snapshot.effective_credit_paid == Decimal("300")
-    assert after.plan_snapshot.effective_credit_days == 30
+    assert after.plan_snapshot.effective_credit_days == bought.plan_snapshot.credit_days
     panel_expire = _panel_expire(remnawave_store, renewed.remnawave_user_id)
     assert abs(panel_expire - after.expire_at) < timedelta(seconds=1)
     assert await _last_event(subscription_repository.session) == "SubscriptionEditedEvent"
@@ -526,20 +532,25 @@ async def test_refund_of_a_finite_renewal_under_a_later_unlimited_one_keeps_it_u
     month = await _buy(purchase, buyer, plan, PurchaseType.RENEW, target=bought.id)
     forever = await _renew_unlimited(purchase, buyer, plan, bought.id)
 
-    await service.rollback(OWNER, _data(PurchaseType.RENEW, month.id, target=month.id))
+    added_days = round((month.expire_at - bought.expire_at) / timedelta(days=1))
+    await service.rollback(
+        OWNER,
+        replace(_data(PurchaseType.RENEW, month.id, target=month.id), added_days=added_days),
+    )
 
     after = await subscription_repository.get_by_id(bought.id)
     assert after.expire_at == forever.expire_at
     assert _panel_expire(remnawave_store, bought.remnawave_user_id).year == 2099
     assert after.plan_snapshot.credit_paid == Decimal("5000")
-    assert after.plan_snapshot.unlimited_from == bought.expire_at
+    assert after.plan_snapshot.unlimited_from is not None
+    assert abs(after.plan_snapshot.unlimited_from - bought.expire_at) < timedelta(seconds=1)
     assert after.plan_snapshot.unlimited_from_credit_paid == Decimal("300")
-    assert after.plan_snapshot.unlimited_from_credit_days == 30
+    assert after.plan_snapshot.unlimited_from_credit_days == bought.plan_snapshot.credit_days
 
     await service.rollback(OWNER, _unlimited_data(forever.id, forever.id))
 
     restored = await subscription_repository.get_by_id(bought.id)
-    assert restored.expire_at == bought.expire_at
+    assert abs(restored.expire_at - bought.expire_at) < timedelta(seconds=1)
     assert restored.plan_snapshot.effective_credit_paid == Decimal("300")
 
 

@@ -2,6 +2,7 @@ from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
@@ -29,7 +30,7 @@ from app.modules.subscriptions.panel import (
     subscription_row,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
-from app.modules.subscriptions.unlimited import expiry_after
+from app.modules.subscriptions.unlimited import expiry_after, term_anchor, term_days
 
 
 class _TargetMovedError(Exception):
@@ -93,7 +94,9 @@ class ChangePurchase:
                     "Cannot change a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
                 )
 
-        plan, final_expire_at, credit_days = await self._new_term(old, data)
+        plan, final_expire_at, credit_days, anchor_day = await self._new_term(old, data)
+        # the new term's own days: the credit came from the old one
+        term_days_added = plan.effective_credit_days - credit_days
 
         # keeps old's panel user (same id, same subscription_url the client
         # already has) and changes only the plan config (limits, squads,
@@ -127,6 +130,7 @@ class ChangePurchase:
                         # an admin change can reach a disabled or expired panel user,
                         # which configure_for_plan leaves as it is
                         status=SubscriptionStatus(panel_user.status),
+                        term_anchor_day=anchor_day,
                     )
                 )
                 if data.idempotency_key is not None:
@@ -139,6 +143,7 @@ class ChangePurchase:
                             previous_subscription_id=old.id,
                             previous_plan_snapshot=old.plan_snapshot.to_json(),
                             payment_key=data.idempotency_key,
+                            added_days=None if data.keep_expire_at else term_days_added,
                         )
                     )
         except SupersededError:
@@ -172,12 +177,15 @@ class ChangePurchase:
 
     async def _new_term(
         self, old: SubscriptionDto, data: PurchaseSubscriptionDto
-    ) -> tuple[PlanSnapshot, datetime, int]:
-        """The new row's plan with its credit, its expiry and the days credited."""
+    ) -> tuple[PlanSnapshot, datetime, int, Optional[int]]:
+        """The new row's plan with its credit, its expiry, the days credited and the
+        day of the month its terms land on."""
         plan = data.plan_snapshot
+        anchor_day: Optional[int] = None
         if data.keep_expire_at:
             credit_days = 0
             final_expire_at = old.expire_at
+            anchor_day = old.term_anchor_day
             # the term didn't change, so neither did the money paid for it
             plan = replace(
                 plan,
@@ -190,7 +198,7 @@ class ChangePurchase:
             )
         elif data.duration_days == 0:
             credit_days = 0
-            final_expire_at = expiry_after(datetime_now(), 0)
+            final_expire_at = expiry_after(datetime_now(), 0, exact_days=True)
             # checkout took what an unlimited one was paid off the price; carried
             # on, so the next change to unlimited credits all of it again
             carried = data.change_credit
@@ -215,14 +223,18 @@ class ChangePurchase:
                 duration_days=data.duration_days,
                 now=now,
             )
-            final_expire_at = now + timedelta(days=data.duration_days + credit_days)
+            term_end = expiry_after(now, data.duration_days, exact_days=data.exact_days)
+            final_expire_at = term_end + timedelta(days=credit_days)
+            if credit_days == 0:
+                # credited days push the end off the calendar date; it anchors itself
+                anchor_day = term_anchor(now, data.duration_days, exact_days=data.exact_days)
             # the new term carries the credit, so a later CHANGE may credit it back
             plan = replace(
                 plan,
                 credit_paid=plan.price_paid + credit,
-                credit_days=plan.duration_days + credit_days,
+                credit_days=term_days(now, term_end, data.duration_days) + credit_days,
             )
-        return plan, final_expire_at, credit_days
+        return plan, final_expire_at, credit_days, anchor_day
 
     async def _convert(self, amount: Decimal, source: Currency, target: Currency) -> Decimal:
         if source is target:

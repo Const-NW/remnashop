@@ -412,7 +412,7 @@ async def test_reassign_keeps_a_moved_order_paid_at_its_own_time(
     order_id = await paid_order(session, source.id, "10", days_ago=30)
     session.add(Referral(referrer_id=source.id, referred_id=invited.id, level=1))
     await session.flush()
-    paid_at = await session.scalar(select(Transaction.updated_at).where(Transaction.id == order_id))
+    paid_at = await session.scalar(select(Transaction.paid_at).where(Transaction.id == order_id))
     referred_at = await session.scalar(
         select(Referral.updated_at).where(Referral.referred_id == invited.id)
     )
@@ -423,8 +423,7 @@ async def test_reassign_keeps_a_moved_order_paid_at_its_own_time(
     order = await session.get_one(Transaction, order_id)
     referral = await session.scalar(select(Referral).where(Referral.referred_id == invited.id))
     assert order.user_id == target.id
-    # updated_at of a paid order is when it was paid; revenue and loyalty read it
-    assert order.updated_at == paid_at
+    assert order.paid_at == paid_at
     assert referral is not None
     assert referral.referrer_id == target.id
     assert referral.updated_at == referred_at

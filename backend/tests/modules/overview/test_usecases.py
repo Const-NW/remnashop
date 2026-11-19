@@ -188,7 +188,7 @@ async def test_days_window_excludes_orders_paid_before_the_cutoff(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == old_order.id)
-        .values(updated_at=datetime_now() - timedelta(days=10))
+        .values(paid_at=datetime_now() - timedelta(days=10))
     )
 
     use_case = GetRevenueChartUseCase(
@@ -253,7 +253,7 @@ async def test_since_is_calendar_aligned_not_a_rolling_cutoff(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == order.id)
-        .values(updated_at=today_start + timedelta(minutes=30))
+        .values(paid_at=today_start + timedelta(minutes=30))
     )
     payer2 = await user_repository.create(CreateUserDto(name="YesterdayPayer", telegram_id=830_202))
     async with uow:
@@ -266,7 +266,7 @@ async def test_since_is_calendar_aligned_not_a_rolling_cutoff(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == old_order.id)
-        .values(updated_at=today_start - timedelta(minutes=30))
+        .values(paid_at=today_start - timedelta(minutes=30))
     )
 
     use_case = GetRevenueChartUseCase(
@@ -469,9 +469,7 @@ async def _seed_paid(
     async with uow:
         order = await transaction_repository.create(dto)
     await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
-    await session.execute(
-        update(Transaction).where(Transaction.id == order.id).values(updated_at=at)
-    )
+    await session.execute(update(Transaction).where(Transaction.id == order.id).values(paid_at=at))
     return order.id
 
 
@@ -488,10 +486,10 @@ async def _clear_window(session: AsyncSession, today_start: datetime, *, keep: l
     await session.execute(
         update(Transaction)
         .where(
-            Transaction.updated_at >= today_start - timedelta(days=1),
+            Transaction.paid_at >= today_start - timedelta(days=1),
             Transaction.id.not_in(keep),
         )
-        .values(updated_at=datetime_now() - timedelta(days=3))
+        .values(paid_at=datetime_now() - timedelta(days=3))
     )
 
 

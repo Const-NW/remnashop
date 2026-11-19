@@ -234,7 +234,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
                 kind=AttentionKind.PAID_NOT_FULFILLED,
                 severity="warning",
                 count=len(stuck),
-                since=min((t.updated_at for t in stuck if t.updated_at), default=None),
+                since=min((t.paid_at for t in stuck if t.paid_at), default=None),
             )
         ]
 

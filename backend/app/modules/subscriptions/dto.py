@@ -211,6 +211,8 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     device_all_reset_at: Optional[datetime] = None
     link_reset_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
+    panel_created_at: Optional[datetime] = None
+    term_anchor_day: Optional[int] = None
     paused_by_channel_leave: bool = False
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 
@@ -314,6 +316,8 @@ class CreateSubscriptionDto:
     tag: Optional[str] = None
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
+    panel_created_at: Optional[datetime] = None
+    term_anchor_day: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -363,6 +367,8 @@ class PurchaseSubscriptionDto:
     publish_event: bool = True
     # CHANGE only: keep the target's expire_at instead of now + days + credit
     keep_expire_at: bool = False
+    # referral bonus days: plain days, not a plan term read as calendar months
+    exact_days: bool = False
     # zero the panel's traffic counter; set for a customer's paid order (a
     # CHANGE's credit already deducts the spent traffic), never for an admin grant
     reset_traffic: bool = False
@@ -387,6 +393,12 @@ class PurchaseRollbackDto:
     # the order's purchase key: a renewal that reached the panel but not the
     # database is found by the expiry pinned on it
     idempotency_key: Optional[str] = None
+    # what the renewal really added; None on an order from when a term was plain days
+    added_days: Optional[int] = None
+
+    @property
+    def days_to_take_back(self) -> int:
+        return self.added_days if self.added_days is not None else self.duration_days
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -451,6 +463,7 @@ class SyncSubscriptionStatusDto:
     source: StatusSyncSource
     expire_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
+    panel_created_at: Optional[datetime] = None
     # None: the source only knows status and dates
     config: Optional[PanelConfigDto] = None
 

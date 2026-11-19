@@ -81,6 +81,8 @@ class ChangeSubscriptionPlanUseCase(UseCase[ChangeSubscriptionPlanDto, Subscript
                 purchase_type=PurchaseType.CHANGE,
                 target_subscription_id=old.id,
                 keep_expire_at=data.duration_days is None,
+                # typed in by hand, like a grant: the days asked for, not calendar months
+                exact_days=data.duration_days is not None,
                 publish_event=False,
             ),
         )

@@ -17,6 +17,7 @@ _CHECK_NAMES: Final[frozenset[str]] = frozenset(
         "ck_plan_durations_base_price_non_negative",
         "ck_plans_discount_percent_range",
         "ck_referrals_level_range",
+        "ck_transactions_paid_has_paid_at",
         "ck_users_bonus_days_non_negative",
         "ck_users_email_lowercase",
         "ck_users_login_charset",

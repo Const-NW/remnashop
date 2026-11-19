@@ -33,7 +33,9 @@ async def _mark_fulfilled(
 ) -> None:
     if event.payment_key is not None:
         await _mark_order_fulfilled.kiq(
-            payment_key=event.payment_key, subscription_id=event.subscription_id
+            payment_key=event.payment_key,
+            subscription_id=event.subscription_id,
+            added_days=event.added_days,
         )
 
 

@@ -163,15 +163,16 @@ async def test_grant_creates_free_subscription_for_another_user(
     plan = await _plan(plan_repository, "grant")
 
     subscription = await grant_use_case(
-        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=10)
+        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=30)
     )
 
     assert subscription.user_id == recipient.id
     assert subscription.plan_snapshot.plan_id == plan.id
     assert subscription.plan_snapshot.price_paid == Decimal(0)
-    assert subscription.plan_snapshot.duration_days == 10
+    assert subscription.plan_snapshot.duration_days == 30
     assert subscription.traffic_limit == 50
-    expected = datetime_now() + timedelta(days=10)
+    # typed-in days are days, not a calendar month of 28-31
+    expected = datetime_now() + timedelta(days=30)
     assert abs((subscription.expire_at - expected).total_seconds()) < 60
     assert await _event_types(subscription_repository.session) == ["SubscriptionGrantedEvent"]
 
@@ -975,6 +976,40 @@ async def test_limits_are_restored_in_the_panel_when_deleted_mid_edit(
     assert remnawave_store[granted.remnawave_user_id]["hwidDeviceLimit"] == devices_before
     row = await subscription_repository.get_by_id(granted.id)
     assert row.device_limit != devices_before + 5
+
+
+async def test_a_hand_set_expiry_drops_the_term_anchor(
+    grant_use_case: GrantSubscriptionUseCase,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    remnawave_sdk: RemnawaveSDK,
+    event_publisher: EventPublisher,
+    uow: UnitOfWork,
+) -> None:
+    recipient = await user_repository.create(CreateUserDto(name="r", telegram_id=9291))
+    plan = await _plan(plan_repository, "grant-anchor")
+    granted = await grant_use_case(
+        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=30)
+    )
+    await subscription_repository.set_term_anchor_day(granted.id, 31)
+    use_case = UpdateSubscriptionUseCase(
+        subscription_repository,
+        UserRepository(subscription_repository.session),
+        remnawave_sdk,
+        event_publisher,
+        uow,
+        SubscriptionLifecycleService(subscription_repository),
+    )
+
+    updated = await use_case(
+        OWNER,
+        UpdateSubscriptionDto(
+            subscription_id=granted.id, expire_at=datetime_now() + timedelta(days=45)
+        ),
+    )
+
+    assert updated.term_anchor_day is None
 
 
 async def test_an_admin_can_neither_see_nor_touch_the_owners_own_subscription(

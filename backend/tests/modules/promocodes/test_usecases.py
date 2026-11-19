@@ -1046,7 +1046,7 @@ async def test_activate_duration_reward_extends_subscription_expiry(
     expire_before = subscription.expire_at
 
     await promocode_repository.create(
-        CreatePromocodeDto(code="EXTEND10", reward_type=PromocodeRewardType.DURATION, reward=10)
+        CreatePromocodeDto(code="EXTEND10", reward_type=PromocodeRewardType.DURATION, reward=30)
     )
     use_case = _activate_use_case(
         promocode_repository,
@@ -1062,7 +1062,8 @@ async def test_activate_duration_reward_extends_subscription_expiry(
     )
 
     updated = await subscription_repository.get_by_id(subscription.id)
-    assert updated.expire_at > expire_before
+    # a reward of 30 days is 30 days, not a calendar month of 28-31
+    assert abs(updated.expire_at - (expire_before + timedelta(days=30))) < timedelta(seconds=1)
 
 
 async def test_activate_traffic_reward_dispatches_the_addon_grant(

@@ -22,6 +22,7 @@ class PanelIndex:
     by_username: dict[str, int] = field(default_factory=dict)
     by_telegram_id: dict[int, list[int]] = field(default_factory=dict)
     first_connected_at: dict[int, datetime] = field(default_factory=dict)
+    created_at: dict[int, datetime] = field(default_factory=dict)
     # the panel's own state wins over the old database's, which may have missed webhooks
     status: dict[int, SubscriptionStatus] = field(default_factory=dict)
     expire_at: dict[int, datetime] = field(default_factory=dict)
@@ -39,6 +40,7 @@ async def fetch_panel_index(sdk: RemnawaveSDK, page_size: int = _PAGE_SIZE) -> P
             index.status[user.id] = SubscriptionStatus(user.status)
             index.expire_at[user.id] = user.expire_at
             index.url[user.id] = user.subscription_url
+            index.created_at[user.id] = user.created_at
             if user.first_connected_at is not None:
                 index.first_connected_at[user.id] = user.first_connected_at
             if user.telegram_id is not None:

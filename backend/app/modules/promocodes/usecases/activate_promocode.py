@@ -192,6 +192,8 @@ class ActivatePromocodeUseCase(UseCase[ActivatePromocodeDto, PromocodeDto, UserD
                 currency=Currency.USD,
                 purchase_type=PurchaseType.RENEW,
                 target_subscription_id=target.id,
+                # a reward reads as days: +30 is 30 days, not a calendar month
+                exact_days=True,
             ),
         )
 
@@ -225,6 +227,7 @@ class ActivatePromocodeUseCase(UseCase[ActivatePromocodeDto, PromocodeDto, UserD
                 price_paid=ZERO_AMOUNT,
                 currency=Currency.USD,
                 purchase_type=PurchaseType.NEW,
+                exact_days=True,
             ),
         )
 

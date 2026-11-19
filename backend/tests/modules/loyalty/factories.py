@@ -62,7 +62,7 @@ async def paid_order(session: AsyncSession, user_id: int, amount: str, *, days_a
     await session.execute(
         update(Transaction)
         .where(Transaction.id == order.id)
-        .values(status=TransactionStatus.PAID, updated_at=datetime_now() - timedelta(days=days_ago))
+        .values(status=TransactionStatus.PAID, paid_at=datetime_now() - timedelta(days=days_ago))
     )
     return order.id
 

@@ -23,6 +23,7 @@ from app.modules.subscriptions import (
     ActivateTrialDto,
     ActivateTrialSubscriptionUseCase,
     GetAvailableTrialUseCase,
+    GetTrafficResetAnchorUseCase,
     ListOwnActiveSubscriptionsUseCase,
     ListOwnSubscriptionsUseCase,
 )
@@ -112,7 +113,7 @@ def next_traffic_reset(
         year, month = divmod(now.year * 12 + now.month, 12)
         return midnight.replace(year=year, month=month + 1, day=1)
     if strategy is TrafficLimitStrategy.MONTH_ROLLING and created_at is not None:
-        # on the day of the month the subscription was created, the month's last day if shorter
+        # on the day of the month the panel user was created, the month's last day if shorter
         year, month = now.year, now.month
         for _ in range(2):
             day = min(created_at.day, calendar.monthrange(year, month)[1])
@@ -131,6 +132,7 @@ async def on_show_connect_problem(
     dialog_manager: DialogManager,
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
     list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
+    get_traffic_reset_anchor: FromDishka[GetTrafficResetAnchorUseCase],
     i18n: FromDishka[TranslatorHub],
 ) -> None:
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
@@ -144,9 +146,10 @@ async def on_show_connect_problem(
         await dialog_manager.show()
         return
     runner = get_translator(i18n, user)
-    reset = next_traffic_reset(
-        subscription.traffic_limit_strategy, subscription.created_at, datetime_now()
-    )
+    anchor = None
+    if subscription.traffic_limit_strategy is TrafficLimitStrategy.MONTH_ROLLING:
+        anchor = await get_traffic_reset_anchor(user, subscription.id)
+    reset = next_traffic_reset(subscription.traffic_limit_strategy, anchor, datetime_now())
     text = runner.get(
         "ntf-common.connect-not-available",
         status=problem,

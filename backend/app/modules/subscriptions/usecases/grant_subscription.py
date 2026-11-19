@@ -61,6 +61,8 @@ class GrantSubscriptionUseCase(UseCase[GrantSubscriptionDto, SubscriptionDto]):
                 purchase_type=PurchaseType.NEW,
                 enforce_subscription_cap=False,
                 publish_event=False,
+                # typed in by hand: the days asked for, not calendar months
+                exact_days=True,
             ),
         )
 

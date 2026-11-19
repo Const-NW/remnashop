@@ -128,7 +128,7 @@ async def _pay(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == order.id)
-        .values(updated_at=datetime_now() - timedelta(days=days_ago))
+        .values(paid_at=datetime_now() - timedelta(days=days_ago))
     )
 
 

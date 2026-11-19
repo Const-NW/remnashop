@@ -305,6 +305,10 @@ async def test_reconcile_paid_transactions_skips_when_a_subscription_is_already_
             )
         )
         token = await idempotency_repository.claim("recon-linked", stale_after=STALE_CLAIM_AFTER)
+        # a renewal pinned its days, then its fulfilled task was lost
+        await idempotency_repository.pin_renew_expire_at(
+            "recon-linked", datetime_now() + timedelta(days=31), 31, None, token
+        )
         await idempotency_repository.link("recon-linked", subscription.id, token)
 
     dispatch = RecordingDispatch()
@@ -317,6 +321,8 @@ async def test_reconcile_paid_transactions_skips_when_a_subscription_is_already_
     # the link outlives the idempotency key it was read from
     fulfilled = await transaction_repository.get_by_id(order.id)
     assert fulfilled.fulfilled_subscription_id == subscription.id
+    # a refund takes back the days the renewal pinned
+    assert fulfilled.added_days == 31
 
 
 async def test_reconcile_paid_transactions_ignores_orders_that_are_not_paid(
@@ -431,7 +437,7 @@ async def test_reconcile_paid_transactions_skips_orders_older_than_the_idempoten
     await session.execute(
         update(Transaction)
         .where(Transaction.id == order.id)
-        .values(updated_at=datetime_now() - timedelta(days=IDEMPOTENCY_KEY_RETENTION_DAYS))
+        .values(paid_at=datetime_now() - timedelta(days=IDEMPOTENCY_KEY_RETENTION_DAYS))
     )
 
     dispatch = RecordingDispatch()

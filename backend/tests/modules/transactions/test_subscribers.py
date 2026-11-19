@@ -1,7 +1,7 @@
 from app.core.enums import Locale, PurchaseType, Role
 from app.core.event_bus import EventBus
 from app.modules.settings import AccessSettingsChangedEvent
-from app.modules.subscriptions import SubscriptionPurchasedEvent
+from app.modules.subscriptions import SubscriptionPurchasedEvent, SubscriptionRenewedEvent
 from app.modules.transactions import subscribers
 from app.modules.users import UserDto
 from tests.fakes.events import stored_event
@@ -48,4 +48,13 @@ async def test_a_paid_delivery_marks_its_order_fulfilled(monkeypatch) -> None:  
         )
         await bus.dispatch_stored(stored_event(event))
 
-    assert kicked == [{"payment_key": "order-key", "subscription_id": 7}]
+    renewed = SubscriptionRenewedEvent(
+        user=_ADMIN, subscription_id=7, duration_days=30, added_days=31, payment_key="renew-key"
+    )
+    await bus.dispatch_stored(stored_event(renewed))
+
+    assert kicked == [
+        {"payment_key": "order-key", "subscription_id": 7, "added_days": None},
+        # a refund takes back what the calendar month really added
+        {"payment_key": "renew-key", "subscription_id": 7, "added_days": 31},
+    ]

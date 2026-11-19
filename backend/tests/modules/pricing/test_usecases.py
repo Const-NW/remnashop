@@ -317,7 +317,7 @@ async def test_switch_anchor_rescales_transaction_anchor_amounts(
         )
     paid_at = datetime_now() - timedelta(days=40)
     await session.execute(
-        update(Transaction).where(Transaction.id == order.id).values(updated_at=paid_at)
+        update(Transaction).where(Transaction.id == order.id).values(paid_at=paid_at)
     )
 
     await SwitchAnchorCurrencyUseCase(
@@ -335,7 +335,7 @@ async def test_switch_anchor_rescales_transaction_anchor_amounts(
     assert after.anchor_base_price == Decimal("900")
     assert after.anchor_final_price == Decimal("900")
     assert (after.final_price, after.currency) == (Decimal("900"), Currency.RUB)
-    assert after.updated_at == paid_at
+    assert after.paid_at == paid_at
 
 
 async def test_switch_anchor_rescales_loyalty_thresholds(

@@ -114,6 +114,7 @@ async def add_paid_transaction(session: AsyncSession, user_id: int) -> None:
             channel=PurchaseChannel.CABINET,
             gateway_type=PaymentGatewayType.YOOKASSA,
             status=TransactionStatus.PAID,
+            paid_at=datetime_now(),
             base_price=price,
             final_price=price,
             anchor_base_price=price,

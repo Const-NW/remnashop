@@ -72,7 +72,7 @@ async def _order(
     await session.execute(
         update(Transaction)
         .where(Transaction.id == order.id)
-        .values(anchor_unrated=unrated, updated_at=datetime_now() - timedelta(days=40))
+        .values(anchor_unrated=unrated, paid_at=datetime_now() - timedelta(days=40))
     )
     return await repository.get_by_id(order.id)
 
@@ -116,7 +116,7 @@ async def test_rate_converts_only_unrated_amounts_at_current_rates(
         Decimal("20.00"),
         Decimal("10.00"),
     )
-    assert after_rub.updated_at == rub.updated_at
+    assert after_rub.paid_at == rub.paid_at
     after_usd = await repository.get_by_id(usd.id)
     assert after_usd.anchor_final_price == Decimal("5")
     # amounts converted at checkout are left alone
@@ -140,7 +140,7 @@ async def test_rescale_keeps_a_factor_finer_than_cents(
         Decimal("20.00"),
         Decimal("10.00"),
     )
-    assert after.updated_at == order.updated_at
+    assert after.paid_at == order.paid_at
 
 
 def test_rating_is_owner_only_and_viewing_is_an_admin_default() -> None:

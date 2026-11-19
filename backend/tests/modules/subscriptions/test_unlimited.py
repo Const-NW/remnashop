@@ -13,24 +13,40 @@ from tests.modules.subscriptions.factories import make_plan_snapshot, make_subsc
 def test_expiry_after_zero_is_year_2099_same_day() -> None:
     start = datetime(2026, 11, 14, 10, 30, tzinfo=timezone.utc)
 
-    assert expiry_after(start, 0) == datetime(2099, 11, 14, 10, 30, tzinfo=timezone.utc)
+    assert expiry_after(start, 0, exact_days=False) == datetime(
+        2099, 11, 14, 10, 30, tzinfo=timezone.utc
+    )
 
 
 def test_expiry_after_feb_29_clamps() -> None:
     start = datetime(2028, 2, 29, tzinfo=timezone.utc)
 
-    assert expiry_after(start, 0) == datetime(2099, 2, 28, tzinfo=timezone.utc)
+    assert expiry_after(start, 0, exact_days=False) == datetime(2099, 2, 28, tzinfo=timezone.utc)
 
 
 def test_expiry_after_days_adds() -> None:
     start = datetime(2026, 11, 14, tzinfo=timezone.utc)
 
-    assert expiry_after(start, 30) == start + timedelta(days=30)
+    assert expiry_after(start, 45, exact_days=False) == start + timedelta(days=45)
+
+
+def test_expiry_after_month_is_a_calendar_month() -> None:
+    start = datetime(2026, 1, 31, 12, tzinfo=timezone.utc)
+
+    assert expiry_after(start, 30, exact_days=False) == datetime(
+        2026, 2, 28, 12, tzinfo=timezone.utc
+    )
+
+
+def test_expiry_after_exact_days_stays_plain_days() -> None:
+    start = datetime(2026, 1, 31, 12, tzinfo=timezone.utc)
+
+    assert expiry_after(start, 30, exact_days=True) == start + timedelta(days=30)
 
 
 def test_expiry_after_negative_raises() -> None:
     with pytest.raises(ValueError):
-        expiry_after(datetime(2026, 1, 1, tzinfo=timezone.utc), -1)
+        expiry_after(datetime(2026, 1, 1, tzinfo=timezone.utc), -1, exact_days=False)
 
 
 def test_is_unlimited_expiry_threshold() -> None:
