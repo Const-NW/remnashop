@@ -1,4 +1,4 @@
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, Decimal
 from typing import Union
 
 from remnapy.enums import TrafficLimitStrategy
@@ -17,9 +17,10 @@ from app.modules.subscriptions.dto import (
 def panel_config(user: Union[UserResponseDto, WebhookUserDto]) -> PanelConfigDto:
     return PanelConfigDto(
         url=user.subscription_url,
+        # up: a limit under half a GB must not read as 0, which is unlimited
         traffic_limit=int(
             (Decimal(str(user.traffic_limit_bytes)) / GB_TO_BYTES).quantize(
-                Decimal(1), rounding=ROUND_HALF_UP
+                Decimal(1), rounding=ROUND_CEILING
             )
         ),
         device_limit=user.hwid_device_limit or 0,
