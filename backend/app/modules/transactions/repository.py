@@ -155,6 +155,7 @@ class TransactionRepository:
             added_days=row.added_days,
             paid_at=row.paid_at,
             is_test=row.is_test,
+            fulfillment_held=row.fulfillment_held,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -336,20 +337,26 @@ class TransactionRepository:
         return [self._to_dto(row) for row in rows.all()]
 
     async def list_paid_awaiting_reconciliation(
-        self, cutoff: datetime, *, since: datetime
+        self, cutoff: datetime, *, since: datetime, include_held: bool = False
     ) -> list[TransactionDto]:
-        rows = (
-            await self.session.scalars(
-                select(Transaction).where(
-                    Transaction.status == TransactionStatus.PAID,
-                    _NOT_TEST,
-                    Transaction.fulfilled_at.is_(None),
-                    Transaction.paid_at <= cutoff,
-                    Transaction.paid_at >= since,
-                )
-            )
-        ).all()
+        conditions = [
+            Transaction.status == TransactionStatus.PAID,
+            _NOT_TEST,
+            Transaction.fulfilled_at.is_(None),
+            Transaction.paid_at <= cutoff,
+            Transaction.paid_at >= since,
+        ]
+        if not include_held:
+            conditions.append(Transaction.fulfillment_held.is_(False))
+        rows = (await self.session.scalars(select(Transaction).where(*conditions))).all()
         return [self._to_dto(row) for row in rows]
+
+    async def set_fulfillment_held(self, transaction_id: int, held: bool) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(fulfillment_held=held, updated_at=NOW_FUNC)
+        )
 
     async def mark_fulfilled_by_key(self, idempotency_key: str, subscription_id: int) -> None:
         await self._mark_fulfilled_where(

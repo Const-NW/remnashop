@@ -277,6 +277,31 @@ async def test_reconcile_paid_transactions_redispatches_when_no_subscription_is_
     assert dispatch.messages[0]["base_price"] == "500.00"
 
 
+async def test_reconcile_paid_transactions_leaves_a_held_order_to_an_admin(
+    transaction_repository: TransactionRepository,
+    uow,
+    user_id,
+    plan_id,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> None:
+    async with uow:
+        order = await transaction_repository.create(
+            _paid_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="recon-held")
+        )
+        await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
+        await transaction_repository.set_fulfillment_held(order.id, True)
+
+    dispatch = RecordingDispatch()
+
+    await ReconcilePaidTransactionsUseCase(
+        transaction_repository, idempotency_repository, uow, dispatch, event_publisher, redis
+    ).system(ReconcilePaidTransactionsDto(grace_period=timedelta(seconds=0)))
+
+    assert dispatch.messages == []
+
+
 async def test_reconcile_paid_transactions_skips_when_a_subscription_is_already_linked(
     transaction_repository: TransactionRepository,
     subscription_repository: SubscriptionRepository,

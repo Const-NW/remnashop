@@ -110,3 +110,6 @@ class Transaction(BaseSql, TimestampMixin):
     paid_at: Mapped[Optional[datetime]]
     # Dashboard gateway check: never provisioned, excluded from every revenue query.
     is_test: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # paid after its cancel, its one-shot discount already spent again: the sweep
+    # leaves it for an admin to issue or refund
+    fulfillment_held: Mapped[bool] = mapped_column(default=False, server_default="false")

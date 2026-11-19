@@ -159,7 +159,7 @@ async def _paid_while_order_expires(
     return order
 
 
-async def test_paid_does_not_overwrite_cancel_with_restored_discount(
+async def test_paid_after_a_cancel_spends_the_restored_discount_again(
     transaction_repository,
     user_repository,
     uow,
@@ -181,9 +181,9 @@ async def test_paid_does_not_overwrite_cancel_with_restored_discount(
         purchase_dispatch=purchase_dispatch,
     )
 
-    assert (await transaction_repository.get_by_id(order.id)).status is TransactionStatus.CANCELED
-    assert purchase_dispatch.messages == []
-    assert (await user_repository.find_by_id(user_id)).purchase_discount == order.discount_percent
+    assert (await transaction_repository.get_by_id(order.id)).status is TransactionStatus.PAID
+    assert len(purchase_dispatch.messages) == 1
+    assert (await user_repository.find_by_id(user_id)).purchase_discount == 0
 
 
 async def test_paid_after_plain_cancel_is_still_fulfilled(

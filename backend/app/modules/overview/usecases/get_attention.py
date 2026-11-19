@@ -225,7 +225,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
             return []
         now = datetime_now()
         stuck = await self._transaction_repository.list_paid_awaiting_reconciliation(
-            now - _UNFULFILLED_AFTER, since=now - _UNFULFILLED_WINDOW
+            now - _UNFULFILLED_AFTER, since=now - _UNFULFILLED_WINDOW, include_held=True
         )
         if not stuck:
             return []

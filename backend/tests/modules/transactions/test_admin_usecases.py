@@ -346,6 +346,36 @@ async def test_fulfill_transaction_marks_a_failed_order_paid_and_dispatches_it(
     assert len(dispatch.messages) == 1
 
 
+async def test_fulfill_transaction_releases_a_held_order(
+    transaction_repository: TransactionRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    admin_actor: UserDto,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    async with uow:
+        held = await transaction_repository.create(
+            _order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="fulfill-held")
+        )
+        await transaction_repository.mark_status(held.id, TransactionStatus.PAID)
+        await transaction_repository.set_fulfillment_held(held.id, True)
+    dispatch = RecordingDispatch()
+
+    result = await FulfillTransactionUseCase(
+        transaction_repository,
+        idempotency_repository,
+        user_repository,
+        RecordingEventPublisher(),
+        uow,
+        dispatch,
+    )(admin_actor, FulfillTransactionDto(transaction_id=held.id, client_ip="10.0.0.1"))
+
+    assert result.order.fulfillment_held is False
+    assert [message["idempotency_key"] for message in dispatch.messages] == ["fulfill-held"]
+
+
 async def test_fulfill_response_hides_a_staff_owner_from_an_admin(
     transaction_repository: TransactionRepository,
     idempotency_repository: PurchaseIdempotencyRepository,

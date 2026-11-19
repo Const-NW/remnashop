@@ -90,6 +90,7 @@ class TransactionDto(BaseDto, TimestampMixin):
     added_days: Optional[int] = None
     paid_at: Optional[datetime] = None
     is_test: bool = False
+    fulfillment_held: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
