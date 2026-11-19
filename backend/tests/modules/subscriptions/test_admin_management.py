@@ -163,15 +163,16 @@ async def test_grant_creates_free_subscription_for_another_user(
     plan = await _plan(plan_repository, "grant")
 
     subscription = await grant_use_case(
-        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=10)
+        OWNER, GrantSubscriptionDto(user_id=recipient.id, plan_id=plan.id, duration_days=30)
     )
 
     assert subscription.user_id == recipient.id
     assert subscription.plan_snapshot.plan_id == plan.id
     assert subscription.plan_snapshot.price_paid == Decimal(0)
-    assert subscription.plan_snapshot.duration_days == 10
+    assert subscription.plan_snapshot.duration_days == 30
     assert subscription.traffic_limit == 50
-    expected = datetime_now() + timedelta(days=10)
+    # typed-in days are days, not a calendar month of 28-31
+    expected = datetime_now() + timedelta(days=30)
     assert abs((subscription.expire_at - expected).total_seconds()) < 60
     assert await _event_types(subscription_repository.session) == ["SubscriptionGrantedEvent"]
 
