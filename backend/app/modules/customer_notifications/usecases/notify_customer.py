@@ -1,4 +1,6 @@
+import math
 from dataclasses import asdict, replace
+from datetime import datetime
 from html import escape
 from typing import Final, Optional
 
@@ -17,6 +19,7 @@ from app.core.constants import (
     REDIS_KEY_PREFIX,
     TTL_1D,
     TTL_7D,
+    TTL_15M,
 )
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
@@ -33,6 +36,7 @@ from app.core.utils.telegram_text import (
     premium_emoji_glyphs,
     premium_emoji_html,
 )
+from app.core.utils.time import datetime_now
 from app.modules.cabinet_auth import CabinetNewDeviceSignInEvent
 from app.modules.customer_notifications.dispatch import SendCustomerTelegramDispatch
 from app.modules.customer_notifications.dto import NotifyCustomerDto
@@ -76,8 +80,10 @@ from app.modules.users import UserDto, UserRepository
 
 # outlives the sweep's retries of one outbox row
 _DEDUP_TTL_S: Final[int] = TTL_7D
-# a torrent client trips the blocker on every connection; one warning a day is enough
-_COOLDOWNS: Final[dict[str, int]] = {TorrentBlockerReportEvent.__name__: TTL_1D}
+# a lagging queue delivers reports of blocks already over; they must not all go out
+_MIN_COOLDOWN_S: Final[int] = TTL_15M
+# a long block an admin lifts early must not silence the next one for weeks
+_MAX_COOLDOWN_S: Final[int] = TTL_1D
 # a bot order shows these in the bot's own window instead of a Telegram text
 _OUTCOMES: Final[dict[str, PaymentOutcome]] = {
     SubscriptionPurchasedEvent.__name__: PaymentOutcome.SUCCEEDED,
@@ -115,10 +121,14 @@ _SHOWS_PLAN: Final[frozenset[str]] = frozenset({SubscriptionChangedEvent.__name_
 _TRIAL_AWARE: Final[frozenset[str]] = _RENEWABLE | {SubscriptionTrafficThresholdEvent.__name__}
 
 
-def _cooldown_key(event_type: str, user_id: int) -> Optional[str]:
-    if event_type not in _COOLDOWNS:
-        return None
-    return f"{REDIS_KEY_PREFIX}customer_cooldown:{event_type}:{user_id}"
+def _cooldown_s(until: Optional[str]) -> int:
+    if until is None:
+        return 0
+    try:
+        remaining = math.ceil((datetime.fromisoformat(until) - datetime_now()).total_seconds())
+    except (TypeError, ValueError):
+        return _MIN_COOLDOWN_S
+    return min(max(remaining, _MIN_COOLDOWN_S), _MAX_COOLDOWN_S)
 
 
 class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
@@ -196,16 +206,15 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             return
         # taken before the channels: the feed row obeys it too; a requeue after
         # Telegram refused already holds the slot
-        cooldown_key = None if data.telegram_refused else _cooldown_key(data.event_type, user.id)
-        if cooldown_key is not None and not await self._redis.set(
-            cooldown_key, "1", nx=True, ex=_COOLDOWNS[data.event_type]
-        ):
+        cooldown_s = 0 if data.telegram_refused else _cooldown_s(data.cooldown_until)
+        cooldown_key = f"{REDIS_KEY_PREFIX}customer_cooldown:{data.event_type}:{user.id}"
+        if cooldown_s > 0 and not await self._redis.set(cooldown_key, "1", nx=True, ex=cooldown_s):
             return
         try:
             await self._send(data, user, renderer, title, body)
         except Exception:
             # the retry must not find its own cooldown and give up
-            if cooldown_key is not None:
+            if cooldown_s > 0:
                 await self._redis.delete(cooldown_key)
             raise
 

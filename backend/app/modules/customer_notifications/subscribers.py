@@ -1,7 +1,8 @@
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Final, Optional, Union, cast
 
+from app.core.constants import TTL_1D
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
 from app.modules.account_merge import AccountsMergedEvent
@@ -54,6 +55,7 @@ async def _notify(
     args: dict[str, Any],
     payment_key: Optional[str] = None,
     subscription_id: Optional[int] = None,
+    cooldown_until: Optional[str] = None,
 ) -> None:
     # the system actor owns nothing
     if user_id <= 0:
@@ -65,6 +67,7 @@ async def _notify(
         args=args,
         payment_key=payment_key,
         subscription_id=subscription_id,
+        cooldown_until=cooldown_until,
     )
 
 
@@ -178,7 +181,17 @@ async def _on_torrent(event: TorrentBlockerReportEvent, entry: StoredEvent) -> N
         event.user.id,
         _block_span(event.blocked_until, entry.occurred_at),
         subscription_id=event.subscription_id,
+        # quiet until the first report's block ends; a torrent left running is reminded once
+        # per block duration, since the node extends the block on every report
+        cooldown_until=_torrent_cooldown_until(event, entry.occurred_at),
     )
+
+
+def _torrent_cooldown_until(event: TorrentBlockerReportEvent, now: datetime) -> str:
+    # a permanent block reports its own start as the end
+    if event.block_duration_s == 0:
+        return (now + timedelta(seconds=TTL_1D)).isoformat()
+    return event.blocked_until
 
 
 def _amount(value: Union[str, int]) -> Union[str, int]:

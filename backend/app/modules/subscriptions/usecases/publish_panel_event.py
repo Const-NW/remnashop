@@ -144,6 +144,7 @@ def _user_event(
             node_name=data.node.name,
             destination=data.report.xray_report.destination,
             blocked_until=action.will_unblock_at.isoformat(),
+            block_duration_s=round(action.block_duration),
             ip_address=action.ip,
         )
     return None

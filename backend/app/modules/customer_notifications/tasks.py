@@ -28,6 +28,7 @@ async def notify_customer_task(
     payment_key: Optional[str] = None,
     subscription_id: Optional[int] = None,
     telegram_refused: bool = False,
+    cooldown_until: Optional[str] = None,
 ) -> None:
     await use_case.system(
         NotifyCustomerDto(
@@ -38,6 +39,7 @@ async def notify_customer_task(
             payment_key=payment_key,
             subscription_id=subscription_id,
             telegram_refused=telegram_refused,
+            cooldown_until=cooldown_until,
         )
     )
 

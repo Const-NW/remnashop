@@ -102,6 +102,7 @@ async def test_forbidden_requeues_the_notification_for_email(
             "payment_key": None,
             "subscription_id": None,
             "telegram_refused": True,
+            "cooldown_until": None,
         }
     ]
 

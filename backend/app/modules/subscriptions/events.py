@@ -198,6 +198,8 @@ class TorrentBlockerReportEvent(UserEvent):
     node_name: str
     destination: str
     blocked_until: str
+    # 0 = blocked for good; defaulted: rows stored before the field still load
+    block_duration_s: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)

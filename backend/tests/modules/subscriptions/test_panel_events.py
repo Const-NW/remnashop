@@ -57,7 +57,9 @@ def _torrent() -> TorrentBlockerReportDto:
         "R",
         (),
         {
-            "action_report": type("A", (), {"ip": "5.6.7.8", "will_unblock_at": _NOW})(),
+            "action_report": type(
+                "A", (), {"ip": "5.6.7.8", "will_unblock_at": _NOW, "block_duration": 3600.0}
+            )(),
             "xray_report": type("X", (), {"destination": "tracker.example:6881"})(),
         },
     )()
@@ -97,7 +99,7 @@ async def _rows(session: AsyncSession) -> list[EventOutboxEntry]:
         (
             _payload("torrent_blocker.report", _torrent()),
             "TorrentBlockerReportEvent",
-            {"node_name": "nl-1", "destination": "tracker.example:6881"},
+            {"node_name": "nl-1", "destination": "tracker.example:6881", "block_duration_s": 3600},
         ),
     ],
 )
