@@ -5,7 +5,7 @@ import type { VariableOption } from "@entities/dialogs/api";
 export type BroadcastStatus = "DRAFT" | "SCHEDULED" | "SENDING" | "COMPLETED" | "CANCELED" | "FAILED";
 export type BroadcastCategory = "SERVICE" | "MARKETING";
 export type BroadcastRecipientStatus = "PENDING" | "SENT" | "FAILED" | "BLOCKED" | "CANCELED" | "RECALLED";
-export type BroadcastButtonKind = "URL" | "PROMOCODE" | "MENU";
+export type BroadcastButtonKind = "URL" | "PROMOCODE" | "MENU" | "CLOSE";
 export type BroadcastMediaType = "PHOTO" | "VIDEO" | "ANIMATION" | "DOCUMENT";
 export type SubscriptionFilter = "ACTIVE" | "TRIAL" | "EXPIRED" | "LIMITED" | "NONE";
 export type BroadcastDelivery = "TELEGRAM" | "EMAIL" | "ALL";

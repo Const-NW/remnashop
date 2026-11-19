@@ -4799,12 +4799,14 @@
         "kind": {
           "URL": "Link",
           "PROMOCODE": "Promocode",
-          "MENU": "Menu"
+          "MENU": "Menu",
+          "CLOSE": "Close"
         },
         "limit_one": "Up to {{count}} button",
         "limit_other": "Up to {{count}} buttons",
         "label": "Button text",
         "menuTarget": "The bot’s main menu",
+        "closeTarget": "Deletes the message",
         "empty": "No buttons set"
       },
       "promocode": {

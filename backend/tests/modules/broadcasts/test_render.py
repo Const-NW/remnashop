@@ -76,6 +76,18 @@ def test_renders_variables_and_buttons() -> None:
     assert rows[2][0] == {"text": "Menu", "callback_data": "bc:menu"}
 
 
+def test_close_button_deletes_in_bot_and_is_dropped_in_channel() -> None:
+    broadcast = _broadcast(
+        contents={Locale.EN: BroadcastContentDto(text="Hi", button_labels=["Close"])},
+        buttons=[BroadcastButtonDto(kind=BroadcastButtonKind.CLOSE)],
+    )
+    renderer = BroadcastRenderer(broadcast, promocode_code=None)
+    assert (renderer.render(_ctx(), NOW).reply_markup or {})["inline_keyboard"] == [
+        [{"text": "Close", "callback_data": "cn:close"}]
+    ]
+    assert renderer.render_channel("shop_bot").reply_markup is None
+
+
 def test_button_icon_goes_to_icon_custom_emoji_id() -> None:
     broadcast = _broadcast(
         buttons=[

@@ -300,6 +300,7 @@ class BroadcastButtonKind(UpperStrEnum):
     URL = auto()
     PROMOCODE = auto()
     MENU = auto()
+    CLOSE = auto()
 
 
 class BroadcastMediaType(UpperStrEnum):
