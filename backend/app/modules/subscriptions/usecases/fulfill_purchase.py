@@ -64,6 +64,11 @@ class FulfillPurchaseUseCase(UseCase[PurchaseSubscriptionDto, Optional[Subscript
             logger.info(f"{buyer.log} {error}")
             return None
         except ValidationError as error:
+            if error.code is ErrorCode.PURCHASE_IN_PROGRESS:
+                # another attempt holds the order: a live one finishes it, and a crashed
+                # one's claim goes stale for the reconcile sweep, so no retry here
+                logger.info(f"{buyer.log} Order '{data.idempotency_key}' is being fulfilled")
+                return None
             if error.code is ErrorCode.RENEW_PLAN_MISMATCH and data.idempotency_key is not None:
                 # the subscription moved to another plan while this renewal was paid:
                 # issuing it would sell the new plan's days at the old plan's price
