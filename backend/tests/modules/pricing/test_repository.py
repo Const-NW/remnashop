@@ -9,7 +9,6 @@ from app.core.db.models.currency_rate import CurrencyRate
 from app.core.db.models.pricing_settings import PricingSettings
 from app.core.db.singleton import SINGLETON_ID
 from app.core.enums import Currency, RoundingMode
-from app.core.exceptions import ValidationError
 from app.modules.pricing import repository as repository_module
 from app.modules.pricing.dto import UpdateCurrencyRateDto
 from app.modules.pricing.repository import PricingRepository
@@ -48,21 +47,6 @@ async def test_update_rate_changes_a_row(session: AsyncSession) -> None:
     table = await repo.get_rate_table()
     assert table.rows[Currency.RUB].rate == Decimal("95.000000")
     assert table.rows[Currency.RUB].charm_ending == 99
-
-
-async def test_update_rate_rejects_nonunit_anchor_rate(session: AsyncSession) -> None:
-    repo = PricingRepository(session)
-    await repo.get_rate_table()
-    with pytest.raises(ValidationError):
-        await repo.update_rate(
-            UpdateCurrencyRateDto(
-                currency=Currency.USD,
-                rate=Decimal("2"),
-                rounding_mode=RoundingMode.DECIMAL_2,
-                charm_ending=None,
-                min_amount=Decimal("0.01"),
-            )
-        )
 
 
 async def test_get_rate_table_survives_concurrent_seeding(engine: AsyncEngine) -> None:

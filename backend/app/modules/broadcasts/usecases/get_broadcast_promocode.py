@@ -3,6 +3,7 @@ from typing import Optional
 from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.promocodes import PromocodeRepository
@@ -15,10 +16,12 @@ class GetBroadcastPromocodeUseCase(UseCase[int, Optional[str], UserDto]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         promocode_repository: PromocodeRepository,
         uow: UnitOfWork,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._promocode_repository = promocode_repository
         self._uow = uow
 
@@ -29,7 +32,7 @@ class GetBroadcastPromocodeUseCase(UseCase[int, Optional[str], UserDto]):
                 return None
             if (
                 broadcast.channel_message_id is None
-                and not await self._broadcast_repository.is_recipient(data, actor.id)
+                and not await self._recipient_repository.is_recipient(data, actor.id)
             ):
                 return None
             return await promocode_is_usable(self._promocode_repository, broadcast.promocode_id)

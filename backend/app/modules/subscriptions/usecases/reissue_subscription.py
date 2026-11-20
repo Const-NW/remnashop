@@ -7,11 +7,13 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.core.utils.time import datetime_now
 from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import SubscriptionRefDto
 from app.modules.subscriptions.eligibility import get_owned_live_target
 from app.modules.subscriptions.link_reissue import reissue_link
 from app.modules.subscriptions.repository import SubscriptionRepository
+from app.modules.subscriptions.reset_cooldown import claim_reset
 from app.modules.users import UserDto
 
 
@@ -42,10 +44,12 @@ class ReissueSubscriptionUseCase(UseCase[SubscriptionRefDto, None, UserDto]):
                 self._subscription_repository, data.subscription_id, actor.id
             )
 
-            previous = await self._subscription_repository.claim_reset(
+            previous = await claim_reset(
+                self._subscription_repository,
                 subscription.id,
                 "link_reset_at",
                 timedelta(hours=shop_settings.link_reset_cooldown_hours),
+                datetime_now(),
             )
 
         try:

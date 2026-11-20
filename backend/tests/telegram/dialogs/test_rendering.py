@@ -10,6 +10,7 @@ from app.core.enums import ButtonLinkType, DialogFlow, Locale
 from app.core.utils.telegram_text import TELEGRAM_CAPTION_LIMIT
 from app.modules.dialogs import catalog
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 from app.telegram.dialogs.config_cache import DialogConfigCache
 from app.telegram.dialogs.rendering import (
     UNAVAILABLE_BUTTONS_KEY,
@@ -77,7 +78,7 @@ def _catalog():
 
 
 async def _cache(session, dialog_repository: DialogRepository) -> DialogConfigCache:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     session_maker = async_sessionmaker(
         bind=session.bind, expire_on_commit=False, join_transaction_mode="create_savepoint"
     )
@@ -137,7 +138,8 @@ async def test_unknown_variable_token_resolves_to_empty_string(
     session, dialog_repository: DialogRepository
 ) -> None:
     # a typo in a `${variable}` token renders "" instead of crashing the window
-    await dialog_repository.upsert_seed(
+    await upsert_seed_window(
+        dialog_repository,
         "menu.main",
         DialogFlow.MENU,
         "menu",
@@ -186,7 +188,8 @@ async def test_unknown_visibility_condition_hides_button(
     session, dialog_repository: DialogRepository
 ) -> None:
     # a typo in visibility_condition hides the button instead of crashing the window
-    await dialog_repository.upsert_seed(
+    await upsert_seed_window(
+        dialog_repository,
         "menu.main",
         DialogFlow.MENU,
         "menu",

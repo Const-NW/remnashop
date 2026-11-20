@@ -47,6 +47,7 @@ async def pick_trial(
     return GetAvailableTrialDto(
         plan=plan,
         is_trial_available=True,
+        duration_days=duration.days,
         price=price_for(duration.base_price, duration.overrides, rates.anchor, rates),
         currency=rates.anchor,
         prices=tuple(

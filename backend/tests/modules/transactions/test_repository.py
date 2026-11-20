@@ -925,3 +925,12 @@ async def test_paid_at_is_set_once_and_survives_a_refund(
     refunded = await transaction_repository.get_by_id(order.id)
     assert refunded.status is TransactionStatus.REFUNDED
     assert refunded.paid_at == paid_at
+
+
+async def test_paid_sums_take_more_user_ids_than_asyncpg_takes_parameters(
+    transaction_repository: TransactionRepository,
+) -> None:
+    # a referral downline is handed over whole; IN (...) caps out at 32767 binds
+    sums = await transaction_repository.sum_paid_anchor_amount_per_user(list(range(1, 40_001)))
+
+    assert sums == {}

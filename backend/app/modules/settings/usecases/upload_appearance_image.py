@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
@@ -10,8 +12,9 @@ from app.modules.settings.dto import AppearanceSettingsDto, UploadAppearanceImag
 from app.modules.settings.repository import SettingsRepository
 
 
-class UploadAppearanceFaviconUseCase(UseCase[UploadAppearanceImageDto, AppearanceSettingsDto]):
-    required_permission = Permission.APPEARANCE_FAVICON_UPLOAD
+class UploadAppearanceLogoUseCase(UseCase[UploadAppearanceImageDto, AppearanceSettingsDto]):
+    required_permission = Permission.APPEARANCE_LOGO_UPLOAD
+    kind: ClassVar[AppearanceImageKind] = AppearanceImageKind.LOGO
 
     def __init__(
         self,
@@ -32,6 +35,16 @@ class UploadAppearanceFaviconUseCase(UseCase[UploadAppearanceImageDto, Appearanc
             self._uow,
             self._event_publisher,
             actor,
-            AppearanceImageKind.FAVICON,
+            self.kind,
             data,
         )
+
+
+class UploadAppearanceFaviconUseCase(UploadAppearanceLogoUseCase):
+    required_permission = Permission.APPEARANCE_FAVICON_UPLOAD
+    kind: ClassVar[AppearanceImageKind] = AppearanceImageKind.FAVICON
+
+
+class UploadAppearanceAppIconUseCase(UploadAppearanceLogoUseCase):
+    required_permission = Permission.APPEARANCE_APP_ICON_UPLOAD
+    kind: ClassVar[AppearanceImageKind] = AppearanceImageKind.APP_ICON

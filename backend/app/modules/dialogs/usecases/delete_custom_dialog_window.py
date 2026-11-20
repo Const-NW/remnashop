@@ -1,6 +1,9 @@
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
+from app.core.enums import DialogWindowKind
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import ValidationError
 from app.core.ports import BotSignals, EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -31,6 +34,11 @@ class DeleteCustomDialogWindowUseCase(UseCase[str, None]):
 
     async def _execute(self, actor: Actor, data: str) -> None:
         async with self._uow:
+            window = await self._dialog_repository.get_by_key_or_raise(data)
+            if window.kind != DialogWindowKind.CUSTOM:
+                raise ValidationError(
+                    "Only custom windows can be deleted", code=ErrorCode.DIALOG_WINDOW_NOT_DELETABLE
+                )
             await self._dialog_repository.delete_custom_window(data)
             await drop_window_banners(self._banner_repository, self._config, data)
             await self._event_publisher.publish(

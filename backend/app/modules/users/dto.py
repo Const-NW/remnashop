@@ -51,6 +51,7 @@ class UserDto(BaseDto, TimestampMixin):
     email_undeliverable_at: Optional[datetime] = None
 
     referral_code: Optional[str] = None
+    referral_code_reset_at: Optional[datetime] = None
     points: Decimal = ZERO_AMOUNT
     bonus_days: int = 0
     notifications_seen_at: Optional[datetime] = None

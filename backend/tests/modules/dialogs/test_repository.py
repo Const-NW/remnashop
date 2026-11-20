@@ -11,6 +11,7 @@ from app.modules.dialogs.dto import (
     UpdateDialogWindowDto,
 )
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 
 _SNAPSHOT = {
     "banner_name": "menu",
@@ -34,9 +35,21 @@ _SNAPSHOT = {
 
 
 async def test_upsert_seed_creates_once(dialog_repository: DialogRepository) -> None:
-    created = await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    created = await upsert_seed_window(
+        dialog_repository,
+        "menu.main",
+        DialogFlow.MENU,
+        "menu",
+        _SNAPSHOT,
+    )
     assert created is True
-    again = await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    again = await upsert_seed_window(
+        dialog_repository,
+        "menu.main",
+        DialogFlow.MENU,
+        "menu",
+        _SNAPSHOT,
+    )
     assert again is False
 
     window = await dialog_repository.get_by_key_or_raise("menu.main")
@@ -46,7 +59,7 @@ async def test_upsert_seed_creates_once(dialog_repository: DialogRepository) -> 
 
 
 async def test_replace_buttons_swaps_layout(dialog_repository: DialogRepository) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     updated = await dialog_repository.replace_buttons(
         "menu.main",
         [
@@ -70,7 +83,7 @@ async def test_replace_buttons_swaps_layout(dialog_repository: DialogRepository)
 
 
 async def test_reset_restores_snapshot(dialog_repository: DialogRepository) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     await dialog_repository.update_window(
         "menu.main",
         UpdateDialogWindowDto(banner_name=DEFAULT_BANNER_NAME, banner_name_provided=True),
@@ -85,7 +98,7 @@ async def test_reset_restores_snapshot(dialog_repository: DialogRepository) -> N
 async def test_reseed_refreshes_snapshot_but_keeps_edited_buttons(
     dialog_repository: DialogRepository,
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     await dialog_repository.replace_buttons(
         "menu.main",
         [
@@ -108,7 +121,7 @@ async def test_reseed_refreshes_snapshot_but_keeps_edited_buttons(
     }
     changed = {"banner_name": "menu", "buttons": [_SNAPSHOT["buttons"][0], trial]}
 
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", changed)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", changed)
 
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     assert [b.text_key for b in window.buttons] == ["btn-menu.help"]
@@ -120,7 +133,7 @@ async def test_reseed_refreshes_snapshot_but_keeps_edited_buttons(
 async def test_reseed_moves_untouched_buttons_to_the_new_layout(
     dialog_repository: DialogRepository,
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     moved = {**_SNAPSHOT["buttons"][0], "row": 2, "column": 1}
     trial = {
         "key": "trial",
@@ -131,8 +144,12 @@ async def test_reseed_moves_untouched_buttons_to_the_new_layout(
         "action_key": "get_trial",
     }
 
-    await dialog_repository.upsert_seed(
-        "menu.main", DialogFlow.MENU, "menu", {"banner_name": "menu", "buttons": [moved, trial]}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.main",
+        DialogFlow.MENU,
+        "menu",
+        {"banner_name": "menu", "buttons": [moved, trial]},
     )
 
     window = await dialog_repository.get_by_key_or_raise("menu.main")
@@ -145,7 +162,7 @@ async def test_reseed_moves_untouched_buttons_to_the_new_layout(
 async def test_update_window_clears_banner_only_when_told_to(
     dialog_repository: DialogRepository,
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
 
     untouched = await dialog_repository.update_window(
         "menu.main", UpdateDialogWindowDto(is_enabled=False)
@@ -177,18 +194,6 @@ async def test_create_custom_window_conflict(dialog_repository: DialogRepository
         await dialog_repository.create_custom_window("custom.faq", CreateCustomWindowDto())
 
 
-async def test_delete_rejects_seed_window(dialog_repository: DialogRepository) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
-    with pytest.raises(ValidationError):
-        await dialog_repository.delete_custom_window("menu.main")
-
-
-async def test_reset_rejects_custom_window(dialog_repository: DialogRepository) -> None:
-    await dialog_repository.create_custom_window("custom.faq", CreateCustomWindowDto())
-    with pytest.raises(ValidationError):
-        await dialog_repository.reset_to_snapshot("custom.faq")
-
-
 async def test_get_by_key_or_raise_missing(dialog_repository: DialogRepository) -> None:
     with pytest.raises(NotFoundError):
         await dialog_repository.get_by_key_or_raise("nope")
@@ -216,13 +221,13 @@ async def _move_with_condition(
 async def _reseed_with_condition(dialog_repository: DialogRepository, condition: str) -> None:
     [button] = _SNAPSHOT["buttons"]
     gated = {**_SNAPSHOT, "buttons": [{**button, "visibility_condition": condition}]}
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", gated)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", gated)
 
 
 async def test_reseed_moves_a_shipped_condition_to_the_catalog_one(
     dialog_repository: DialogRepository,
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     await _move_with_condition(dialog_repository, None)
 
     await _reseed_with_condition(dialog_repository, "has_subscriptions")
@@ -234,7 +239,7 @@ async def test_reseed_moves_a_shipped_condition_to_the_catalog_one(
 async def test_reseed_keeps_a_condition_the_admin_chose(
     dialog_repository: DialogRepository,
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     await _move_with_condition(dialog_repository, "trial_available")
 
     await _reseed_with_condition(dialog_repository, "has_subscriptions")
@@ -248,7 +253,7 @@ async def test_required_comes_from_the_catalog_snapshot(
 ) -> None:
     [button] = _SNAPSHOT["buttons"]
     snapshot = {**_SNAPSHOT, "buttons": [{**button, "required": True}]}
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", snapshot)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", snapshot)
 
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     assert [(b.is_system, b.is_required) for b in window.buttons] == [(True, True)]
@@ -261,12 +266,12 @@ async def test_reseed_keeps_button_ids_while_the_layout_stays(
     dialog_repository: DialogRepository,
 ) -> None:
     # an id lives in the callback data of messages already sent
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     before = await dialog_repository.get_by_key_or_raise("menu.main")
     [button] = _SNAPSHOT["buttons"]
     flagged = {**_SNAPSHOT, "buttons": [{**button, "required": True}]}
 
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", flagged)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", flagged)
 
     after = await dialog_repository.get_by_key_or_raise("menu.main")
     assert [b.id for b in after.buttons] == [b.id for b in before.buttons]

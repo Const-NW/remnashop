@@ -25,7 +25,7 @@ from app.core.db.models.user import User
 from app.core.db.partial_update import apply_partial_update
 from app.core.enums import AddOnType, Role, SubscriptionStatus
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import CooldownError, NotFoundError
+from app.core.exceptions import NotFoundError
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions.domain import OWNED_STATUSES, SubscriptionState
 from app.modules.subscriptions.dto import (
@@ -516,29 +516,6 @@ class SubscriptionRepository:
         await self.session.refresh(row)
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
-
-    async def claim_reset(
-        self, subscription_id: int, column: ResetColumn, cooldown: timedelta
-    ) -> Optional[datetime]:
-        # stamped before the panel call, under the row lock: a concurrent tap
-        # waits here and then sees the new stamp. Returns the old one for a refund.
-        row = await self.session.scalar(
-            select(Subscription)
-            .where(Subscription.id == subscription_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        if row is None:
-            raise NotFoundError(
-                f"Subscription '{subscription_id}' not found", code=ErrorCode.SUBSCRIPTION_NOT_FOUND
-            )
-        previous: Optional[datetime] = getattr(row, column)
-        now = datetime_now()
-        if previous is not None and now < previous + cooldown:
-            raise CooldownError(previous + cooldown)
-        setattr(row, column, now)
-        await self.session.flush()
-        return previous
 
     async def set_reset_at(
         self, subscription_id: int, column: ResetColumn, value: Optional[datetime]

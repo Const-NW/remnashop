@@ -40,9 +40,13 @@ from app.modules.broadcasts.pacing import (
     GROUP_SIZE,
     MAX_ATTEMPTS,
 )
+from app.modules.broadcasts.recipient_repository import (
+    UNDELIVERABLE_ERROR,
+    BroadcastRecipientRepository,
+)
 from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import load_unsubscribe_labels
-from app.modules.broadcasts.repository import UNDELIVERABLE_ERROR, BroadcastRepository
+from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.email import (
     SMTP_PAUSE_SECONDS,
@@ -78,6 +82,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
         referral_repository: ReferralRepository,
@@ -92,6 +97,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         redis: Redis,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
         self._referral_repository = referral_repository
@@ -141,14 +147,18 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             profile = settings.profile(bulk=True)
             if not profile.is_configured:
                 await fail_broadcast(
-                    self._broadcast_repository, self._event_publisher, data, _NOT_CONFIGURED
+                    self._broadcast_repository,
+                    self._recipient_repository,
+                    self._event_publisher,
+                    data,
+                    _NOT_CONFIGURED,
                 )
                 return False
             if await self._redis.exists(smtp_pause_key(bulk=profile.is_bulk)):
                 # heartbeat: a long pause is not a stall
                 await self._broadcast_repository.touch(data)
                 return True
-            pending = await self._broadcast_repository.claim_pending_email(
+            pending = await self._recipient_repository.claim_pending_email(
                 data,
                 profile.rate_per_minute,
                 CLAIM_LEASE,
@@ -156,12 +166,12 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             )
             if not pending:
                 # rows still leased by a crashed chain: the stall watchdog re-kicks later
-                if not await self._broadcast_repository.has_pending(data):
+                if not await self._recipient_repository.has_pending(data):
                     await complete_broadcast(
                         self._broadcast_repository, self._event_publisher, data
                     )
                 return False
-            contexts = await self._broadcast_repository.recipient_contexts(
+            contexts = await self._recipient_repository.recipient_contexts(
                 [p.user_id for p in pending]
             )
             code = (
@@ -191,7 +201,11 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         if images is None or images.keys() != referenced:
             async with self._uow:
                 await fail_broadcast(
-                    self._broadcast_repository, self._event_publisher, data, _IMAGE_MISSING
+                    self._broadcast_repository,
+                    self._recipient_repository,
+                    self._event_publisher,
+                    data,
+                    _IMAGE_MISSING,
                 )
             return False
         brand, logo = await load_email_logo(self._get_public_appearance_image_use_case, brand)
@@ -250,6 +264,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
                     # fail_pending also fails the rows this batch still holds
                     await fail_broadcast(
                         self._broadcast_repository,
+                        self._recipient_repository,
                         self._event_publisher,
                         broadcast_id,
                         _AUTH_FAILED,
@@ -261,7 +276,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             async with self._uow:
                 # heartbeat: a long pause is not a stall
                 await self._broadcast_repository.touch(broadcast_id)
-                await self._broadcast_repository.release_claims([r.id for r in queue])
+                await self._recipient_repository.release_claims([r.id for r in queue])
             logger.warning(f"Broadcast '{broadcast_id}' email paused: {error}")
             return True
 
@@ -315,22 +330,22 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
     ) -> Optional[str]:
         # None result: the user is gone; returns the metric label, if any
         if result is None:
-            await self._broadcast_repository.mark_recipient(
+            await self._recipient_repository.mark_recipient(
                 recipient.id, BroadcastRecipientStatus.FAILED, error=_USER_GONE
             )
             return "failed"
         if result.outcome is EmailOutcome.SENT:
-            await self._broadcast_repository.mark_recipient(
+            await self._recipient_repository.mark_recipient(
                 recipient.id, BroadcastRecipientStatus.SENT
             )
             return "sent"
         if result.outcome is EmailOutcome.REFUSED:
-            await self._broadcast_repository.mark_recipient(
+            await self._recipient_repository.mark_recipient(
                 recipient.id, BroadcastRecipientStatus.FAILED, error=UNDELIVERABLE_ERROR
             )
             await self._user_repository.set_email_undeliverable(recipient.user_id, datetime_now())
             return "undeliverable"
-        await self._broadcast_repository.bump_attempt(
+        await self._recipient_repository.bump_attempt(
             recipient.id, MAX_ATTEMPTS, result.error or "retry"
         )
         # counted once, by the bump that gives up on the row
@@ -340,7 +355,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         if not rows:
             return
         async with self._uow:
-            await self._broadcast_repository.release_claims([r.id for r in rows])
+            await self._recipient_repository.release_claims([r.id for r in rows])
 
     async def _still_sending(self, broadcast_id: int) -> bool:
         async with self._uow:

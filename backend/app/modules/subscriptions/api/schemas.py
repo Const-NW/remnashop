@@ -18,7 +18,7 @@ from app.core.enums import (
 )
 from app.core.security.connect_signature import sign_subscription_url
 from app.core.utils.telegram_text import PREMIUM_EMOJI_RE
-from app.modules.subscriptions.dto import PlanSnapshot, SubscriptionDto
+from app.modules.subscriptions.dto import GetAvailableTrialDto, PlanSnapshot, SubscriptionDto
 from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotResponse
 
 
@@ -254,6 +254,24 @@ class TrialResponse(BaseModel):
     currency: Optional[Currency] = None
     # the one duration in every currency, for the checkout's gateway choice
     prices: list[PublicPlanPriceResponse] = []
+
+    @classmethod
+    def from_dto(cls, trial: GetAvailableTrialDto, *, locale: Locale) -> "TrialResponse":
+        if trial.plan is None:
+            return cls(is_available=False)
+        return cls(
+            is_available=trial.is_trial_available,
+            plan_id=trial.plan.id,
+            plan_name=trial.plan.display_name(locale),
+            duration_days=trial.duration_days,
+            is_free=trial.is_free,
+            price=trial.price,
+            currency=trial.currency,
+            prices=[
+                PublicPlanPriceResponse(currency=item.currency, price=item.price)
+                for item in trial.prices
+            ],
+        )
 
 
 class PanelSyncResultResponse(BaseModel):

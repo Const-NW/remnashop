@@ -746,7 +746,7 @@ class TransactionRepository:
             .group_by(Transaction.user_id)
         )
         if user_ids is not None:
-            stmt = stmt.where(Transaction.user_id.in_(user_ids))
+            stmt = stmt.where(in_ids(Transaction.user_id, user_ids))
         if created_before is not None:
             stmt = stmt.where(Transaction.created_at < created_before)
         if paid_since is not None:

@@ -15,6 +15,7 @@ from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dispatch import StartBroadcastDispatch
 from app.modules.broadcasts.dto import BroadcastDto
 from app.modules.broadcasts.events import BroadcastChangedEvent
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 
 # FAILED: a stopped send left its unsent rows FAILED too
@@ -29,11 +30,13 @@ class RetryBroadcastUseCase(UseCase[int, BroadcastDto]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         start_dispatch: StartBroadcastDispatch,
         uow: UnitOfWork,
         event_publisher: EventPublisher,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._start_dispatch = start_dispatch
         self._uow = uow
         self._event_publisher = event_publisher
@@ -46,7 +49,7 @@ class RetryBroadcastUseCase(UseCase[int, BroadcastDto]):
                 broadcast.status not in _RETRYABLE
                 or broadcast.recall_requested_at is not None
                 or (await self._broadcast_repository.refresh_counts(data)).recalled_count > 0
-                or await self._broadcast_repository.reset_failed(data) == 0
+                or await self._recipient_repository.reset_failed(data) == 0
             ):
                 raise ConflictError(
                     f"Broadcast '{data}' has nothing to retry",

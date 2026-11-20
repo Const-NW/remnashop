@@ -20,6 +20,7 @@ class AdLink(BaseSql, TimestampMixin):
             "revenue_share_percent >= 0 AND revenue_share_percent <= 100",
             name="revenue_share_percent_range",
         ),
+        CheckConstraint("allow_bot OR allow_webcabinet", name="some_channel"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

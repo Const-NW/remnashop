@@ -3,18 +3,25 @@ from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.broadcasts.dto import BroadcastDto
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 
 
 class GetBroadcastUseCase(UseCase[int, BroadcastDto]):
     required_permission = Permission.BROADCASTS_DETAIL_VIEW
 
-    def __init__(self, broadcast_repository: BroadcastRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
+        uow: UnitOfWork,
+    ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._uow = uow
 
     async def _execute(self, actor: Actor, data: int) -> BroadcastDto:
         async with self._uow:
             broadcast = await self._broadcast_repository.get_by_id(data)
-            left = await self._broadcast_repository.count_recallable(data)
+            left = await self._recipient_repository.count_recallable(data)
         return broadcast.model_copy(update={"recallable_count": left})

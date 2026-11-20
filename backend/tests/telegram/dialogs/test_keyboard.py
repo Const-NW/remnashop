@@ -15,6 +15,7 @@ from app.core.enums import ButtonLinkType, ButtonStyleKind, DialogFlow
 from app.modules.dialogs import catalog
 from app.modules.dialogs.dto import UpdateDialogWindowDto
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 from app.modules.providers import get_module_providers
 from app.telegram.dialogs import state_pool
 from app.telegram.dialogs.di import DialogConfigProvider
@@ -298,7 +299,7 @@ async def test_render_keyboard_skips_url_button_with_unusable_scheme() -> None:
 async def test_process_item_callback_dispatches_action(
     config: AppConfig, session: AsyncSession, dialog_repository: DialogRepository
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     trial_button = next(b for b in window.buttons if b.action_key == "get_trial")
 
@@ -335,9 +336,13 @@ async def test_process_item_callback_dispatches_navigate(
 
     register_seed_state("menu.devices", _S.DEVICES)
 
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
-    await dialog_repository.upsert_seed(
-        "menu.devices", DialogFlow.MENU, None, {"banner_name": None, "buttons": []}
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.devices",
+        DialogFlow.MENU,
+        None,
+        {"banner_name": None, "buttons": []},
     )
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     nav_button = next(b for b in window.buttons if b.link_type == ButtonLinkType.NAVIGATE)
@@ -379,9 +384,13 @@ async def test_process_item_callback_navigate_across_state_groups_starts_dialog(
 
     register_seed_state("menu.devices", _There.WINDOW)
 
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
-    await dialog_repository.upsert_seed(
-        "menu.devices", DialogFlow.MENU, None, {"banner_name": None, "buttons": []}
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.devices",
+        DialogFlow.MENU,
+        None,
+        {"banner_name": None, "buttons": []},
     )
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     nav_button = next(b for b in window.buttons if b.link_type == ButtonLinkType.NAVIGATE)
@@ -416,7 +425,7 @@ async def test_default_id_reaches_process_item_callback(
     # Keyboard.callback_prefix() is falsy without a widget id, which would stop
     # process_callback() short of _process_item_callback; every window builds
     # ConfigKeyboard without id=.
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     trial_button = next(b for b in window.buttons if b.action_key == "get_trial")
 
@@ -449,7 +458,7 @@ async def test_default_id_reaches_process_item_callback(
 async def test_process_item_callback_unregistered_action_returns_false(
     config: AppConfig, session: AsyncSession, dialog_repository: DialogRepository
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     trial_button = next(b for b in window.buttons if b.action_key == "get_trial")
     # deliberately not calling catalog.register_action_key("get_trial")
@@ -478,7 +487,7 @@ async def test_process_item_callback_declared_but_unbound_action_returns_false(
 ) -> None:
     # a key declared in flow metadata but never bound to a handler must not
     # reach catalog.get_action(), which raises KeyError
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     trial_button = next(b for b in window.buttons if b.action_key == "get_trial")
     catalog.register_action_key("get_trial")
@@ -506,7 +515,7 @@ async def test_process_item_callback_declared_but_unbound_action_returns_false(
 async def test_process_item_callback_unknown_button_returns_false(
     config: AppConfig, session: AsyncSession, dialog_repository: DialogRepository
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
 
     container = make_async_container(
         *get_core_providers(),
@@ -530,7 +539,7 @@ async def test_process_item_callback_unresolved_navigate_target_returns_false(
 ) -> None:
     # "menu.devices" is referenced by the seed but never registered via
     # register_seed_state and isn't a CUSTOM window either.
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     window = await dialog_repository.get_by_key_or_raise("menu.main")
     nav_button = next(b for b in window.buttons if b.link_type == ButtonLinkType.NAVIGATE)
 
@@ -556,9 +565,13 @@ async def test_process_item_callback_unresolved_navigate_target_returns_false(
 async def test_process_item_callback_navigate_to_disabled_window_returns_false(
     config: AppConfig, session: AsyncSession, dialog_repository: DialogRepository
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
-    await dialog_repository.upsert_seed(
-        "menu.devices", DialogFlow.MENU, None, {"banner_name": None, "buttons": []}
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.devices",
+        DialogFlow.MENU,
+        None,
+        {"banner_name": None, "buttons": []},
     )
     await dialog_repository.update_window("menu.devices", UpdateDialogWindowDto(is_enabled=False))
     register_seed_state("menu.devices", Subscriptions.DEVICES)

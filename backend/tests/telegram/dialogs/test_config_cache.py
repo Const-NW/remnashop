@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.enums import ButtonLinkType, DialogFlow
 from app.modules.dialogs.dto import CreateCustomWindowDto
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 from app.telegram.dialogs.config_cache import DialogConfigCache
 
 _SNAPSHOT = {
@@ -35,7 +36,7 @@ def _session_maker(session: AsyncSession) -> async_sessionmaker[AsyncSession]:
 async def test_get_window_lazy_loads(
     session: AsyncSession, dialog_repository: DialogRepository
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
 
     cache = DialogConfigCache(_session_maker(session))
     window = await cache.get_window("menu.main")
@@ -48,7 +49,7 @@ async def test_get_window_lazy_loads(
 async def test_get_button_finds_by_id(
     session: AsyncSession, dialog_repository: DialogRepository
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     cache = DialogConfigCache(_session_maker(session))
     window = await cache.get_window("menu.main")
     button_id = window.buttons[0].id
@@ -62,7 +63,7 @@ async def test_get_button_finds_by_id(
 async def test_get_button_missing_returns_none(
     session: AsyncSession, dialog_repository: DialogRepository
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     cache = DialogConfigCache(_session_maker(session))
 
     assert await cache.get_button("menu.main", 999999) is None

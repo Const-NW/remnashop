@@ -4,6 +4,7 @@ import pytest
 
 from app.core.db.uow import UnitOfWork
 from app.core.enums import AdLinkChannel, Currency
+from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.advertising.dto import CreateAdLinkDto, UpdateAdLinkDto
 from app.modules.advertising.repository import AdLinkRepository
@@ -78,7 +79,7 @@ async def test_delete_removes_the_row(
     async with uow:
         created = await ad_link_repository.create(CreateAdLinkDto(name="Gone", code="delete-me"))
 
-    await ad_link_repository.delete_if_no_attributions(created.id)
+    await ad_link_repository.delete(created.id)
 
     with pytest.raises(NotFoundError):
         await ad_link_repository.get_by_id(created.id)
@@ -162,8 +163,23 @@ async def test_update_rejects_disabling_every_channel(
             CreateAdLinkDto(name="Channels", code="channels", allow_webcabinet=False)
         )
 
-    with pytest.raises(ValidationError):
-        await ad_link_repository.update(UpdateAdLinkDto(ad_link_id=ad_link.id, allow_bot=False))
+    with pytest.raises(ValidationError) as error:
+        async with uow:
+            await ad_link_repository.update(UpdateAdLinkDto(ad_link_id=ad_link.id, allow_bot=False))
+    assert error.value.code is ErrorCode.AD_LINK_NO_CHANNEL
+
+
+async def test_create_rejects_a_link_with_no_channel(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        async with uow:
+            await ad_link_repository.create(
+                CreateAdLinkDto(
+                    name="Nowhere", code="nowhere", allow_bot=False, allow_webcabinet=False
+                )
+            )
+    assert error.value.code is ErrorCode.AD_LINK_NO_CHANNEL
 
 
 async def test_daily_attribution_counts_split_by_channel(

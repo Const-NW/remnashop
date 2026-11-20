@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
@@ -12,6 +14,7 @@ from app.modules.settings.repository import SettingsRepository
 
 class DeleteAppearanceLogoUseCase(UseCase[AppearanceTarget, AppearanceSettingsDto]):
     required_permission = Permission.APPEARANCE_LOGO_DELETE
+    kind: ClassVar[AppearanceImageKind] = AppearanceImageKind.LOGO
 
     def __init__(
         self,
@@ -33,5 +36,15 @@ class DeleteAppearanceLogoUseCase(UseCase[AppearanceTarget, AppearanceSettingsDt
             self._event_publisher,
             actor,
             data,
-            AppearanceImageKind.LOGO,
+            self.kind,
         )
+
+
+class DeleteAppearanceFaviconUseCase(DeleteAppearanceLogoUseCase):
+    required_permission = Permission.APPEARANCE_FAVICON_DELETE
+    kind: ClassVar[AppearanceImageKind] = AppearanceImageKind.FAVICON
+
+
+class DeleteAppearanceAppIconUseCase(DeleteAppearanceLogoUseCase):
+    required_permission = Permission.APPEARANCE_APP_ICON_DELETE
+    kind: ClassVar[AppearanceImageKind] = AppearanceImageKind.APP_ICON

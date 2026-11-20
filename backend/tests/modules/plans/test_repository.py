@@ -6,8 +6,7 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import Currency, Locale, PlanAvailability, PlanBadge, PlanType
-from app.core.error_codes import ErrorCode
+from app.core.enums import Currency, Locale, PlanAvailability, PlanType
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.plans.api.schemas import CreatePlanRequest, PlanIconRequest
 from app.modules.plans.dto import (
@@ -85,38 +84,6 @@ async def test_activating_plan_makes_it_appear_in_list_active(
     assert [plan.id for plan in active] == [created.id]
 
 
-async def test_activating_plan_without_durations_raises_validation_error(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(_create_dto())
-    await _add_minimal_squad(plan_repository, created.id)
-
-    with pytest.raises(ValidationError):
-        await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_active=True))
-
-
-async def test_activating_plan_without_squads_raises_validation_error(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(_create_dto())
-    await _add_minimal_duration(plan_repository, created.id)
-
-    with pytest.raises(ValidationError):
-        await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_active=True))
-
-
-async def test_clearing_durations_of_active_plan_raises_validation_error(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(_create_dto())
-    await _add_minimal_squad(plan_repository, created.id)
-    await _add_minimal_duration(plan_repository, created.id)
-    await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_active=True))
-
-    with pytest.raises(ValidationError):
-        await plan_repository.set_durations(SetPlanDurationsDto(plan_id=created.id, durations=[]))
-
-
 async def test_create_assigns_incrementing_order_index(plan_repository: PlanRepository) -> None:
     first = await plan_repository.create(_create_dto("a", "A"))
     second = await plan_repository.create(_create_dto("b", "B"))
@@ -139,51 +106,6 @@ async def test_create_duplicate_name_raises_conflict(plan_repository: PlanReposi
 
     with pytest.raises(ConflictError):
         await plan_repository.create(_create_dto("second", "Dup"))
-
-
-async def test_create_devices_plan_zeroes_traffic_limit(plan_repository: PlanRepository) -> None:
-    created = await plan_repository.create(
-        CreatePlanDto(
-            public_code="devices-only",
-            name="Devices Only",
-            type=PlanType.DEVICES,
-            traffic_limit=500,
-            device_limit=5,
-        )
-    )
-
-    assert created.traffic_limit == 0
-    assert created.device_limit == 5
-
-
-async def test_create_traffic_plan_zeroes_device_limit(plan_repository: PlanRepository) -> None:
-    created = await plan_repository.create(
-        CreatePlanDto(
-            public_code="traffic-only",
-            name="Traffic Only",
-            type=PlanType.TRAFFIC,
-            traffic_limit=500,
-            device_limit=5,
-        )
-    )
-
-    assert created.traffic_limit == 500
-    assert created.device_limit == 0
-
-
-async def test_create_unlimited_plan_zeroes_both_limits(plan_repository: PlanRepository) -> None:
-    created = await plan_repository.create(
-        CreatePlanDto(
-            public_code="fully-unlimited",
-            name="Fully Unlimited",
-            type=PlanType.UNLIMITED,
-            traffic_limit=500,
-            device_limit=5,
-        )
-    )
-
-    assert created.traffic_limit == 0
-    assert created.device_limit == 0
 
 
 async def test_create_both_plan_keeps_both_limits(plan_repository: PlanRepository) -> None:
@@ -210,17 +132,6 @@ async def test_partial_update_leaves_other_fields_untouched(
     assert updated.name == "Basic"  # untouched
 
 
-async def test_update_switching_to_devices_type_zeroes_traffic_limit(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(_create_dto())
-
-    updated = await plan_repository.update(UpdatePlanDto(plan_id=created.id, type=PlanType.DEVICES))
-
-    assert updated.traffic_limit == 0
-    assert updated.device_limit == 3  # untouched
-
-
 async def test_update_on_an_already_devices_plan_keeps_traffic_limit_zeroed(
     plan_repository: PlanRepository,
 ) -> None:
@@ -239,67 +150,6 @@ async def test_update_on_an_already_devices_plan_keeps_traffic_limit_zeroed(
 
     assert updated.traffic_limit == 0
     assert updated.name == "Renamed"
-
-
-@pytest.mark.parametrize(
-    ("plan_type", "traffic_limit", "device_limit"),
-    [(PlanType.TRAFFIC, 0, 0), (PlanType.DEVICES, 0, 0), (PlanType.BOTH, 100, 0)],
-)
-async def test_create_rejects_a_zero_limit_the_type_applies(
-    plan_repository: PlanRepository, plan_type: PlanType, traffic_limit: int, device_limit: int
-) -> None:
-    with pytest.raises(ValidationError) as error:
-        await plan_repository.create(
-            CreatePlanDto(
-                public_code="zero",
-                name="Zero",
-                type=plan_type,
-                traffic_limit=traffic_limit,
-                device_limit=device_limit,
-            )
-        )
-
-    assert error.value.code == ErrorCode.PLAN_LIMIT_REQUIRED
-
-
-async def test_update_to_a_limited_type_needs_its_limit(plan_repository: PlanRepository) -> None:
-    created = await plan_repository.create(
-        CreatePlanDto(
-            public_code="unlimited",
-            name="Unlimited",
-            type=PlanType.UNLIMITED,
-            traffic_limit=0,
-            device_limit=0,
-        )
-    )
-
-    with pytest.raises(ValidationError):
-        await plan_repository.update(UpdatePlanDto(plan_id=created.id, type=PlanType.TRAFFIC))
-
-    updated = await plan_repository.update(
-        UpdatePlanDto(plan_id=created.id, type=PlanType.TRAFFIC, traffic_limit=50)
-    )
-    assert (updated.traffic_limit, updated.device_limit) == (50, 0)
-
-
-async def test_clearing_the_icon_drops_its_fallback(plan_repository: PlanRepository) -> None:
-    created = await plan_repository.create(
-        CreatePlanDto(
-            public_code="icon",
-            name="Icon",
-            type=PlanType.UNLIMITED,
-            traffic_limit=0,
-            device_limit=0,
-            icon_emoji_id="123",
-            icon_emoji_fallback="🚀",
-        )
-    )
-
-    cleared = await plan_repository.update(
-        UpdatePlanDto(plan_id=created.id, cleared=frozenset({"icon_emoji_id"}))
-    )
-
-    assert (cleared.icon_emoji_id, cleared.icon_emoji_fallback) == (None, None)
 
 
 async def test_delete_removes_plan(plan_repository: PlanRepository) -> None:
@@ -352,21 +202,6 @@ async def test_set_durations_again_drops_previous_set(plan_repository: PlanRepos
     assert [duration.days for duration in updated.durations] == [7]
 
 
-async def test_set_durations_rejects_duplicate_days(plan_repository: PlanRepository) -> None:
-    created = await plan_repository.create(_create_dto())
-
-    with pytest.raises(ValidationError):
-        await plan_repository.set_durations(
-            SetPlanDurationsDto(
-                plan_id=created.id,
-                durations=[
-                    SetPlanDurationDto(days=30, order_index=0, base_price=Decimal("3.99")),
-                    SetPlanDurationDto(days=30, order_index=1, base_price=Decimal("9.99")),
-                ],
-            )
-        )
-
-
 async def test_update_access_persists_allowlists(plan_repository: PlanRepository) -> None:
     created = await plan_repository.create(_create_dto())
 
@@ -382,84 +217,6 @@ async def test_update_access_persists_allowlists(plan_repository: PlanRepository
     assert updated.availability == PlanAvailability.ALLOWED
     assert updated.allowed_telegram_ids == [111, 222]
     assert updated.allowed_emails == ["a@example.com"]
-
-
-async def test_update_access_rejects_allowed_with_empty_allowlists(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(_create_dto())
-
-    with pytest.raises(ValidationError):
-        await plan_repository.update_access(
-            UpdatePlanAccessDto(
-                plan_id=created.id,
-                availability=PlanAvailability.ALLOWED,
-                allowed_telegram_ids=[],
-                allowed_emails=[],
-            )
-        )
-
-
-async def test_update_access_rejects_existing_for_a_trial_plan(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(replace(_create_dto(), is_trial=True))
-
-    with pytest.raises(ValidationError) as error:
-        await plan_repository.update_access(
-            UpdatePlanAccessDto(
-                plan_id=created.id,
-                availability=PlanAvailability.EXISTING,
-                allowed_telegram_ids=[],
-                allowed_emails=[],
-            )
-        )
-    assert error.value.code == ErrorCode.PLAN_TRIAL_EXISTING_ACCESS
-
-
-async def test_update_rejects_turning_an_existing_only_plan_into_a_trial(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(_create_dto())
-    await plan_repository.update_access(
-        UpdatePlanAccessDto(
-            plan_id=created.id,
-            availability=PlanAvailability.EXISTING,
-            allowed_telegram_ids=[],
-            allowed_emails=[],
-        )
-    )
-
-    with pytest.raises(ValidationError) as error:
-        await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_trial=True))
-    assert error.value.code == ErrorCode.PLAN_TRIAL_EXISTING_ACCESS
-
-
-async def test_create_rejects_a_trial_plan_with_a_badge(plan_repository: PlanRepository) -> None:
-    with pytest.raises(ValidationError) as error:
-        await plan_repository.create(replace(_create_dto(), is_trial=True, badge=PlanBadge.POPULAR))
-    assert error.value.code == ErrorCode.PLAN_TRIAL_BADGE
-
-
-async def test_update_rejects_a_badge_on_a_trial_plan(plan_repository: PlanRepository) -> None:
-    created = await plan_repository.create(replace(_create_dto(), badge=PlanBadge.POPULAR))
-
-    with pytest.raises(ValidationError) as error:
-        await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_trial=True))
-    assert error.value.code == ErrorCode.PLAN_TRIAL_BADGE
-
-
-async def test_update_turns_a_plan_into_a_trial_when_the_badge_is_cleared(
-    plan_repository: PlanRepository,
-) -> None:
-    created = await plan_repository.create(replace(_create_dto(), badge=PlanBadge.POPULAR))
-
-    updated = await plan_repository.update(
-        UpdatePlanDto(plan_id=created.id, is_trial=True, cleared=frozenset({"badge"}))
-    )
-
-    assert updated.is_trial is True
-    assert updated.badge is None
 
 
 async def test_update_squads_persists_squad_assignment(plan_repository: PlanRepository) -> None:

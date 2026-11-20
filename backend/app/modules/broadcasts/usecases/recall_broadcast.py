@@ -17,6 +17,7 @@ from app.modules.broadcasts.dispatch import RecallBroadcastDispatch
 from app.modules.broadcasts.dto import BroadcastDto
 from app.modules.broadcasts.events import BroadcastRecalledEvent
 from app.modules.broadcasts.lifecycle import cancel_sending
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 
 RECALL_WINDOW: Final[timedelta] = timedelta(hours=48)
@@ -33,11 +34,13 @@ class RecallBroadcastUseCase(UseCase[int, BroadcastDto]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         recall_dispatch: RecallBroadcastDispatch,
         uow: UnitOfWork,
         event_publisher: EventPublisher,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._recall_dispatch = recall_dispatch
         self._uow = uow
         self._event_publisher = event_publisher
@@ -58,7 +61,7 @@ class RecallBroadcastUseCase(UseCase[int, BroadcastDto]):
                         f"Broadcast '{data}' recall is still running",
                         code=ErrorCode.BROADCAST_RECALL_IN_PROGRESS,
                     )
-                left = await self._broadcast_repository.count_recallable(data)
+                left = await self._recipient_repository.count_recallable(data)
                 if left == 0 and broadcast.channel_message_id is None:
                     raise ConflictError(
                         f"Broadcast '{data}' has nothing left to recall",
@@ -68,17 +71,17 @@ class RecallBroadcastUseCase(UseCase[int, BroadcastDto]):
                 raise ValidationError(
                     "Recall window has passed", code=ErrorCode.BROADCAST_RECALL_EXPIRED
                 )
-            await self._broadcast_repository.clear_recall_failures(data)
+            await self._recipient_repository.clear_recall_failures(data)
             await self._broadcast_repository.request_recall(data, now)
             if broadcast.status is BroadcastStatus.SENDING:
-                await cancel_sending(self._broadcast_repository, data)
+                await cancel_sending(self._broadcast_repository, self._recipient_repository, data)
             await self._event_publisher.publish(
                 BroadcastRecalledEvent(actor=actor, broadcast_id=data)
             )
             await self._uow.after_commit(partial(self._recall_dispatch.kiq, broadcast_id=data))
             result = await self._broadcast_repository.get_by_id(data)
             result = result.model_copy(
-                update={"recallable_count": await self._broadcast_repository.count_recallable(data)}
+                update={"recallable_count": await self._recipient_repository.count_recallable(data)}
             )
         logger.info(f"{actor.log} Recalling broadcast '{data}'")
         return result

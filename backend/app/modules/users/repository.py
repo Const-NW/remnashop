@@ -1,7 +1,7 @@
 import secrets
 import string
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Final, Optional, Union, cast
 
@@ -32,7 +32,7 @@ from app.core.db.partial_update import apply_partial_update
 from app.core.db.user_search import user_search_filter
 from app.core.enums import Locale, Role
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import ConflictError, CooldownError, NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.utils.email import canonical_email, normalize_email
 from app.core.utils.time import datetime_now
 from app.modules.users.dto import (
@@ -104,22 +104,23 @@ _SUBSCRIPTION_COUNTS: Final[tuple[ColumnElement[int], ...]] = (
 )
 
 
-def _list_item(user: User, active: int, limited: int, expired: int) -> UserListItemDto:
-    return UserListItemDto.model_validate(user, from_attributes=True).model_copy(
-        update={
-            "active_subscriptions": active,
-            "limited_subscriptions": limited,
-            "expired_subscriptions": expired,
-        }
-    )
-
-
 class UserRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
     def _to_dto(self, row: User) -> UserDto:
         return UserDto.model_validate(row, from_attributes=True)
+
+    def _to_list_item_dto(
+        self, row: User, active: int, limited: int, expired: int
+    ) -> UserListItemDto:
+        return UserListItemDto.model_validate(row, from_attributes=True).model_copy(
+            update={
+                "active_subscriptions": active,
+                "limited_subscriptions": limited,
+                "expired_subscriptions": expired,
+            }
+        )
 
     async def create(self, data: CreateUserDto) -> UserDto:
         db_user = User(
@@ -412,7 +413,7 @@ class UserRepository:
         ).first()
         if row is None:
             raise NotFoundError(f"User '{user_id}' not found", code=ErrorCode.USER_NOT_FOUND)
-        return _list_item(*row)
+        return self._to_list_item_dto(*row)
 
     async def list_filtered(
         self,
@@ -476,7 +477,7 @@ class UserRepository:
         )
         rows = (await self.session.execute(stmt)).all()
 
-        return [_list_item(*row) for row in rows], int(total or 0)
+        return [self._to_list_item_dto(*row) for row in rows], int(total or 0)
 
     async def update_telegram_profile(
         self, user_id: int, *, name: str, username: Optional[str], language: Locale
@@ -702,20 +703,10 @@ class UserRepository:
         await self.session.refresh(db_user)
         return self._to_dto(db_user)
 
-    async def reset_own_referral_code(self, user_id: int, cooldown: timedelta) -> UserDto:
-        # under the row lock: a double tap waits here and then meets the cooldown
-        row = await self.session.scalar(
-            select(User)
-            .where(User.id == user_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
+    async def reset_own_referral_code(self, user_id: int, now: datetime) -> UserDto:
+        row = await self.session.get(User, user_id)
         if row is None:
             raise NotFoundError(f"User '{user_id}' not found", code=ErrorCode.USER_NOT_FOUND)
-        now = datetime_now()
-        previous = row.referral_code_reset_at
-        if previous is not None and now < previous + cooldown:
-            raise CooldownError(previous + cooldown)
         row.referral_code = await self._generate_referral_code()
         row.referral_code_reset_at = now
         await self.session.flush()

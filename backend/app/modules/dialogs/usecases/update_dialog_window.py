@@ -32,13 +32,16 @@ class UpdateDialogWindowUseCase(UseCase[ConfigureDialogWindowDto, DialogWindowDt
 
     async def _execute(self, actor: Actor, data: ConfigureDialogWindowDto) -> DialogWindowDto:
         async with self._uow:
-            if data.is_enabled is False:
-                current = await self._dialog_repository.get_by_key_or_raise(data.key)
-                if current.kind == DialogWindowKind.SEED:
-                    raise ValidationError(
-                        "Seed windows cannot be disabled",
-                        code=ErrorCode.DIALOG_WINDOW_NOT_DISABLEABLE,
-                    )
+            current = await self._dialog_repository.get_by_key_or_raise(data.key)
+            if data.is_enabled is False and current.kind == DialogWindowKind.SEED:
+                raise ValidationError(
+                    "Seed windows cannot be disabled",
+                    code=ErrorCode.DIALOG_WINDOW_NOT_DISABLEABLE,
+                )
+            if data.name is not None and current.kind != DialogWindowKind.CUSTOM:
+                raise ValidationError(
+                    "Only custom windows can be renamed", code=ErrorCode.DIALOG_WINDOW_NOT_RENAMABLE
+                )
             if data.banner_name_provided:
                 # The same text can fit as a message and not as a photo caption,
                 # and an empty one is fine only under a banner.

@@ -7,6 +7,7 @@ from app.core.exceptions import NotFoundError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.events import BroadcastCompletedEvent, BroadcastFailedEvent
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 
 _STOPPED: Final[str] = "stopped"
@@ -30,7 +31,11 @@ async def complete_broadcast(
 
 
 async def fail_broadcast(
-    repository: BroadcastRepository, publisher: EventPublisher, broadcast_id: int, error: str
+    repository: BroadcastRepository,
+    recipients: BroadcastRecipientRepository,
+    publisher: EventPublisher,
+    broadcast_id: int,
+    error: str,
 ) -> None:
     try:
         broadcast = await repository.get_by_id_for_update(broadcast_id)
@@ -40,7 +45,7 @@ async def fail_broadcast(
         return
     await repository.finish(broadcast_id, BroadcastStatus.FAILED, datetime_now())
     # FAILED, not CANCELED: a retry after fixing the cause resends them
-    await repository.fail_pending(broadcast_id, _STOPPED)
+    await recipients.fail_pending(broadcast_id, _STOPPED)
     await repository.refresh_counts(broadcast_id)
     await publisher.publish(BroadcastFailedEvent(broadcast_id=broadcast_id, error=error))
     logger.warning(f"Broadcast '{broadcast_id}' failed: {error}")

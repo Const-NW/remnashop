@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.errors import constraint_name
+from app.core.db.filters import in_ids
 from app.core.db.models.addon import AddOn
 from app.core.db.models.addon_price_override import AddOnPriceOverride
 from app.core.db.partial_update import apply_partial_update
@@ -31,7 +32,7 @@ class AddOnRepository:
 
         result = await self.session.execute(
             select(AddOnPriceOverride)
-            .where(AddOnPriceOverride.addon_id.in_(addon_ids))
+            .where(in_ids(AddOnPriceOverride.addon_id, addon_ids))
             .order_by(AddOnPriceOverride.id)
         )
         overrides_by_addon: dict[int, list[AddOnPriceOverrideDto]] = {}
