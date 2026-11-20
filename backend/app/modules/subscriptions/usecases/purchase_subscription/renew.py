@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 from typing import Callable, Optional
@@ -80,10 +81,13 @@ class RenewPurchase:
                     "Cannot renew a disabled subscription", code=ErrorCode.SUBSCRIPTION_DISABLED
                 )
             if target.plan_snapshot.plan_id != data.plan_snapshot.plan_id:
-                raise ValidationError(
-                    "Renewing a different plan is a CHANGE, not a RENEW",
-                    code=ErrorCode.RENEW_PLAN_MISMATCH,
-                )
+                if not data.renew_other_plan:
+                    raise ValidationError(
+                        "Renewing a different plan is a CHANGE, not a RENEW",
+                        code=ErrorCode.RENEW_PLAN_MISMATCH,
+                    )
+                # the old plan's terms and tag would land on the new plan's subscription
+                data = replace(data, apply_current_plan=False)
             # nothing to add to: a paid order for it stays unfulfilled for an admin to settle
             if target.is_unlimited:
                 raise ValidationError(

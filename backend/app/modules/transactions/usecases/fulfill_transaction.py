@@ -64,9 +64,9 @@ class FulfillTransactionUseCase(UseCase[FulfillTransactionDto, TransactionWithUs
                     self._transaction_repository, self._idempotency_repository, order, linked
                 )
             else:
-                if order.fulfillment_held:
+                if order.fulfillment_hold is not None:
                     # an admin's call: the sweep may retry it from here on
-                    await self._transaction_repository.set_fulfillment_held(order.id, False)
+                    await self._transaction_repository.set_fulfillment_hold(order.id, None)
                 if unpaid:
                     changed = await self._transaction_repository.mark_status_if(
                         order.id, TransactionStatus.PAID, current=UNPAID_FINAL
@@ -91,7 +91,7 @@ class FulfillTransactionUseCase(UseCase[FulfillTransactionDto, TransactionWithUs
                     )
                 )
                 await self._uow.after_commit(
-                    partial(dispatch_fulfillment, self._purchase_dispatch, order)
+                    partial(dispatch_fulfillment, self._purchase_dispatch, order, by_admin=True)
                 )
                 logger.info(
                     f"{actor.log} Fulfilled transaction '{order.id}' ({order.status.value}) "

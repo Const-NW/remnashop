@@ -8,6 +8,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
@@ -293,7 +294,9 @@ async def test_late_payment_on_a_canceled_discounted_order(
     assert paid.status is TransactionStatus.PAID
     # spent again and issued; already spent elsewhere, held for an admin
     assert len(purchase_dispatch.messages) == (1 if discount_back else 0)
-    assert paid.fulfillment_held is not discount_back
+    assert paid.fulfillment_hold is (
+        None if discount_back else FulfillmentHold.PURCHASE_DISCOUNT_SPENT
+    )
     assert (await user_repository.find_by_id(buyer.id)).purchase_discount == 0
 
 

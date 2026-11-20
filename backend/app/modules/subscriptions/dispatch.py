@@ -15,6 +15,7 @@ class PurchaseSubscriptionDispatch(Protocol):
         base_price: Optional[str] = None,
         idempotency_key: Optional[str] = None,
         change_credit: Optional[str] = None,
+        renew_other_plan: bool = False,
     ) -> object: ...
 
 

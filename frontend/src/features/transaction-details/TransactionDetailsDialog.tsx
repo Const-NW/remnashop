@@ -9,6 +9,7 @@ import {
   Mail,
   Package,
   PackageMinus,
+  PackageX,
   PackageCheck,
   Receipt,
   Repeat,
@@ -175,6 +176,7 @@ function TransactionDetailsDialogBody({
   const subscriptionId = order.target_subscription_id ?? order.fulfilled_subscription_id;
   const targetSubscription = subscriptionId !== null ? `#${subscriptionId}` : undefined;
   const missingSubscription = order.status === "PAID" ? t("transactions.details.notIssued") : none;
+  const hold = order.fulfillment_hold ? t(`transactions.details.hold.${order.fulfillment_hold}` as ParseKeys) : null;
   const createdAt = formatDateTime(order.created_at, i18n.language);
   const { user } = order;
   const username = user?.username ? `@${user.username}` : undefined;
@@ -266,6 +268,11 @@ function TransactionDetailsDialogBody({
             <InfoRow icon={Captions} label={t("transactions.details.targetSubscription")} copyValue={targetSubscription} mono>
               <DetailValue value={targetSubscription ?? missingSubscription} />
             </InfoRow>
+            {hold && (
+              <InfoRow icon={PackageX} label={t("transactions.details.holdLabel")} copyValue={hold}>
+                <DetailValue value={hold} />
+              </InfoRow>
+            )}
           </DialogCard>
 
           <DialogCard title={t("transactions.details.sections.user")} icon={User}>

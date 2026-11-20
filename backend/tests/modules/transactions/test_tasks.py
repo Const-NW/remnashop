@@ -15,6 +15,7 @@ from app.core.db.models.transaction import Transaction
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PromocodeRewardType,
     PurchaseChannel,
@@ -291,7 +292,7 @@ async def test_reconcile_paid_transactions_leaves_a_held_order_to_an_admin(
             _paid_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="recon-held")
         )
         await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
-        await transaction_repository.set_fulfillment_held(order.id, True)
+        await transaction_repository.set_fulfillment_hold(order.id, FulfillmentHold.PLAN_CHANGED)
 
     dispatch = RecordingDispatch()
 

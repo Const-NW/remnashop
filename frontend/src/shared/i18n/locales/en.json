@@ -3686,6 +3686,11 @@
       "purchaseType": "Purchase type",
       "targetSubscription": "Subscription",
       "notIssued": "Not issued yet",
+      "holdLabel": "Awaiting your decision",
+      "hold": {
+        "PURCHASE_DISCOUNT_SPENT": "Paid after its cancel, its one-shot discount already used. Fulfill the order or refund it",
+        "PLAN_CHANGED": "The subscription moved to another plan while it was paid. Fulfilling renews it on its current plan; otherwise refund it"
+      },
       "externalPaymentId": "External payment ID",
       "discount": "{{percent}}% off · {{source}}",
       "changeCredit": "credit {{amount}}",

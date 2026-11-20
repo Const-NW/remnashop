@@ -29,6 +29,7 @@ from app.core.enums import (
     AddOnType,
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PlanType,
     PurchaseChannel,
@@ -74,8 +75,10 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.remnawave import FakeUserStore
 from tests.modules.subscriptions.factories import (
     make_eligibility,
@@ -2808,6 +2811,7 @@ async def test_a_paid_order_still_renews_a_subscription_disabled_after_checkout(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
 
@@ -4119,6 +4123,7 @@ async def test_fulfilling_a_refunded_order_ends_without_a_retry(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
 
@@ -4178,3 +4183,51 @@ async def test_a_paid_renewal_of_a_limited_subscription_resets_its_traffic(
     panel_user["userTraffic"]["usedTrafficBytes"] = 5
     await purchase_subscription_use_case(buyer, dto(PurchaseType.RENEW, old.id))
     assert panel_user["userTraffic"]["usedTrafficBytes"] == 5
+
+
+async def test_a_paid_renewal_of_a_since_changed_plan_is_held_then_issued_by_an_admin(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 444)
+    plan_a = await _create_plan(plan_repository, "held-renew-a")
+    plan_b = await _create_plan(plan_repository, "held-renew-b")
+    # the subscription is on plan A; the order paid for renewing plan B
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan_a, "held-renew-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan_b,
+        "held-renew",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    transactions = TransactionRepository(user_repository.session)
+    events = RecordingEventPublisher()
+    fulfill = FulfillPurchaseUseCase(
+        user_repository,
+        purchase_subscription_use_case,
+        transactions,
+        PaidOrderHolder(transactions, events),
+        UnitOfWork(user_repository.session),
+    )
+    renewal = _paid_purchase(
+        buyer, plan_b, "held-renew", PurchaseType.RENEW, target_subscription_id=original.id
+    )
+
+    # new plan days at the old plan's price: left to an admin
+    assert await fulfill.system(renewal) is None
+    order = await transactions.find_by_idempotency_key("held-renew")
+    assert order is not None and order.fulfillment_hold is FulfillmentHold.PLAN_CHANGED
+    assert [type(event).__name__ for event in events.events] == ["PaidOrderNotFulfilledEvent"]
+    assert (await subscription_repository.get_by_id(original.id)).expire_at == original.expire_at
+
+    # the admin issues it: the days go on, the subscription keeps plan A
+    renewed = await fulfill.system(replace(renewal, renew_other_plan=True))
+    assert renewed is not None
+    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
+    assert renewed.plan_snapshot.plan_id == plan_a.id

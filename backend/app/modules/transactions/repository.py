@@ -28,6 +28,7 @@ from app.core.db.timestamp import NOW_FUNC
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
@@ -160,7 +161,7 @@ class TransactionRepository:
             added_days=row.added_days,
             paid_at=row.paid_at,
             is_test=row.is_test,
-            fulfillment_held=row.fulfillment_held,
+            fulfillment_hold=row.fulfillment_hold,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -352,15 +353,17 @@ class TransactionRepository:
             Transaction.paid_at >= since,
         ]
         if not include_held:
-            conditions.append(Transaction.fulfillment_held.is_(False))
+            conditions.append(Transaction.fulfillment_hold.is_(None))
         rows = (await self.session.scalars(select(Transaction).where(*conditions))).all()
         return [self._to_dto(row) for row in rows]
 
-    async def set_fulfillment_held(self, transaction_id: int, held: bool) -> None:
+    async def set_fulfillment_hold(
+        self, transaction_id: int, hold: Optional[FulfillmentHold]
+    ) -> None:
         await self.session.execute(
             update(Transaction)
             .where(Transaction.id == transaction_id)
-            .values(fulfillment_held=held, updated_at=NOW_FUNC)
+            .values(fulfillment_hold=hold, updated_at=NOW_FUNC)
         )
 
     async def mark_fulfilled_by_key(self, idempotency_key: str, subscription_id: int) -> None:

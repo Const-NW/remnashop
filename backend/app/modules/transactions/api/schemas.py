@@ -7,6 +7,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     Locale,
     PaymentGatewayType,
     PurchaseChannel,
@@ -94,6 +95,8 @@ class TransactionResponse(BaseModel):
     customer_email: Optional[str]
     idempotency_key: str
     is_test: bool
+    # set: paid, left to an admin to issue or refund
+    fulfillment_hold: Optional[FulfillmentHold]
     expires_at: datetime
     # the subscription the order provisioned, once reconciliation has seen it
     fulfilled_subscription_id: Optional[int]

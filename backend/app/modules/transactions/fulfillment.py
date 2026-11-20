@@ -4,7 +4,7 @@ from app.modules.transactions.repository import TransactionRepository
 
 
 async def dispatch_fulfillment(
-    dispatch: PurchaseSubscriptionDispatch, order: TransactionDto
+    dispatch: PurchaseSubscriptionDispatch, order: TransactionDto, *, by_admin: bool = False
 ) -> None:
     # Keyed by the order's idempotency_key, so a redispatch of the same order
     # provisions it once.
@@ -19,6 +19,8 @@ async def dispatch_fulfillment(
         purchase_type=order.purchase_type.value,
         target_subscription_id=order.target_subscription_id,
         idempotency_key=order.idempotency_key,
+        # an admin issuing it has decided a renewal of a since-changed plan goes on
+        renew_other_plan=by_admin,
     )
 
 

@@ -8,6 +8,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
@@ -360,7 +361,7 @@ async def test_fulfill_transaction_releases_a_held_order(
             _order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="fulfill-held")
         )
         await transaction_repository.mark_status(held.id, TransactionStatus.PAID)
-        await transaction_repository.set_fulfillment_held(held.id, True)
+        await transaction_repository.set_fulfillment_hold(held.id, FulfillmentHold.PLAN_CHANGED)
     dispatch = RecordingDispatch()
 
     result = await FulfillTransactionUseCase(
@@ -372,8 +373,11 @@ async def test_fulfill_transaction_releases_a_held_order(
         dispatch,
     )(admin_actor, FulfillTransactionDto(transaction_id=held.id, client_ip="10.0.0.1"))
 
-    assert result.order.fulfillment_held is False
-    assert [message["idempotency_key"] for message in dispatch.messages] == ["fulfill-held"]
+    assert result.order.fulfillment_hold is None
+    (message,) = dispatch.messages
+    assert message["idempotency_key"] == "fulfill-held"
+    # the admin's call: a renewal of a since-changed plan goes on
+    assert message["renew_other_plan"] is True
 
 
 async def test_fulfill_response_hides_a_staff_owner_from_an_admin(

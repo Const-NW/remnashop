@@ -5,13 +5,13 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PurchaseType
+from app.core.enums import FulfillmentHold, PurchaseType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.usecase import UseCase
 from app.modules.subscriptions.domain import OrderNotPaidError
 from app.modules.subscriptions.dto import PurchaseSubscriptionDto, SubscriptionDto
-from app.modules.subscriptions.ports import OrderFailer
+from app.modules.subscriptions.ports import OrderFailer, PaidOrderHold
 from app.modules.subscriptions.usecases.purchase_subscription import PurchaseSubscriptionUseCase
 from app.modules.users import UserRepository
 
@@ -27,11 +27,13 @@ class FulfillPurchaseUseCase(UseCase[PurchaseSubscriptionDto, Optional[Subscript
         user_repository: UserRepository,
         purchase_subscription_use_case: PurchaseSubscriptionUseCase,
         order_failer: OrderFailer,
+        paid_order_hold: PaidOrderHold,
         uow: UnitOfWork,
     ) -> None:
         self._user_repository = user_repository
         self._purchase_subscription_use_case = purchase_subscription_use_case
         self._order_failer = order_failer
+        self._paid_order_hold = paid_order_hold
         self._uow = uow
 
     async def _execute(
@@ -62,6 +64,16 @@ class FulfillPurchaseUseCase(UseCase[PurchaseSubscriptionDto, Optional[Subscript
             logger.info(f"{buyer.log} {error}")
             return None
         except ValidationError as error:
+            if error.code is ErrorCode.RENEW_PLAN_MISMATCH and data.idempotency_key is not None:
+                # the subscription moved to another plan while this renewal was paid:
+                # issuing it would sell the new plan's days at the old plan's price
+                async with self._uow:
+                    held = await self._paid_order_hold.hold_paid_order(
+                        data.idempotency_key, FulfillmentHold.PLAN_CHANGED
+                    )
+                if held:
+                    return None
+                raise
             if free_order_key is None or error.code is not ErrorCode.SUBSCRIPTION_LIMIT_REACHED:
                 raise
         else:

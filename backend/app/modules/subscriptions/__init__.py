@@ -47,6 +47,7 @@ from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotRespons
 from app.modules.subscriptions.ports import (
     OpenOrderCounter,
     OrderFailer,
+    PaidOrderHold,
     ReferrerLookup,
     SpentPurchaseDiscount,
 )
@@ -96,6 +97,7 @@ __all__ = [
     "LiveSubscriptionDto",
     "OpenOrderCounter",
     "OrderFailer",
+    "PaidOrderHold",
     "PanelSquadCatalog",
     "PanelTrafficUsage",
     "PlanCatalogDto",

@@ -57,8 +57,10 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.remnawave import FakeUserStore, _user_payload
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
 from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
@@ -74,6 +76,7 @@ def fulfill_purchase(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         uow,
     )
 

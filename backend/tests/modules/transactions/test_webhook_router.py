@@ -15,6 +15,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PromocodeRewardType,
     PurchaseChannel,
@@ -671,7 +672,9 @@ async def test_late_payment_for_a_canceled_discounted_order(
     assert (await user_repository.find_by_id(user_id)).purchase_discount == 0
     # spent again and issued; already spent elsewhere, held for an admin, who hears of it
     assert len(purchase_dispatch.messages) == (1 if discount_back else 0)
-    assert paid.fulfillment_held is not discount_back
+    assert paid.fulfillment_hold is (
+        None if discount_back else FulfillmentHold.PURCHASE_DISCOUNT_SPENT
+    )
     reported = await _events(session, "PaidOrderNotFulfilledEvent")
     assert len(reported) == (0 if discount_back else 1)
 
