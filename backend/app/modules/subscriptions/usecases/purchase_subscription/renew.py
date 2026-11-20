@@ -1,7 +1,7 @@
 from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
-from typing import Callable, Optional
+from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
@@ -55,9 +55,7 @@ class RenewPurchase:
         self._lifecycle_service = lifecycle_service
         self._pricing_repository = pricing_repository
 
-    async def run(
-        self, actor: Actor, data: PurchaseSubscriptionDto, keep_key: Callable[[], None]
-    ) -> SubscriptionDto:
+    async def run(self, actor: Actor, data: PurchaseSubscriptionDto) -> SubscriptionDto:
         async with self._uow:
             if data.target_subscription_id is None:
                 raise ValidationError(
@@ -93,7 +91,7 @@ class RenewPurchase:
                     code=ErrorCode.SUBSCRIPTION_UNLIMITED,
                 )
 
-        expire_at, added_days, anchor_day = await self._extend_panel(target, data, keep_key)
+        expire_at, added_days, anchor_day = await self._extend_panel(target, data)
 
         tag_applied, terms_applied = await self._apply_current_plan(data, target)
 
@@ -125,7 +123,6 @@ class RenewPurchase:
         self,
         target: SubscriptionDto,
         data: PurchaseSubscriptionDto,
-        keep_key: Callable[[], None],
     ) -> tuple[datetime, int, Optional[int]]:
         """The panel's new expiry, the days it added and the anchor day it leaves."""
         if data.idempotency_key is None and data.duration_days == 0:
@@ -161,7 +158,7 @@ class RenewPurchase:
             expire_at = extended.expire_at
         else:
             expire_at, added_days, anchor_day = await self._apply_pinned_renewal(
-                target, data.idempotency_key, data.claim_token, data, keep_key
+                target, data.idempotency_key, data.claim_token, data
             )
         return expire_at, added_days, anchor_day
 
@@ -308,7 +305,6 @@ class RenewPurchase:
         key: str,
         token: Optional[datetime],
         data: PurchaseSubscriptionDto,
-        keep_key: Callable[[], None],
     ) -> tuple[datetime, int, Optional[int]]:
         """The expiry, the days it added and the anchor day it leaves. The panel's
         extend as an absolute value pinned before the call, so a retry can't extend
@@ -327,6 +323,27 @@ class RenewPurchase:
             # first attempt's write landed after the change
             if panel_user.expire_at != pinned:
                 pinned = None
+            else:
+                # moved to the successor, so a refund finds it, with the days it adds
+                # past the successor's own expiry
+                added_days = max(
+                    0, term_days(max(target.expire_at, datetime_now()), pinned, data.duration_days)
+                )
+                anchor_day = None
+                async with self._uow:
+                    if not await self._idempotency.pin_renew_expire_at(
+                        key,
+                        pinned,
+                        added_days,
+                        anchor_day,
+                        token,
+                        subscription_id=target.id,
+                        replacing=pinned,
+                    ):
+                        # a concurrent resume re-pinned first: its pin stands
+                        pinned = await self._idempotency.find_pending_renew_expire_at(key)
+                        added_days = await self._idempotency.find_pending_renew_added_days(key)
+                        anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
         if pinned is None:
             base = await self._renewal_base(target)
             anchor = _live_anchor(target)
@@ -356,13 +373,11 @@ class RenewPurchase:
                     added_days = await self._idempotency.find_pending_renew_added_days(key)
                     anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
             if won:
-                keep_key()
                 await self._remnawave_sdk.users.update_user(
                     UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=fresh)
                 )
                 return fresh, fresh_days, fresh_anchor_day
             assert pinned is not None  # the winner's pin, on a row still unlinked
-        keep_key()
         if added_days is None:
             # pinned before the column existed, when a term was plain days
             added_days = data.duration_days

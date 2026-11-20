@@ -491,6 +491,24 @@ async def test_claim_never_reclaims_a_pinned_key(
     assert claimed is None
 
 
+async def test_release_keeps_a_pinned_key(
+    uow: UnitOfWork, idempotency_repository: PurchaseIdempotencyRepository
+) -> None:
+    async with uow:
+        await _insert_key(
+            idempotency_repository.session,
+            "pinned-release",
+            age=timedelta(minutes=1),
+            renew_expire_at=datetime_now() + timedelta(days=30),
+        )
+        token = await idempotency_repository.find_claim_token("pinned-release")
+    assert token is not None
+    async with uow:
+        await idempotency_repository.release("pinned-release", token)
+
+    assert await idempotency_repository.find_pending_renew_expire_at("pinned-release") is not None
+
+
 async def test_claim_never_reclaims_a_linked_key(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,

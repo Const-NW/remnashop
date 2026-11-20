@@ -4380,6 +4380,63 @@ async def test_a_stale_pin_the_panel_already_holds_is_not_extended_again(
     assert abs(renewed.expire_at - pinned) < timedelta(seconds=1)
 
 
+async def test_a_stale_pin_the_panel_holds_moves_to_the_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    buyer = await _create_buyer(user_repository, 449)
+    plan = await _create_plan(plan_repository, "move-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "move-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "move-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    pinned = truncate_to_ms(original.expire_at + timedelta(days=90))
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("move-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "move-pin", pinned, 90, 20, token, subscription_id=original.id
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "move-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    remnawave_store[replaced.remnawave_user_id]["expireAt"] = pinned.isoformat()
+
+    async def _die(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("worker died")
+
+    # dies after the panel holds the pin, before the database takes the renewal
+    monkeypatch.setattr(purchase_subscription_use_case._renew, "_finish", _die)
+    with pytest.raises(RuntimeError):
+        await purchase_subscription_use_case(
+            buyer,
+            _paid_purchase(
+                buyer, plan, "move-pin", PurchaseType.RENEW, target_subscription_id=original.id
+            ),
+        )
+
+    async with UnitOfWork(user_repository.session):
+        pinned_for = await idempotency_repository.find_pending_renew_subscription_id("move-pin")
+        added_days = await idempotency_repository.find_pending_renew_added_days("move-pin")
+        anchor_day = await idempotency_repository.find_pending_renew_anchor_day("move-pin")
+    assert pinned_for == replaced.id
+    assert added_days == round((pinned - replaced.expire_at) / timedelta(days=1))
+    assert anchor_day is None
+
+
 async def test_an_admin_grant_to_a_replaced_row_is_refused(
     purchase_subscription_use_case: PurchaseSubscriptionUseCase,
     plan_repository: PlanRepository,

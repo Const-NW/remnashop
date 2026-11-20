@@ -189,11 +189,13 @@ class PurchaseIdempotencyRepository:
 
     async def release(self, key: str, token: datetime) -> None:
         # a linked key belongs to a finished purchase: an attempt that failed after
-        # reclaiming it must not erase that link
+        # reclaiming it must not erase that link. A pinned one is kept so a retry
+        # re-applies the pin instead of extending again
         await self.session.execute(
             delete(SubscriptionPurchaseIdempotency).where(
                 SubscriptionPurchaseIdempotency.key == key,
                 SubscriptionPurchaseIdempotency.subscription_id.is_(None),
+                SubscriptionPurchaseIdempotency.renew_expire_at.is_(None),
                 SubscriptionPurchaseIdempotency.created_at == token,
             )
         )
