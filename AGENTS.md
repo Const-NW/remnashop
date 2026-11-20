@@ -142,7 +142,7 @@ Alembic with a **version chain** (since 2026-11-06), numbered revisions: `1000_i
 
 - **A repository reads and writes rows, nothing else.** No business decisions (`if` on "opted out", "retry allowed", "consent valid"), no events, no provider calls, no constructing other repositories. That logic goes in a usecase or a pure function in a module file. A repository past ~300 lines usually hides a usecase.
 - **Everything is built by DI.** No `SomeRepository(self.session)` or `SomeRepository(other_repository.session)`. Exceptions, all because no container exists or the object owns its own sessions: `app/cli/`, the pre-container settings read (`modules/settings/bootstrap.py`), and `Scope.APP` caches/claims that hold a session maker (`telegram/settings_cache.py`, `telegram/dialogs/config_cache.py`, `telegram/i18n.py`, `WaitlistClaims`).
-- **No `_private` names imported across files.** If you need it, it needs a public API or a port.
+- **No `_private` names imported across files.** If you need it, it needs a public API or a port. Tests are the exception: a test may import a `_private` helper or constant to check it directly.
 - **A usecase does one thing.** An input that means "one item, or the whole batch when `None`" is two usecases.
 - **Codes stored or compared as data (statuses, failure reasons) are an enum** declared once, like `ErrorCode`. A set of codes that "need attention" exists in exactly one place.
 
