@@ -14,6 +14,7 @@ from app.modules.broadcasts.dto import SendTestBroadcastEmailDto
 from app.modules.broadcasts.email_assets import load_email_logo, read_email_images
 from app.modules.broadcasts.email_html import email_image_ids
 from app.modules.broadcasts.email_render import BroadcastEmailRenderer, unsubscribe_links
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import load_unsubscribe_labels
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -32,6 +33,7 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
         referral_repository: ReferralRepository,
@@ -42,6 +44,7 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
         uow: UnitOfWork,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
         self._referral_repository = referral_repository
@@ -62,7 +65,7 @@ class SendTestBroadcastEmailUseCase(UseCase[SendTestBroadcastEmailDto, None, Use
             profile = (await self._settings_repository.get_email_settings()).profile(bulk=True)
             if not profile.is_configured:
                 raise ValidationError("SMTP is not configured", code=ErrorCode.EMAIL_NOT_CONFIGURED)
-            context = (await self._broadcast_repository.recipient_contexts([actor.id]))[actor.id]
+            context = (await self._recipient_repository.recipient_contexts([actor.id]))[actor.id]
             code = (
                 await promocode_is_usable(self._promocode_repository, broadcast.promocode_id)
                 if broadcast.promocode_id is not None

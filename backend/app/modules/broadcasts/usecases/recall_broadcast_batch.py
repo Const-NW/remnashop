@@ -13,6 +13,7 @@ from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dispatch import RecallBroadcastDispatch
 from app.modules.broadcasts.dto import SentRecipientDto
 from app.modules.broadcasts.pacing import BATCH_SIZE, GROUP_PAUSE_S, GROUP_SIZE, MAX_RETRY_AFTER_S
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.telegram_api import (
     SendOutcome,
@@ -42,12 +43,14 @@ class RecallBroadcastBatchUseCase(UseCase[int, None]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         settings_repository: SettingsRepository,
         client_factory: TelegramClientFactory,
         recall_dispatch: RecallBroadcastDispatch,
         uow: UnitOfWork,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._settings_repository = settings_repository
         self._client_factory = client_factory
         self._recall_dispatch = recall_dispatch
@@ -63,11 +66,11 @@ class RecallBroadcastBatchUseCase(UseCase[int, None]):
             async with self._uow:
                 for r, result in zip(group, results, strict=True):
                     if result.outcome in _DONE:
-                        await self._broadcast_repository.mark_recipient(
+                        await self._recipient_repository.mark_recipient(
                             r.id, BroadcastRecipientStatus.RECALLED
                         )
                     else:
-                        await self._broadcast_repository.mark_recall_failed(
+                        await self._recipient_repository.mark_recall_failed(
                             r.id, result.error or result.outcome
                         )
             if any(r.outcome is SendOutcome.UNAUTHORIZED for r in results):
@@ -79,7 +82,7 @@ class RecallBroadcastBatchUseCase(UseCase[int, None]):
         async with self._uow:
             if await self._broadcast_repository.find_by_id(data) is None:
                 return
-            rows = await self._broadcast_repository.list_recallable(data, BATCH_SIZE)
+            rows = await self._recipient_repository.list_recallable(data, BATCH_SIZE)
             channel = await self._broadcast_repository.channel_post(data)
             bot = await self._settings_repository.get_bot_settings()
         if bot.token is None:

@@ -45,6 +45,7 @@ from app.modules.auth.repository import SessionRepository
 from app.modules.auth.sign_in_methods import SignInMethodGuard
 from app.modules.banners.repository import BannerRepository
 from app.modules.blacklist.repository import BlacklistRepository
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.dialogs.repository import DialogRepository
 from app.modules.emoji_packs.repository import EmojiPackRepository
@@ -151,6 +152,11 @@ async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 @pytest.fixture
 def broadcast_repository(session: AsyncSession) -> BroadcastRepository:
     return BroadcastRepository(session)
+
+
+@pytest.fixture
+def broadcast_recipient_repository(session: AsyncSession) -> BroadcastRecipientRepository:
+    return BroadcastRecipientRepository(session)
 
 
 @pytest.fixture

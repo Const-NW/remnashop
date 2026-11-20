@@ -12,6 +12,7 @@ from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dto import BroadcastDto
 from app.modules.broadcasts.events import BroadcastCanceledEvent
 from app.modules.broadcasts.lifecycle import cancel_sending
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 
 
@@ -21,10 +22,12 @@ class CancelBroadcastUseCase(UseCase[int, BroadcastDto]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         uow: UnitOfWork,
         event_publisher: EventPublisher,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._uow = uow
         self._event_publisher = event_publisher
 
@@ -33,10 +36,10 @@ class CancelBroadcastUseCase(UseCase[int, BroadcastDto]):
             broadcast = await self._broadcast_repository.get_by_id_for_update(data)
             if broadcast.status is BroadcastStatus.SCHEDULED:
                 await self._broadcast_repository.cancel_scheduled(data, datetime_now())
-                await self._broadcast_repository.cancel_pending(data)
+                await self._recipient_repository.cancel_pending(data)
                 await self._broadcast_repository.refresh_counts(data)
             elif broadcast.status is BroadcastStatus.SENDING:
-                await cancel_sending(self._broadcast_repository, data)
+                await cancel_sending(self._broadcast_repository, self._recipient_repository, data)
             else:
                 raise ConflictError(
                     f"Broadcast '{data}' is {broadcast.status}",

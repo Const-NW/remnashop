@@ -5,6 +5,7 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dto import BroadcastDto
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
 
 EDITABLE: Final[frozenset[BroadcastStatus]] = frozenset(
@@ -22,7 +23,9 @@ async def lock_editable(repository: BroadcastRepository, broadcast_id: int) -> B
     return current
 
 
-async def cancel_sending(repository: BroadcastRepository, broadcast_id: int) -> None:
+async def cancel_sending(
+    repository: BroadcastRepository, recipients: BroadcastRecipientRepository, broadcast_id: int
+) -> None:
     await repository.finish(broadcast_id, BroadcastStatus.CANCELED, datetime_now())
-    await repository.cancel_pending(broadcast_id)
+    await recipients.cancel_pending(broadcast_id)
     await repository.refresh_counts(broadcast_id)

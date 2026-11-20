@@ -7,6 +7,7 @@ from app.core.exceptions import ValidationError
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import BroadcastRenderer, outgoing_media
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -28,6 +29,7 @@ class SendTestBroadcastUseCase(UseCase[int, None, UserDto]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
         referral_repository: ReferralRepository,
@@ -36,6 +38,7 @@ class SendTestBroadcastUseCase(UseCase[int, None, UserDto]):
         uow: UnitOfWork,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
         self._referral_repository = referral_repository
@@ -56,7 +59,7 @@ class SendTestBroadcastUseCase(UseCase[int, None, UserDto]):
                     "No Telegram linked", code=ErrorCode.BROADCAST_TEST_NO_TELEGRAM
                 )
             bot = await self._settings_repository.get_bot_settings()
-            contexts = await self._broadcast_repository.recipient_contexts([actor.id])
+            contexts = await self._recipient_repository.recipient_contexts([actor.id])
             code = (
                 await promocode_is_usable(self._promocode_repository, broadcast.promocode_id)
                 if broadcast.promocode_id is not None

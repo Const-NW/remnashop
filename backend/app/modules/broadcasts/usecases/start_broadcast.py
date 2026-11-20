@@ -12,6 +12,7 @@ from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dispatch import DeliverBroadcastDispatch, DeliverBroadcastEmailDispatch
 from app.modules.broadcasts.events import BroadcastStartedEvent
+from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.render import BroadcastRenderer, outgoing_media
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.telegram_api import (
@@ -35,6 +36,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        recipient_repository: BroadcastRecipientRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
         client_factory: TelegramClientFactory,
@@ -45,6 +47,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
         event_publisher: EventPublisher,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._recipient_repository = recipient_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
         self._client_factory = client_factory
@@ -75,7 +78,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
                 dropped = True
             total = broadcast.total_count
             if broadcast.started_at is None:
-                total = await self._broadcast_repository.materialize(
+                total = await self._recipient_repository.materialize(
                     data,
                     broadcast.audience,
                     broadcast.category,
