@@ -61,6 +61,7 @@ from app.modules.broadcasts.usecases import deliver_broadcast_batch as deliver_m
 from app.modules.broadcasts.usecases import recall_broadcast_batch as recall_module
 from app.modules.promocodes.dto import CreatePromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings.dto import UpdateBotRequirementsDto, UpdateBotSettingsDto
 from app.modules.settings.repository import SettingsRepository
 from app.modules.users.events import BotBlockedByUserEvent
@@ -190,6 +191,7 @@ def make_deliver(
             user_repository,
             settings_repository,
             promocode_repository,
+            ReferralRepository(promocode_repository.session),
             telegram,
             media_config,
             deliver_dispatch,

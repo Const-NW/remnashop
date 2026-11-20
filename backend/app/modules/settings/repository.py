@@ -89,6 +89,11 @@ class SettingsRepository:
         await self.session.refresh(row)
         return self._to_bot_dto(row)
 
+    async def set_bot_username(self, username: Optional[str]) -> None:
+        row = await self._get_or_create_singleton(BotSettings)
+        row.username = username
+        await self.session.flush()
+
     async def set_bot_proxy_url(self, proxy_url: Optional[str]) -> BotSettingsDto:
         row = await self._get_or_create_singleton(BotSettings)
         row.proxy_url = proxy_url

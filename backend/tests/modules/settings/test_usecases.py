@@ -113,6 +113,21 @@ async def test_owner_can_view_and_update_bot_settings(
     assert updated.is_configured
 
 
+async def test_a_new_token_drops_the_reported_username(
+    settings_repository: SettingsRepository, uow: UnitOfWork
+) -> None:
+    update_use_case = UpdateBotSettingsUseCase(settings_repository, uow, RecordingEventPublisher())
+    await update_use_case(OWNER, UpdateBotSettingsDto(token="123:abcdef"))
+    async with uow:
+        await settings_repository.set_bot_username("shop_bot")
+
+    # the same token again: still the same bot
+    kept = await update_use_case(OWNER, UpdateBotSettingsDto(token="123:abcdef"))
+    assert kept.username == "shop_bot"
+    replaced = await update_use_case(OWNER, UpdateBotSettingsDto(token="456:ghijkl"))
+    assert replaced.username is None
+
+
 async def test_bot_status_is_unconfigured_without_a_token(
     settings_repository: SettingsRepository, uow: UnitOfWork
 ) -> None:

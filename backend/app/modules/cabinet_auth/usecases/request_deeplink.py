@@ -7,7 +7,7 @@ from app.core.exceptions import AuthenticationError
 from app.modules.cabinet_auth.deeplink_store import DeeplinkStore
 from app.modules.cabinet_auth.dto import DeeplinkTicketDto, InviteCodesDto
 from app.modules.oauth import new_binding
-from app.modules.settings import SettingsRepository, fetch_bot_username
+from app.modules.settings import SettingsRepository, bot_username
 
 
 class RequestDeeplinkUseCase:
@@ -34,7 +34,7 @@ class RequestDeeplinkUseCase:
             raise AuthenticationError(
                 "Telegram sign-in is disabled", code=ErrorCode.CABINET_TELEGRAM_DISABLED
             )
-        username = await fetch_bot_username(bot.token.get_secret_value(), bot.proxy)
+        username = await bot_username(bot)
         if username is None:
             raise AuthenticationError(
                 "The bot is unreachable", code=ErrorCode.OAUTH_PROVIDER_UNREACHABLE

@@ -167,6 +167,13 @@ class RecipientContextDto:
     points: int
     plan_name: Optional[str]
     expire_at: Optional[datetime]
+    referral_code: Optional[str]
+
+
+@dataclass(frozen=True, kw_only=True)
+class ReferralLinkBasesDto:
+    bot: Optional[str] = None
+    cabinet: Optional[str] = None
 
 
 @dataclass(frozen=True, kw_only=True)

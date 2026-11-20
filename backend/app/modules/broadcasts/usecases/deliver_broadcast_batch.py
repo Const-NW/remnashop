@@ -32,6 +32,7 @@ from app.modules.broadcasts.pacing import (
     MAX_FLOOD_WAIT_S,
     MAX_RETRY_AFTER_S,
 )
+from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import BroadcastRenderer, outgoing_media
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.telegram_api import (
@@ -43,6 +44,7 @@ from app.modules.broadcasts.telegram_api import (
 )
 from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.promocodes import PromocodeRepository
+from app.modules.referrals import ReferralRepository
 from app.modules.settings import SettingsRepository
 from app.modules.users import UserRepository, mark_bot_blocked
 
@@ -59,6 +61,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
         user_repository: UserRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
+        referral_repository: ReferralRepository,
         client_factory: TelegramClientFactory,
         config: AppConfig,
         deliver_dispatch: DeliverBroadcastDispatch,
@@ -71,6 +74,7 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
         self._user_repository = user_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
+        self._referral_repository = referral_repository
         self._client_factory = client_factory
         self._config = config
         self._deliver_dispatch = deliver_dispatch
@@ -127,12 +131,21 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
                 if broadcast.promocode_id is not None
                 else None
             )
+            cabinet_allowed = await cabinet_links_allowed(
+                broadcast, self._referral_repository, self._settings_repository
+            )
         if bot.token is None:
             await self._fail(data, "Bot token is not set")
             return False
 
         token = bot.token.get_secret_value()
-        renderer = BroadcastRenderer(broadcast, promocode_code=code)
+        renderer = BroadcastRenderer(
+            broadcast,
+            promocode_code=code,
+            referral_bases=await referral_link_bases(
+                cabinet_allowed, bot, self._config.cabinet.url
+            ),
+        )
         media = outgoing_media(self._config.media_dir, broadcast)
         now = datetime_now()
         queue = list(pending)

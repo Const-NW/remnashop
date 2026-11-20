@@ -8,7 +8,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.plans.dto import PlanShareUrlsDto
 from app.modules.plans.repository import PlanRepository
-from app.modules.settings import SettingsRepository, fetch_bot_username
+from app.modules.settings import SettingsRepository, bot_username
 
 _WEBCABINET_PATH: Final[str] = "purchase?plan={code}"
 
@@ -35,9 +35,7 @@ class GetPlanShareUrlsUseCase(UseCase[int, PlanShareUrlsDto]):
 
         bot_url: Optional[str] = None
         if bot_settings.is_configured and bot_settings.token is not None:
-            username = await fetch_bot_username(
-                bot_settings.token.get_secret_value(), bot_settings.proxy
-            )
+            username = await bot_username(bot_settings)
             if username:
                 bot_url = f"{T_ME}{username}?start={PLAN_START_PREFIX}{plan.public_code}"
 

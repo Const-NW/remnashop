@@ -8,7 +8,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.advertising.dto import AdLinkShareUrlsDto
 from app.modules.advertising.repository import AdLinkRepository
-from app.modules.settings import SettingsRepository, fetch_bot_username
+from app.modules.settings import SettingsRepository, bot_username
 
 # matches telegram/middlewares/_codes.py's _AD_LINK_PREFIX
 _BOT_START_QUERY: Final[str] = "?start=ad_{code}"
@@ -37,9 +37,7 @@ class GetAdLinkShareUrlsUseCase(UseCase[int, AdLinkShareUrlsDto]):
 
         bot_url: Optional[str] = None
         if ad_link.allow_bot and bot_settings.is_configured and bot_settings.token is not None:
-            username = await fetch_bot_username(
-                bot_settings.token.get_secret_value(), bot_settings.proxy
-            )
+            username = await bot_username(bot_settings)
             if username:
                 bot_url = f"{T_ME}{username}{_BOT_START_QUERY.format(code=ad_link.code)}"
 

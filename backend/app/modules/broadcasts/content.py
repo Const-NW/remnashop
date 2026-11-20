@@ -7,7 +7,17 @@ from app.core.utils.telegram_text import premium_emoji_html
 
 VARIABLE_RE: Final[re.Pattern[str]] = re.compile(r"\{\s*\$([a-z_]+)\s*\}")
 BROADCAST_VARIABLES: Final[frozenset[str]] = frozenset(
-    {"name", "username", "plan", "expire_date", "days_left", "bonus_days", "points", "promocode"}
+    {
+        "name",
+        "username",
+        "plan",
+        "expire_date",
+        "days_left",
+        "bonus_days",
+        "points",
+        "promocode",
+        "referral_link",
+    }
 )
 CHANNEL_VARIABLES: Final[frozenset[str]] = frozenset({"promocode"})
 EMPTY_VALUE: Final[str] = "—"
@@ -22,7 +32,11 @@ VARIABLE_MAX_LENGTHS: Final[Mapping[str, int]] = {
     "bonus_days": 6,
     "points": 13,
     "promocode": 64,
+    # Telegram gets the bot's: t.me/ + a 32-character username + ?start=ref_ + a 16-character code
+    "referral_link": 72,
 }
+# a cut link no longer opens: never cut, and an email may put one in href
+URL_VARIABLES: Final[frozenset[str]] = frozenset({"referral_link"})
 _CUT_MARK: Final[str] = "…"
 
 
@@ -39,7 +53,7 @@ def longest_text(text: str) -> str:
 
 def _fit(name: str, value: str) -> str:
     limit = VARIABLE_MAX_LENGTHS.get(name)
-    if limit is None or len(value) <= limit:
+    if limit is None or len(value) <= limit or name in URL_VARIABLES:
         return value
     return value[: limit - len(_CUT_MARK)] + _CUT_MARK
 

@@ -8,7 +8,7 @@ from dishka.integrations.aiogram_dialog import inject
 from fluentogram import TranslatorHub, TranslatorRunner
 
 from app.core.config import AppConfig
-from app.core.constants import USER_KEY
+from app.core.constants import REFERRAL_START_PREFIX, USER_KEY
 from app.modules.banners import GetBannerForDisplayUseCase
 from app.modules.referrals import (
     MAX_BONUS_DAYS,
@@ -36,14 +36,13 @@ from app.telegram.dialogs.rendering import (
     resolve_variable_kwargs,
 )
 from app.telegram.i18n import format_expiry, get_translator
-from app.telegram.middlewares._codes import REFERRAL_PREFIX
 
 # days chosen in the amount window, read back by the target window
 REDEEM_DAYS_KEY: Final[str] = "redeem_days"
 
 
 def referral_url(bot_username: str, code: str) -> str:
-    return f"https://t.me/{bot_username}?start={REFERRAL_PREFIX}{code}"
+    return f"https://t.me/{bot_username}?start={REFERRAL_START_PREFIX}{code}"
 
 
 @inject

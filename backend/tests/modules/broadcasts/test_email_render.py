@@ -8,6 +8,7 @@ from app.modules.broadcasts.dto import (
     BroadcastDto,
     BroadcastEmailContentDto,
     RecipientContextDto,
+    ReferralLinkBasesDto,
 )
 from app.modules.broadcasts.email_render import (
     BroadcastEmailRenderer,
@@ -50,6 +51,7 @@ def _ctx(language: Locale = Locale.EN, **overrides: object) -> RecipientContextD
         "points": 0,
         "plan_name": "Pro",
         "expire_at": NOW + timedelta(days=3),
+        "referral_code": None,
     }
     values.update(overrides)
     return RecipientContextDto(**values)  # type: ignore[arg-type]
@@ -134,3 +136,33 @@ def test_service_has_no_unsubscribe() -> None:
 
 def test_falls_back_to_default_locale() -> None:
     assert _renderer(_broadcast()).render(_ctx(Locale.RU), NOW).subject == "Hi Ann"
+
+
+def test_email_referral_link_goes_to_the_cabinet_or_falls_back_to_the_bot() -> None:
+    broadcast = _broadcast(
+        email_contents={
+            Locale.EN: BroadcastEmailContentDto(subject="{ $referral_link }", html="<p>x</p>")
+        }
+    )
+
+    def subject(bases: ReferralLinkBasesDto) -> str:
+        return (
+            BroadcastEmailRenderer(
+                broadcast,
+                promocode_code=None,
+                brand=BRAND,
+                unsubscribe=None,
+                unsubscribe_labels={},
+                image_src=lambda i: "",
+                referral_bases=bases,
+            )
+            .render(_ctx(referral_code="abc123"), NOW)
+            .subject
+        )
+
+    bot = "https://t.me/shop_bot?start=ref_"
+    assert (
+        subject(ReferralLinkBasesDto(bot=bot, cabinet="https://c.example/?ref="))
+        == "https://c.example/?ref=abc123"
+    )
+    assert subject(ReferralLinkBasesDto(bot=bot)) == "https://t.me/shop_bot?start=ref_abc123"

@@ -14,6 +14,7 @@ from app.modules.broadcasts.dto import (
     BroadcastContentDto,
     BroadcastDto,
     RecipientContextDto,
+    ReferralLinkBasesDto,
 )
 from app.modules.broadcasts.render import BroadcastRenderer, outgoing_media, recipient_values
 
@@ -57,6 +58,7 @@ def _ctx(language: Locale = Locale.EN, **overrides: object) -> RecipientContextD
         "points": 0,
         "plan_name": "Pro",
         "expire_at": NOW + timedelta(days=3, hours=1),
+        "referral_code": "abc123",
     }
     values.update(overrides)
     return RecipientContextDto(**values)  # type: ignore[arg-type]
@@ -169,3 +171,54 @@ def test_an_unlimited_subscription_has_no_expiry_variables() -> None:
 
     assert values["expire_date"] == ""
     assert values["days_left"] == ""
+
+
+_BASES = ReferralLinkBasesDto(
+    bot="https://t.me/shop_bot?start=ref_", cabinet="https://c.example/?ref="
+)
+
+
+def _referral_broadcast() -> BroadcastDto:
+    return _broadcast(
+        contents={
+            Locale.EN: BroadcastContentDto(
+                text="Invite: { $referral_link }",
+                button_labels=["Share"],
+            )
+        },
+        buttons=[BroadcastButtonDto(kind=BroadcastButtonKind.SHARE_REFERRAL)],
+        promocode_id=None,
+    )
+
+
+def test_referral_link_and_share_button() -> None:
+    renderer = BroadcastRenderer(_referral_broadcast(), promocode_code=None, referral_bases=_BASES)
+    message = renderer.render(_ctx(), NOW)
+
+    assert message.text == "Invite: https://t.me/shop_bot?start=ref_abc123"
+    assert (message.reply_markup or {})["inline_keyboard"] == [
+        [
+            {
+                "text": "Share",
+                "url": "https://t.me/share/url?url=https%3A%2F%2Ft.me%2Fshop_bot%3Fstart%3Dref_abc123",
+            }
+        ]
+    ]
+
+
+def test_without_referral_link_the_share_button_is_dropped() -> None:
+    # referrals off or the bot username unknown
+    message = BroadcastRenderer(_referral_broadcast(), promocode_code=None).render(_ctx(), NOW)
+    assert message.text == "Invite: —"
+    assert message.reply_markup is None
+    # a customer with no code
+    message = BroadcastRenderer(
+        _referral_broadcast(), promocode_code=None, referral_bases=_BASES
+    ).render(_ctx(referral_code=None), NOW)
+    assert message.text == "Invite: —"
+    assert message.reply_markup is None
+
+
+def test_channel_post_has_no_share_button() -> None:
+    renderer = BroadcastRenderer(_referral_broadcast(), promocode_code=None, referral_bases=_BASES)
+    assert renderer.render_channel("shop_bot").reply_markup is None

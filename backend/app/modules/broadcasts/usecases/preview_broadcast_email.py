@@ -4,6 +4,7 @@ from typing import Final
 
 from app.core.actor import Actor
 from app.core.config import AppConfig
+from app.core.constants import REFERRAL_START_PREFIX, T_ME
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale
 from app.core.error_codes import ErrorCode
@@ -14,6 +15,7 @@ from app.core.utils.time import datetime_now
 from app.modules.broadcasts.dto import (
     PreviewBroadcastEmailDto,
     RecipientContextDto,
+    ReferralLinkBasesDto,
     RenderedEmailDto,
 )
 from app.modules.broadcasts.email_assets import load_email_logo, read_email_images
@@ -36,6 +38,10 @@ _SAMPLE_PROMOCODE: Final[str] = "PROMO"
 _SAMPLE_DAYS: Final[int] = 4
 _SAMPLE_NAME_RU: Final[str] = "Анна"
 _SAMPLE_NAME: Final[str] = "Anna"
+_SAMPLE_REFERRAL_BASES: Final[ReferralLinkBasesDto] = ReferralLinkBasesDto(
+    bot=f"{T_ME}your_bot?start={REFERRAL_START_PREFIX}", cabinet="https://cabinet.example/?ref="
+)
+_SAMPLE_REFERRAL_CODE: Final[str] = "a1b2c3"
 # no cabinet URL yet: the footer still shows; sending is refused until one is set
 _PLACEHOLDER_UNSUBSCRIBE: Final[UnsubscribeLinks] = UnsubscribeLinks(
     page=lambda _: "#", one_click=lambda _: "#"
@@ -115,6 +121,7 @@ class PreviewBroadcastEmailUseCase(UseCase[PreviewBroadcastEmailDto, RenderedEma
             ),
             unsubscribe_labels=labels,
             image_src=lambda i: _data_uri(images[i]) if i in images else "",
+            referral_bases=_SAMPLE_REFERRAL_BASES,
         )
         now = datetime_now()
         rendered = renderer.render(
@@ -127,6 +134,7 @@ class PreviewBroadcastEmailUseCase(UseCase[PreviewBroadcastEmailDto, RenderedEma
                 points=120,
                 plan_name="Pro",
                 expire_at=now + timedelta(days=_SAMPLE_DAYS),
+                referral_code=_SAMPLE_REFERRAL_CODE,
             ),
             now,
         )

@@ -31,9 +31,7 @@ def _patch_username(monkeypatch: pytest.MonkeyPatch, username: Optional[str]) ->
     async def _username(token: str, proxy: object) -> Optional[str]:
         return username
 
-    monkeypatch.setattr(
-        "app.modules.settings.usecases.get_cabinet_settings.fetch_bot_username", _username
-    )
+    monkeypatch.setattr("app.modules.settings.telegram_status.fetch_bot_username", _username)
 
 
 async def test_cabinet_settings_without_a_bot(use_case: GetCabinetSettingsUseCase) -> None:

@@ -46,6 +46,7 @@ BANNER_NAME_PATTERN: Final[str] = r"^[a-z0-9][a-z0-9._-]*$"
 REMNASHOP_PREFIX: Final[str] = "rs_"
 WEB_PREFIX: Final[str] = "web_"
 WEBAUTH_START_PREFIX: Final[str] = "webauth_"
+REFERRAL_START_PREFIX: Final[str] = "ref_"
 PLAN_START_PREFIX: Final[str] = "plan_"
 # callback data under a customer's Telegram notification
 CUSTOMER_NOTIFICATION_CLOSE_CALLBACK: Final[str] = "cn:close"

@@ -1,8 +1,10 @@
 import pytest
+from pydantic import SecretStr
 
 from app.core.telegram_api import BotApiError
 from app.modules.settings import telegram_status
-from app.modules.settings.telegram_status import fetch_bot_status, fetch_bot_username
+from app.modules.settings.dto import BotSettingsDto
+from app.modules.settings.telegram_status import bot_username, fetch_bot_status, fetch_bot_username
 from tests.fakes.telegram_bot import FakeBotSession, refusal, use_fake_bot
 
 
@@ -88,3 +90,12 @@ async def test_the_username_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
     assert await fetch_bot_username("123:abc", None) == "shop_bot"
     assert await fetch_bot_username("123:abc", None) == "shop_bot"
     assert len(session.called("getMe")) == 1
+
+
+async def test_the_reported_username_skips_telegram(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = use_fake_bot(monkeypatch, FakeBotSession({}))
+    stored = BotSettingsDto(token=SecretStr("123:abc"), username="shop_bot")
+
+    assert await bot_username(stored) == "shop_bot"
+    assert await bot_username(BotSettingsDto(username="shop_bot")) is None
+    assert session.called("getMe") == []

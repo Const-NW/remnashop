@@ -35,6 +35,7 @@ def test_accepts_tiptap_output() -> None:
         '<a href="https://a.example/ x">x</a>',
         '<a href="https://a.example/\tx">x</a>',
         '<a href="https://a.example/\x00x">x</a>',
+        '<a href="{ $name }">x</a>',
         '<img src="mailto:a@b.example">',
         "<script>alert(1)</script>",
         "<iframe></iframe>",
@@ -50,6 +51,13 @@ def test_rejects_foreign_and_scripted_markup(html: str) -> None:
 
 def test_mailto_link_allowed() -> None:
     validate_email_html('<p><a href="mailto:help@shop.example">help</a></p>')
+
+
+def test_referral_link_variable_is_a_link_target() -> None:
+    html = '<p><a data-button="" href="{ $referral_link }">Invite</a></p>'
+    validate_email_html(html)
+    rendered = render_text(html, {"referral_link": "https://c.example/?ref=a&b"})
+    assert 'href="https://c.example/?ref=a&amp;b"' in rendered
 
 
 def test_image_ids() -> None:

@@ -23,6 +23,7 @@ from app.modules.broadcasts.usecases import (
 )
 from app.modules.email import EmailDeliveryDto
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase
 from app.modules.settings.dto import UpdateEmailSettingsDto
 from app.modules.settings.repository import SettingsRepository
@@ -72,6 +73,7 @@ def make_test_send(
         broadcast_repository,
         settings_repository,
         promocode_repository,
+        ReferralRepository(promocode_repository.session),
         translation_repository,
         GetPublicAppearanceImageUseCase(settings_repository, media_config, uow),
         sender,  # type: ignore[arg-type]

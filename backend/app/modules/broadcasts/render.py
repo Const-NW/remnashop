@@ -14,6 +14,12 @@ from app.modules.broadcasts.dto import (
     BroadcastContentDto,
     BroadcastDto,
     RecipientContextDto,
+    ReferralLinkBasesDto,
+)
+from app.modules.broadcasts.referral import (
+    NO_REFERRAL_LINKS,
+    REFERRAL_LINK_VARIABLE,
+    share_url,
 )
 from app.modules.broadcasts.storage import media_path
 from app.modules.broadcasts.telegram_api import OutgoingMedia
@@ -33,7 +39,10 @@ class RenderedMessage:
 
 
 def recipient_values(
-    context: RecipientContextDto, now: datetime, promocode_code: Optional[str]
+    context: RecipientContextDto,
+    now: datetime,
+    promocode_code: Optional[str],
+    referral_base: Optional[str] = None,
 ) -> dict[str, str]:
     # an unlimited subscription has no date to show: the line holding it drops
     expire_at = (
@@ -50,6 +59,11 @@ def recipient_values(
         "bonus_days": str(context.bonus_days),
         "points": str(context.points),
         "promocode": promocode_code or "",
+        REFERRAL_LINK_VARIABLE: (
+            f"{referral_base}{context.referral_code}"
+            if referral_base and context.referral_code
+            else ""
+        ),
     }
 
 
@@ -59,9 +73,11 @@ class BroadcastRenderer:
         broadcast: BroadcastDto,
         *,
         promocode_code: Optional[str],
+        referral_bases: ReferralLinkBasesDto = NO_REFERRAL_LINKS,
     ) -> None:
         self._broadcast = broadcast
         self._promocode_code = promocode_code
+        self._referral_bases = referral_bases
 
     def _content(self, locale: Locale) -> tuple[Locale, BroadcastContentDto]:
         content = self._broadcast.contents.get(locale)
@@ -71,7 +87,12 @@ class BroadcastRenderer:
         return default, self._broadcast.contents[default]
 
     def _action(
-        self, button: BroadcastButtonDto, *, channel: bool, link: Optional[str]
+        self,
+        button: BroadcastButtonDto,
+        *,
+        channel: bool,
+        link: Optional[str],
+        referral_link: Optional[str],
     ) -> Optional[dict[str, str]]:
         if button.kind is BroadcastButtonKind.URL and button.url:
             return {"url": button.url}
@@ -88,6 +109,8 @@ class BroadcastRenderer:
         # a subscriber can't delete a channel post
         if button.kind is BroadcastButtonKind.CLOSE and not channel:
             return {"callback_data": CUSTOMER_NOTIFICATION_CLOSE_CALLBACK}
+        if button.kind is BroadcastButtonKind.SHARE_REFERRAL and referral_link:
+            return {"url": share_url(referral_link)}
         return None
 
     def _keyboard(
@@ -96,11 +119,12 @@ class BroadcastRenderer:
         *,
         channel: bool = False,
         bot_username: Optional[str] = None,
+        referral_link: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
         rows: list[list[dict[str, str]]] = []
         link = f"{T_ME}{bot_username}" if bot_username else None
         for button, label in zip(self._broadcast.buttons, labels, strict=True):
-            action = self._action(button, channel=channel, link=link)
+            action = self._action(button, channel=channel, link=link, referral_link=referral_link)
             if action is None:
                 continue
             if button.icon_custom_emoji_id:
@@ -112,10 +136,12 @@ class BroadcastRenderer:
         # no unsubscribe button in Telegram for now: a marketing email carries its unsubscribe link,
         # the bot keeps answering bc:unsub for messages sent before
         _, content = self._content(context.language)
-        values = recipient_values(context, now, self._promocode_code)
+        values = recipient_values(context, now, self._promocode_code, self._referral_bases.bot)
         return RenderedMessage(
             text=render_text(content.text, values),
-            reply_markup=self._keyboard(content.button_labels),
+            reply_markup=self._keyboard(
+                content.button_labels, referral_link=values[REFERRAL_LINK_VARIABLE] or None
+            ),
         )
 
     def render_channel(self, bot_username: Optional[str]) -> RenderedMessage:

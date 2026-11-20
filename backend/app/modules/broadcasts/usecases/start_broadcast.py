@@ -116,7 +116,7 @@ class StartBroadcastUseCase(UseCase[int, None]):
             async with self._client_factory.open(token, bot.proxy) as client:
                 username: Optional[str] = None
                 if any(b.kind in _DEEP_LINK_BUTTONS for b in broadcast.buttons):
-                    username = await get_bot_username(client)
+                    username = bot.username or await get_bot_username(client)
                     if username is None:
                         logger.warning(
                             f"Broadcast '{broadcast_id}' channel post: bot username unknown, "

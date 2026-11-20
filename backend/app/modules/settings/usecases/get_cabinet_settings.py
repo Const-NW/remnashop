@@ -5,7 +5,7 @@ from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.settings.dto import CabinetSettingsDto
 from app.modules.settings.repository import SettingsRepository
-from app.modules.settings.telegram_status import fetch_bot_username
+from app.modules.settings.telegram_status import bot_username
 from app.modules.users import UserDto
 
 
@@ -25,8 +25,8 @@ class GetCabinetSettingsUseCase(UseCase[None, CabinetSettingsDto, UserDto]):
 
         # outside the transaction: the network call must not hold a connection
         username: Optional[str] = None
-        if bot.is_configured and bot.token is not None:
-            username = await fetch_bot_username(bot.token.get_secret_value(), bot.proxy)
+        if bot.is_configured:
+            username = await bot_username(bot)
         return CabinetSettingsDto(
             max_active_subscriptions=shop.max_active_subscriptions,
             device_single_reset_enabled=shop.device_single_reset_enabled,

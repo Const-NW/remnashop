@@ -35,9 +35,7 @@ async def test_enabled_method_hidden_until_configured(
     async def _username(token: str, proxy: object) -> str:
         return "shop_bot"
 
-    monkeypatch.setattr(
-        "app.modules.cabinet_auth.usecases.get_cabinet_methods.fetch_bot_username", _username
-    )
+    monkeypatch.setattr("app.modules.settings.telegram_status.fetch_bot_username", _username)
     async with uow:
         await settings_repository.update_cabinet_auth_settings(
             UpdateCabinetAuthSettingsDto(telegram_enabled=True)

@@ -10,7 +10,7 @@ from app.core.enums import PlanType
 from app.modules.plans.dto import CreatePlanDto
 from app.modules.plans.repository import PlanRepository
 from app.modules.plans.usecases import GetPlanShareUrlsUseCase
-from app.modules.plans.usecases import get_plan_share_urls as module
+from app.modules.settings import telegram_status
 
 
 class _Settings:
@@ -22,6 +22,7 @@ class _Settings:
             is_configured=self._token is not None,
             token=SecretStr(self._token) if self._token else None,
             proxy=None,
+            username=None,
         )
 
 
@@ -43,7 +44,7 @@ async def test_links_open_the_plan_in_the_bot_and_the_cabinet(
     async def username(token: str, proxy: object) -> str:
         return "shop_bot"
 
-    monkeypatch.setattr(module, "fetch_bot_username", username)
+    monkeypatch.setattr(telegram_status, "fetch_bot_username", username)
     monkeypatch.setattr(config.cabinet, "domain", "cabinet.example.com")
     plan_id = await _plan(plan_repository)
     use_case = GetPlanShareUrlsUseCase(plan_repository, _Settings("t"), config, uow)  # type: ignore[arg-type]

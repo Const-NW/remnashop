@@ -6,13 +6,18 @@ from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.ports import EventPublisher
 from app.modules.settings.dto import BotStatusKind, ReportBotStatusDto
+from app.modules.settings.repository import SettingsRepository
 from app.modules.settings.usecases import ReportBotStatusUseCase
 
 
 async def test_channel_check_failure_reports_once_per_hour(
-    session: AsyncSession, redis: Redis, uow: UnitOfWork, event_publisher: EventPublisher
+    session: AsyncSession,
+    redis: Redis,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    settings_repository: SettingsRepository,
 ) -> None:
-    use_case = ReportBotStatusUseCase(uow, event_publisher, redis)
+    use_case = ReportBotStatusUseCase(settings_repository, uow, event_publisher, redis)
     dto = ReportBotStatusDto(
         kind=BotStatusKind.CHANNEL_CHECK_FAILED, detail="chat not found", channel_id=-100
     )
@@ -26,12 +31,18 @@ async def test_channel_check_failure_reports_once_per_hour(
 
 
 async def test_started_and_stopped_are_always_reported(
-    session: AsyncSession, redis: Redis, uow: UnitOfWork, event_publisher: EventPublisher
+    session: AsyncSession,
+    redis: Redis,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    settings_repository: SettingsRepository,
 ) -> None:
-    use_case = ReportBotStatusUseCase(uow, event_publisher, redis)
+    use_case = ReportBotStatusUseCase(settings_repository, uow, event_publisher, redis)
 
     await use_case.system(ReportBotStatusDto(kind=BotStatusKind.STARTED, detail="shop_bot"))
     await use_case.system(ReportBotStatusDto(kind=BotStatusKind.STOPPED))
 
     rows = (await session.execute(select(EventOutboxEntry.event_type))).scalars().all()
     assert list(rows) == ["BotStartedEvent", "BotStoppedEvent"]
+
+    assert (await settings_repository.get_bot_settings()).username == "shop_bot"

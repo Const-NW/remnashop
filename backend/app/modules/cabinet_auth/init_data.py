@@ -4,12 +4,11 @@ import json
 from typing import Final, Optional
 from urllib.parse import parse_qsl
 
-from app.core.constants import TIME_1D
+from app.core.constants import REFERRAL_START_PREFIX, TIME_1D
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import AuthenticationError
 from app.modules.cabinet_auth.dto import InviteCodesDto, TelegramProfileDto, TelegramWebAppDataDto
 
-_REFERRAL_PREFIX: Final[str] = "ref_"
 _AD_LINK_PREFIX: Final[str] = "ad_"
 _CLOCK_SKEW_S: Final[int] = 60
 _TEXT_FIELDS: Final[tuple[str, ...]] = (
@@ -60,8 +59,8 @@ def verify_init_data(
 
 
 def codes_from_start_param(start_param: Optional[str]) -> InviteCodesDto:
-    if start_param and start_param.startswith(_REFERRAL_PREFIX):
-        return InviteCodesDto(referral_code=start_param[len(_REFERRAL_PREFIX) :] or None)
+    if start_param and start_param.startswith(REFERRAL_START_PREFIX):
+        return InviteCodesDto(referral_code=start_param[len(REFERRAL_START_PREFIX) :] or None)
     if start_param and start_param.startswith(_AD_LINK_PREFIX):
         return InviteCodesDto(ad_link_code=start_param[len(_AD_LINK_PREFIX) :] or None)
     return InviteCodesDto()
