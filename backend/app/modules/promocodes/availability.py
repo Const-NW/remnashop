@@ -61,7 +61,16 @@ async def assert_available_to(
     if promo.availability in (PromocodeAvailability.NEW, PromocodeAvailability.EXISTING):
         # "New" = never purchased a non-trial subscription, not "has none
         # active right now".
-        has_sub = await subscription_repository.has_any_subscription(actor.id, include_trial=False)
+        has_sub = await subscription_repository.has_any_subscription(
+            actor.id,
+            include_trial=False,
+            created_before=(
+                promo.created_at
+                if promo.availability is PromocodeAvailability.EXISTING
+                and promo.prior_customers_only
+                else None
+            ),
+        )
         if promo.availability is PromocodeAvailability.NEW and has_sub:
             raise ValidationError(
                 f"Promocode '{promo.code}' is for new users only",

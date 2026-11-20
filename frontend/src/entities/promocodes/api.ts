@@ -24,6 +24,7 @@ export interface Promocode {
   reward_duration_days: number | null;
   availability: PromocodeAvailability;
   allowed_user_ids: number[];
+  prior_customers_only: boolean;
   allowed_plan_ids: number[];
   expires_at: string | null;
   max_activations: number | null;
@@ -93,6 +94,7 @@ export interface CreatePromocodeRequest {
   reward_duration_days?: number | null;
   availability: PromocodeAvailability;
   allowed_user_ids: number[];
+  prior_customers_only: boolean;
   allowed_plan_ids: number[];
   expires_at?: string | null;
   max_activations?: number | null;
@@ -107,6 +109,7 @@ export interface UpdatePromocodeRequest {
   is_active?: boolean;
   availability?: PromocodeAvailability;
   allowed_user_ids?: number[];
+  prior_customers_only?: boolean;
   allowed_plan_ids?: number[];
   expires_at?: string | null;
   max_activations?: number | null;

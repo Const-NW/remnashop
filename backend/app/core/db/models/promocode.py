@@ -29,6 +29,9 @@ class Promocode(BaseSql, TimestampMixin):
     availability: Mapped[PromocodeAvailability]
     # the ALLOWED-availability allowlist, never queried (like User.permission_grants)
     allowed_user_ids: Mapped[Optional[list[int]]] = mapped_column(JSONB)
+    # EXISTING only: a customer since before the code was created, so the NEW code of
+    # the same campaign doesn't open this one with its own purchase
+    prior_customers_only: Mapped[bool] = mapped_column(default=False, server_default="false")
     # empty = every plan; only for rewards applied to a subscription
     allowed_plan_ids: Mapped[list[int]] = mapped_column(ARRAY(Integer), server_default="{}")
 

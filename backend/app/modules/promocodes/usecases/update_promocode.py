@@ -22,6 +22,7 @@ _EDITABLE_FIELDS: Final[tuple[str, ...]] = (
     "is_active",
     "availability",
     "allowed_user_ids",
+    "prior_customers_only",
     "allowed_plan_ids",
     "expires_at",
     "max_activations",

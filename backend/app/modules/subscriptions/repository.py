@@ -234,12 +234,20 @@ class SubscriptionRepository:
         entitlements_by_subscription = await self._load_entitlements([row.id for row in rows])
         return [self._to_dto(row, entitlements_by_subscription.get(row.id, [])) for row in rows]
 
-    async def has_any_subscription(self, user_id: int, *, include_trial: bool = True) -> bool:
+    async def has_any_subscription(
+        self,
+        user_id: int,
+        *,
+        include_trial: bool = True,
+        created_before: Optional[datetime] = None,
+    ) -> bool:
         # any row in any status: "has this user ever purchased", for the
         # NEW/EXISTING availability of plans and promocodes
         stmt = select(func.count()).select_from(Subscription).where(Subscription.user_id == user_id)
         if not include_trial:
             stmt = stmt.where(Subscription.is_trial.is_(False))
+        if created_before is not None:
+            stmt = stmt.where(Subscription.created_at < created_before)
         count = await self.session.scalar(stmt)
         return bool(count)
 

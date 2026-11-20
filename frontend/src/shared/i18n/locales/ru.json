@@ -3489,6 +3489,8 @@
     "limits": {
       "availabilityLabel": "Кому доступен",
       "allowedUserIdsLabel": "ID пользователей",
+      "priorCustomersOnlyLabel": "Только клиентам до создания кода",
+      "priorCustomersOnlyHint": "Не откроется тем, кто впервые купил после создания промокода — например, по коду «для новых» той же акции",
       "allowedUserIdsPlaceholder": "ID, Enter — добавить",
       "plansLabel": "На какие планы действует",
       "plansAll": "Все",

@@ -3387,6 +3387,8 @@
     "limits": {
       "availabilityLabel": "Who can use it",
       "allowedUserIdsLabel": "Allowed user IDs",
+      "priorCustomersOnlyLabel": "Only customers from before the code",
+      "priorCustomersOnlyHint": "Not available to anyone whose first purchase came after the code was created, e.g. with the same campaign’s code for new users",
       "allowedUserIdsPlaceholder": "ID, Enter to add",
       "plansLabel": "Which plans it applies to",
       "plansAll": "All",
