@@ -27,8 +27,8 @@ def test_broker_has_a_task_metrics_middleware() -> None:
     assert any(isinstance(m, TaskMetricsMiddleware) for m in broker.middlewares)
 
 
-def test_broker_has_no_read_timeout_for_its_blocking_brpop() -> None:
-    # an idle BRPOP would time out and stop the worker's listen loop
+def test_broker_has_no_read_timeout_for_its_blocking_read() -> None:
+    # an idle XREADGROUP would time out and stop the worker's listen loop
     kwargs = broker.connection_pool.connection_kwargs
     assert kwargs.get("socket_timeout") is None
     assert kwargs["socket_connect_timeout"] == 5

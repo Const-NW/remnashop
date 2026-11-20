@@ -19,7 +19,8 @@
 | `remnashop_rate_limit_hits_total` | counter | `api` / default `REGISTRY` | Requests rejected by a rate limiter, labeled by the bounded `key` set (`app/api/dependencies/rate_limit.py`) |
 | `remnashop_event_outbox_unprocessed` | gauge | `worker` / `WORKER_METRICS_REGISTRY` | Unprocessed `event_outbox` rows, refreshed on every `sweep_outbox_task` tick (`app/modules/event_log/tasks.py`) |
 | `remnashop_event_outbox_oldest_unprocessed_age_seconds` | gauge | `worker` | Age of the oldest unprocessed outbox row |
-| `remnashop_taskiq_queue_depth` | gauge | `worker` | Pending messages in the main taskiq Redis list queue (`app/worker/metrics.py`) |
+| `remnashop_taskiq_queue_depth` | gauge | `worker` | Taskiq stream messages not yet acked, unread plus in progress (`app/worker/metrics.py`) |
+| `remnashop_taskiq_stream_length` | gauge | `worker` | Entries in the taskiq stream, acked ones not yet trimmed included; far above `queue_depth` means the trim is stuck behind an old pending message |
 | `remnashop_taskiq_scheduled_retries` | gauge | `worker` | Pending delayed `SmartRetryMiddleware` retries — a separate Redis key space `queue_depth` doesn't see |
 | `remnashop_taskiq_task_duration_seconds` | histogram | `worker` | Per-task execution time, labeled `(task_name, outcome)`, fed by `TaskMetricsMiddleware.post_execute` — fires after every task run regardless of outcome |
 | `remnashop_broadcast_emails_total` | counter | `worker` | Broadcast emails sent, labeled `result` (`modules/broadcasts/metrics.py`) |

@@ -75,7 +75,7 @@ class MigrationResult:
 
 
 async def flush_shop_redis(redis: Redis) -> None:
-    # the old broker keeps `taskiq` as a stream, the new one reads it as a list
+    # the old app's queue and caches hold its own task names and formats, which nothing here reads
     await redis.flushdb()
 
 

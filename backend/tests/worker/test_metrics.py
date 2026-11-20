@@ -18,14 +18,20 @@ def test_worker_metrics_registry_serves_the_outbox_gauges() -> None:
     assert "remnashop_event_outbox_oldest_unprocessed_age_seconds" in names
 
 
-async def test_sample_queue_depth_reads_the_redis_list_length(redis) -> None:
+async def test_sample_queue_depth_counts_unread_and_unacked_stream_messages(redis) -> None:
     queue_name = "remnashop-test-queue-depth"
     await redis.delete(queue_name)
-    await redis.lpush(queue_name, "a", "b", "c")
+    await redis.xgroup_create(queue_name, "workers", id="0", mkstream=True)
+    for value in ("a", "b", "c"):
+        await redis.xadd(queue_name, {"data": value})
+    # one read and acked, one read and running, one unread
+    read = await redis.xreadgroup("workers", "consumer", {queue_name: ">"}, count=2)
+    await redis.xack(queue_name, "workers", read[0][1][0][0])
 
-    await _sample_queue_depth(redis, queue_name)
+    await _sample_queue_depth(redis, queue_name, "workers")
 
-    assert WORKER_METRICS_REGISTRY.get_sample_value("remnashop_taskiq_queue_depth") == 3.0
+    assert WORKER_METRICS_REGISTRY.get_sample_value("remnashop_taskiq_queue_depth") == 2.0
+    assert WORKER_METRICS_REGISTRY.get_sample_value("remnashop_taskiq_stream_length") == 3.0
 
     await redis.delete(queue_name)
 

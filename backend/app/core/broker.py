@@ -2,17 +2,30 @@ from typing import Final
 
 from taskiq import SmartRetryMiddleware
 from taskiq.serializers import ORJSONSerializer
-from taskiq_redis import ListQueueBroker, ListRedisScheduleSource
+from taskiq_redis import ListRedisScheduleSource
 
 from app.core.config import AppConfig
-from app.core.constants import REDIS_CONNECTION_KWARGS, REDIS_WAIT_CONNECTION_KWARGS
+from app.core.constants import (
+    REDIS_CONNECTION_KWARGS,
+    REDIS_KEY_PREFIX,
+    REDIS_WAIT_CONNECTION_KWARGS,
+)
 from app.core.exceptions import RemnawavePanelUnavailableError, RetryableTaskError
 from app.core.json import json_default
 from app.core.metrics import TaskMetricsMiddleware
+from app.core.stream_broker import AckedStreamBroker
 
-# the worker blocks in BRPOP while idle, so no read timeout here
-broker = ListQueueBroker(
-    url=AppConfig.get().redis.dsn, **REDIS_WAIT_CONNECTION_KWARGS
+TASK_STREAM: Final[str] = f"{REDIS_KEY_PREFIX}tasks"
+
+# the worker blocks in XREADGROUP while idle, so no read timeout here
+broker = AckedStreamBroker(
+    url=AppConfig.get().redis.dsn,
+    queue_name=TASK_STREAM,
+    # a few at a time, so one worker process doesn't take a burst its siblings could share
+    xread_count=10,
+    # a dead process's messages shared out the same way
+    unacknowledged_batch_size=10,
+    **REDIS_WAIT_CONNECTION_KWARGS,
 ).with_serializer(ORJSONSerializer(default=json_default))
 # Built at import time and bound to the first event loop that uses it, so tests
 # stub `.kiq()` instead of going through the broker.
