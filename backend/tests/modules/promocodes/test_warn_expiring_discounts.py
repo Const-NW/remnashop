@@ -1,6 +1,7 @@
 from datetime import timedelta
 from uuid import uuid4
 
+import pytest
 from redis.asyncio import Redis
 from sqlalchemy import update
 
@@ -113,3 +114,27 @@ async def test_a_short_sale_is_warned_minutes_ahead(
     assert isinstance(event, PromocodeDiscountExpiringEvent)
     assert event.user.id == warned
     assert event.minutes == 20
+
+
+class _FailingPublisher(RecordingEventPublisher):
+    async def publish(self, event: object) -> None:
+        raise RuntimeError("outbox write failed")
+
+
+async def test_a_failed_run_gives_its_warning_claims_back(
+    promocode_repository: PromocodeRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    redis: Redis,
+) -> None:
+    soon = await _promocode(promocode_repository, timedelta(hours=5))
+    await _customer(user_repository, 9_100_021, soon, soon)
+    use_case = WarnExpiringPromocodeDiscountsUseCase(
+        promocode_repository, user_repository, uow, _FailingPublisher(), redis
+    )
+
+    with pytest.raises(RuntimeError):
+        await use_case.system()
+
+    # nothing was published, so the next run must still find the customer unwarned
+    assert await redis.keys("*promocode_discount_warned*") == []

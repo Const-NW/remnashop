@@ -1,6 +1,5 @@
 import math
-from datetime import timedelta
-from functools import partial
+from datetime import datetime, timedelta
 from typing import Final
 
 from loguru import logger
@@ -68,7 +67,17 @@ class WarnExpiringPromocodeDiscountsUseCase(UseCase[None, int]):
 
     async def _execute(self, actor: Actor, data: None) -> int:
         now = datetime_now()
+        # claimed before the publish: a run redelivered after its commit finds them
+        # taken; a failed commit gives them back for the next run
         keys: list[str] = []
+        try:
+            return await self._warn(actor, now, keys)
+        except BaseException:
+            if keys:
+                await self._redis.delete(*keys)
+            raise
+
+    async def _warn(self, actor: Actor, now: datetime, keys: list[str]) -> int:
         async with self._uow:
             expiring = await self._promocode_repository.list_expiring(now, now + _WARN_BEFORE_MAX)
             promocodes = {
@@ -87,13 +96,11 @@ class WarnExpiringPromocodeDiscountsUseCase(UseCase[None, int]):
             ]
             if not candidates:
                 return 0
-            candidate_keys = [_warned_key(promocode, user.id) for user, promocode, _ in candidates]
-            warned = await self._redis.mget(candidate_keys)
-            for (user, promocode, percent), key, mark in zip(
-                candidates, candidate_keys, warned, strict=True
-            ):
-                if mark is not None:
+            for user, promocode, percent in candidates:
+                key = _warned_key(promocode, user.id)
+                if not await self._redis.set(key, "1", nx=True, ex=_WARNED_TTL_S):
                     continue
+                keys.append(key)
                 assert promocode.expires_at is not None
                 left = (promocode.expires_at - now).total_seconds()
                 await self._event_publisher.publish(
@@ -106,14 +113,5 @@ class WarnExpiringPromocodeDiscountsUseCase(UseCase[None, int]):
                         minutes=max(1, math.ceil(left / TIME_1M)) if left < TIME_1H else None,
                     )
                 )
-                keys.append(key)
-            if keys:
-                await self._uow.after_commit(partial(self._mark_warned, keys))
         logger.info(f"{actor.log} Warned {len(keys)} customers about expiring promocode discounts")
         return len(keys)
-
-    async def _mark_warned(self, keys: list[str]) -> None:
-        async with self._redis.pipeline(transaction=False) as pipe:
-            for key in keys:
-                pipe.set(key, "1", ex=_WARNED_TTL_S)
-            await pipe.execute()
