@@ -104,22 +104,23 @@ _SUBSCRIPTION_COUNTS: Final[tuple[ColumnElement[int], ...]] = (
 )
 
 
-def _list_item(user: User, active: int, limited: int, expired: int) -> UserListItemDto:
-    return UserListItemDto.model_validate(user, from_attributes=True).model_copy(
-        update={
-            "active_subscriptions": active,
-            "limited_subscriptions": limited,
-            "expired_subscriptions": expired,
-        }
-    )
-
-
 class UserRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
     def _to_dto(self, row: User) -> UserDto:
         return UserDto.model_validate(row, from_attributes=True)
+
+    def _to_list_item_dto(
+        self, row: User, active: int, limited: int, expired: int
+    ) -> UserListItemDto:
+        return UserListItemDto.model_validate(row, from_attributes=True).model_copy(
+            update={
+                "active_subscriptions": active,
+                "limited_subscriptions": limited,
+                "expired_subscriptions": expired,
+            }
+        )
 
     async def create(self, data: CreateUserDto) -> UserDto:
         db_user = User(
@@ -412,7 +413,7 @@ class UserRepository:
         ).first()
         if row is None:
             raise NotFoundError(f"User '{user_id}' not found", code=ErrorCode.USER_NOT_FOUND)
-        return _list_item(*row)
+        return self._to_list_item_dto(*row)
 
     async def list_filtered(
         self,
@@ -476,7 +477,7 @@ class UserRepository:
         )
         rows = (await self.session.execute(stmt)).all()
 
-        return [_list_item(*row) for row in rows], int(total or 0)
+        return [self._to_list_item_dto(*row) for row in rows], int(total or 0)
 
     async def update_telegram_profile(
         self, user_id: int, *, name: str, username: Optional[str], language: Locale
