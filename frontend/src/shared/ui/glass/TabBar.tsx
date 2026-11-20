@@ -1,5 +1,4 @@
-import { motion } from "motion/react";
-import { useEffect, useId, useRef, type ComponentType, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type ComponentType, type MouseEvent } from "react";
 
 import { useHorizontalWheelScroll } from "@shared/lib/use-horizontal-wheel-scroll";
 import { ActivePill } from "@shared/ui/ActivePill";
@@ -19,36 +18,40 @@ export function TabBar({ items }: { items: TabBarItem[] }) {
   const tabsRef = useHorizontalWheelScroll<HTMLDivElement>();
   const navRef = useRef<HTMLElement>(null);
   const activeKey = items.find((item) => item.isActive)?.key;
-  const pillId = useId();
+  // the router switches tabs only once the next page has rendered; the pill sets off on the click instead
+  const [pressed, setPressed] = useState<{ key: string; from: string | undefined } | null>(null);
+  const shownKey = pressed && pressed.from === activeKey ? pressed.key : activeKey;
 
   // a deep link to a tab past the edge: scroll the strip only, scrollIntoView would move the page
   useEffect(() => {
-    const active = navRef.current?.querySelector<HTMLElement>('[aria-current="page"]');
+    const active = navRef.current?.querySelector<HTMLElement>("[data-shown]");
     const container = active?.parentElement;
     if (!container || !active) return;
-    container.scrollTo({ left: active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2 });
-  }, [activeKey]);
+    container.scrollTo({ left: active.offsetLeft - (container.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
+  }, [shownKey]);
 
   return (
     <nav ref={navRef} className="glass-panel inline-flex h-12 max-w-full rounded-full p-1.5">
-      <motion.div ref={tabsRef} layoutScroll className="no-scrollbar flex gap-1 overflow-x-auto rounded-full">
+      <div ref={tabsRef} className="no-scrollbar relative isolate flex gap-1 overflow-x-auto rounded-full">
+        <ActivePill activeIndex={items.findIndex((item) => item.key === shownKey)} />
         {items.map(({ key, to, icon: Icon, label, isActive }) => (
           <MotionLink
             key={key}
             to={to}
+            data-tab
+            data-shown={key === shownKey || undefined}
             aria-current={isActive ? "page" : undefined}
-            // navigating to the active tab would only re-run navigate()
-            onClick={(event: MouseEvent) => isActive && event.preventDefault()}
-            className="group relative isolate flex h-9 shrink-0 items-center rounded-full text-sm font-medium"
+            onClick={(event: MouseEvent) => {
+              // navigating to the active tab would only re-run navigate()
+              if (isActive) event.preventDefault();
+              else setPressed({ key, from: activeKey });
+            }}
+            className="group relative flex h-9 shrink-0 items-center rounded-full text-sm font-medium"
           >
-            {isActive ? (
-              <ActivePill layoutId={pillId} />
-            ) : (
-              <span className={TAB_HOVER_CLASS} />
-            )}
+            {key !== shownKey && <span className={TAB_HOVER_CLASS} />}
             <span
-              className={`relative z-10 flex items-center gap-1.5 whitespace-nowrap px-4 ${
-                isActive ? "text-primary" : "text-foreground"
+              className={`relative z-10 flex items-center gap-1.5 whitespace-nowrap px-4 transition-colors ${
+                key === shownKey ? "text-primary" : "text-foreground"
               }`}
             >
               <Icon className="size-4 shrink-0" />
@@ -56,7 +59,7 @@ export function TabBar({ items }: { items: TabBarItem[] }) {
             </span>
           </MotionLink>
         ))}
-      </motion.div>
+      </div>
     </nav>
   );
 }

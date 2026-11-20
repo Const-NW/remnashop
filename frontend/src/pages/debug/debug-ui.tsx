@@ -1,12 +1,11 @@
 import { FlaskConical, LayoutGrid } from "lucide-react";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMatch } from "react-router-dom";
 
 import { useKit } from "@pages/debug/use-kit";
 import { ActivePill } from "@shared/ui/ActivePill";
 import { EYEBROW_CLASS, PAGE_BAR_CLASS, PAGE_CLASS, PAGE_SCROLL_UNDER_BAR_CLASS, TAB_HOVER_CLASS } from "@shared/ui/classes";
-import { Pressable } from "@shared/ui/Pressable";
 import { TabBar } from "@shared/ui/glass/TabBar";
 
 /** The debug page frame, as on the settings pages: a bar floating over a scroller of its own, so main's
@@ -32,57 +31,102 @@ export function DebugShell({ bar, children }: { bar?: ReactNode; children: React
   );
 }
 
+// a smooth scroll this far drags on; it jumps instead
+const FAR_JUMP_SCREENS = 1.5;
+// a click's scroll counts as over once the page has been still this long
+const JUMP_SETTLE_MS = 150;
+// a section a few px short of its scroll-to spot still counts as reached
+const SPY_SLACK_PX = 8;
+
 export interface DebugSectionLink {
   id: string;
   label: string;
 }
 
-/** Sticky section strip; highlights the section under the upper part of the viewport. */
+const pxOf = (value: string) => parseFloat(value) || 0;
+
+/** The last section whose top has reached the spot scrollIntoView puts it at; the last one at the very bottom. */
+function sectionAtScroll(scroller: Element, sections: HTMLElement[]): HTMLElement {
+  if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - SPY_SLACK_PX) {
+    return sections[sections.length - 1];
+  }
+  const viewTop = scroller === document.scrollingElement ? 0 : scroller.getBoundingClientRect().top;
+  const line = viewTop + pxOf(getComputedStyle(scroller).scrollPaddingTop) + SPY_SLACK_PX;
+  let current = sections[0];
+  for (const section of sections) {
+    if (section.getBoundingClientRect().top - pxOf(getComputedStyle(section).scrollMarginTop) <= line) current = section;
+  }
+  return current;
+}
+
+/** Sticky section strip; highlights the section scrolled to. */
 export function DebugNav({ links }: { links: DebugSectionLink[] }) {
   const [active, setActive] = useState(links[0]?.id);
-  const pillId = useId();
+  const navRef = useRef<HTMLElement>(null);
+  // set while a click's scroll runs: the sections it passes aren't selections
+  const jumpTimer = useRef<number | undefined>(undefined);
+
+  const holdUntilSettled = () => {
+    window.clearTimeout(jumpTimer.current);
+    jumpTimer.current = window.setTimeout(() => (jumpTimer.current = undefined), JUMP_SETTLE_MS);
+  };
+
+  const jumpTo = (id: string) => {
+    const section = document.getElementById(id);
+    if (!section) return;
+    setActive(id);
+    holdUntilSettled();
+    const far = Math.abs(section.getBoundingClientRect().top) > window.innerHeight * FAR_JUMP_SCREENS;
+    section.scrollIntoView({ behavior: far ? "instant" : "smooth", block: "start" });
+  };
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting);
-        if (visible.length > 0) setActive(visible[0].target.id);
-      },
-      { rootMargin: "-20% 0px -70% 0px" },
-    );
-    for (const { id } of links) {
-      const element = document.getElementById(id);
-      if (element) observer.observe(element);
-    }
-    return () => observer.disconnect();
+    const onScroll = (event: Event) => {
+      const scroller = event.target instanceof Element ? event.target : document.scrollingElement;
+      if (!scroller || scroller === navRef.current) return;
+      if (jumpTimer.current !== undefined) {
+        holdUntilSettled();
+        return;
+      }
+      const sections = links.flatMap(({ id }) => document.getElementById(id) ?? []);
+      if (sections.length === 0 || !scroller.contains(sections[0])) return;
+      setActive(sectionAtScroll(scroller, sections).id);
+    };
+    // capture: scroll doesn't bubble, and the page scrolls in a container of its own
+    document.addEventListener("scroll", onScroll, true);
+    return () => document.removeEventListener("scroll", onScroll, true);
   }, [links]);
+
+  // keeps the active tab in view; scrolls the strip only
+  useEffect(() => {
+    const nav = navRef.current;
+    const tab = nav?.querySelectorAll<HTMLElement>(":scope > [data-tab]")[links.findIndex((link) => link.id === active)];
+    if (!nav || !tab) return;
+    nav.scrollTo({ left: tab.offsetLeft - (nav.clientWidth - tab.offsetWidth) / 2, behavior: "smooth" });
+  }, [active, links]);
 
   return (
     // the glass TabBar's capsule: 48px, 36px items 6px in
     // a mouse wheel scrolls it sideways: the strip outgrows the bar and hides its scrollbar
     <nav
+      ref={navRef}
       onWheel={(event) => {
         if (Math.abs(event.deltaY) > Math.abs(event.deltaX)) event.currentTarget.scrollLeft += event.deltaY;
       }}
-      className="glass-panel no-scrollbar flex h-12 gap-1 overflow-x-auto rounded-full p-1.5"
+      className="glass-panel no-scrollbar relative isolate flex h-12 gap-1 overflow-x-auto rounded-full p-1.5"
     >
+      <ActivePill activeIndex={links.findIndex((link) => link.id === active)} />
       {links.map(({ id, label }) => (
-        <Pressable
+        <button
           key={id}
           type="button"
-          onClick={() => {
-            setActive(id);
-            document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-          className="group relative isolate h-9 flex-1 shrink-0 whitespace-nowrap rounded-full text-sm font-medium"
+          data-tab
+          onClick={() => jumpTo(id)}
+          className="group relative h-9 flex-1 shrink-0 whitespace-nowrap rounded-full text-sm font-medium"
         >
-          {active === id ? (
-            <ActivePill layoutId={pillId} />
-          ) : (
-            <span className={TAB_HOVER_CLASS} />
-          )}
-          <span className={`relative z-10 px-4 ${active === id ? "text-primary" : "text-foreground"}`}>{label}</span>
-        </Pressable>
+          {active !== id && <span className={TAB_HOVER_CLASS} />}
+          <span className={`relative z-10 px-4 transition-colors ${active === id ? "text-primary" : "text-foreground"}`}>{label}</span>
+        </button>
       ))}
     </nav>
   );

@@ -1,5 +1,4 @@
-import { motion } from "motion/react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 
 import { useHorizontalWheelScroll } from "@shared/lib/use-horizontal-wheel-scroll";
@@ -26,7 +25,6 @@ export function PillTabs<T extends string>({
 }: PillTabsProps<T>) {
   const scrollerRef = useHorizontalWheelScroll<HTMLDivElement>();
   const activeRef = useRef<HTMLButtonElement>(null);
-  const pillId = useId();
 
   useEffect(() => {
     // keeps the selected tab in view (twenty locales overflow); scrolls the strip only,
@@ -36,37 +34,33 @@ export function PillTabs<T extends string>({
     if (!active || !scroller) return;
     const a = active.getBoundingClientRect();
     const s = scroller.getBoundingClientRect();
-    if (a.left < s.left) scroller.scrollLeft -= s.left - a.left;
-    else if (a.right > s.right) scroller.scrollLeft += a.right - s.right;
+    if (a.left < s.left) scroller.scrollBy({ left: a.left - s.left, behavior: "smooth" });
+    else if (a.right > s.right) scroller.scrollBy({ left: a.right - s.right, behavior: "smooth" });
   }, [activeKey]);
 
   return (
     <div className={`flex w-full rounded-full border border-glass-border bg-white/[0.03] p-1 ${blurred ? "backdrop-blur-md" : ""}`}>
-      {/* layoutScroll: the pill's glide accounts for the strip's own scroll */}
-      <motion.div layoutScroll ref={scrollerRef} className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full">
+      <div ref={scrollerRef} className="no-scrollbar relative isolate flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full">
+        <ActivePill activeIndex={items.findIndex((item) => item.key === activeKey)} />
         {items.map((item) => (
-          <motion.button
+          <button
             key={item.key}
             ref={activeKey === item.key ? activeRef : undefined}
             type="button"
+            data-tab
             onClick={() => onSelect(item.key)}
             disabled={disabled}
-            className="group relative isolate flex-1 shrink-0 cursor-pointer rounded-full disabled:cursor-not-allowed disabled:opacity-50"
+            className="group relative flex-1 shrink-0 cursor-pointer rounded-full disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {/* one layoutId per strip, so the highlight glides to the new tab like the sidebar's */}
-            {activeKey === item.key ? (
-              <ActivePill layoutId={pillId} />
-            ) : (
-              <span className={TAB_HOVER_CLASS} />
-            )}
+            {activeKey !== item.key && <span className={TAB_HOVER_CLASS} />}
             <span
-              className={`relative z-10 flex h-[26px] items-center justify-center whitespace-nowrap px-3.5 text-sm font-medium ${activeKey === item.key ? "text-primary" : "text-foreground"}`}
+              className={`relative z-10 flex h-[26px] items-center justify-center whitespace-nowrap px-3.5 text-sm font-medium transition-colors ${activeKey === item.key ? "text-primary" : "text-foreground"}`}
             >
               {item.label}
             </span>
-          </motion.button>
+          </button>
         ))}
-      </motion.div>
+      </div>
     </div>
   );
 }
