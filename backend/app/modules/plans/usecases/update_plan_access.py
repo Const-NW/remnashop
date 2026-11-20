@@ -8,6 +8,7 @@ from app.core.usecase import UseCase
 from app.modules.plans.dto import PlanDto, UpdatePlanAccessDto
 from app.modules.plans.events import PlanChangedEvent
 from app.modules.plans.repository import PlanRepository
+from app.modules.plans.rules import check_allowed_list, check_trial_availability
 
 
 class UpdatePlanAccessUseCase(UseCase[UpdatePlanAccessDto, PlanDto]):
@@ -22,6 +23,10 @@ class UpdatePlanAccessUseCase(UseCase[UpdatePlanAccessDto, PlanDto]):
 
     async def _execute(self, actor: Actor, data: UpdatePlanAccessDto) -> PlanDto:
         async with self._uow:
+            check_allowed_list(data.availability, data.allowed_telegram_ids, data.allowed_emails)
+            current = await self._plan_repository.get_by_id_for_update(data.plan_id)
+            if current.is_trial:
+                check_trial_availability(data.availability)
             plan = await self._plan_repository.update_access(data)
             await self._event_publisher.publish(
                 PlanChangedEvent(actor=actor, action="access", plan_id=data.plan_id)

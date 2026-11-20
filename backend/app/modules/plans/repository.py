@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Final, Optional
+from typing import Final
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -13,7 +13,7 @@ from app.core.db.models.plan_duration import PlanDuration
 from app.core.db.models.plan_price_override import PlanPriceOverride
 from app.core.db.models.plan_translation import PlanTranslation
 from app.core.db.partial_update import apply_partial_update
-from app.core.enums import Currency, PlanAvailability, PlanBadge, PlanType
+from app.core.enums import Currency, PlanAvailability
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.plans.dto import (
@@ -36,36 +36,6 @@ from app.modules.plans.dto import (
 # delete-then-insert) would otherwise interleave.
 _PLAN_ORDER_LOCK_KEY: Final[int] = 8221938
 _PLAN_DURATIONS_LOCK_KEY: Final[int] = 8221939
-
-
-def _zero_irrelevant_limits(
-    plan_type: PlanType, traffic_limit: int, device_limit: int
-) -> tuple[int, int]:
-    """A plan's type decides which limit applies; the other is zeroed
-    (0 = unlimited on the panel). An applying limit can't be 0: unlimited is
-    the type's to say. Idempotent, so it runs on every create and update."""
-    applies_traffic = plan_type in (PlanType.TRAFFIC, PlanType.BOTH)
-    applies_devices = plan_type in (PlanType.DEVICES, PlanType.BOTH)
-    if (applies_traffic and traffic_limit < 1) or (applies_devices and device_limit < 1):
-        raise ValidationError(
-            f"Plan type '{plan_type}' needs its limits of at least 1",
-            code=ErrorCode.PLAN_LIMIT_REQUIRED,
-        )
-    return (traffic_limit if applies_traffic else 0), (device_limit if applies_devices else 0)
-
-
-def _check_trial_badge(is_trial: bool, badge: Optional[PlanBadge]) -> None:
-    if is_trial and badge is not None:
-        raise ValidationError("A trial plan can't carry a badge", code=ErrorCode.PLAN_TRIAL_BADGE)
-
-
-def _check_trial_availability(availability: PlanAvailability) -> None:
-    # the trial button never offers an EXISTING trial
-    if availability == PlanAvailability.EXISTING:
-        raise ValidationError(
-            "A trial plan can't be limited to existing users",
-            code=ErrorCode.PLAN_TRIAL_EXISTING_ACCESS,
-        )
 
 
 class PlanRepository:
@@ -230,15 +200,17 @@ class PlanRepository:
         row = await self._get_or_raise(plan_id)
         return await self._hydrate(row)
 
+    async def get_by_id_for_update(self, plan_id: int) -> PlanDto:
+        row = await self.session.get(Plan, plan_id, with_for_update=True, populate_existing=True)
+        if row is None:
+            raise NotFoundError(f"Plan '{plan_id}' not found", code=ErrorCode.PLAN_NOT_FOUND)
+        return await self._hydrate(row)
+
     async def create(self, data: CreatePlanDto) -> PlanDto:
-        _check_trial_badge(data.is_trial, data.badge)
         await self.session.execute(select(func.pg_advisory_xact_lock(_PLAN_ORDER_LOCK_KEY)))
         count_result = await self.session.execute(select(func.count()).select_from(Plan))
         next_order_index = count_result.scalar_one()
 
-        traffic_limit, device_limit = _zero_irrelevant_limits(
-            data.type, data.traffic_limit, data.device_limit
-        )
         assert data.public_code is not None  # filled in by CreatePlanUseCase
         row = Plan(
             public_code=data.public_code,
@@ -251,8 +223,8 @@ class PlanRepository:
             type=data.type,
             availability=PlanAvailability.ALL,
             traffic_limit_strategy=data.traffic_limit_strategy,
-            traffic_limit=traffic_limit,
-            device_limit=device_limit,
+            traffic_limit=data.traffic_limit,
+            device_limit=data.device_limit,
             allowed_telegram_ids=[],
             allowed_emails=[],
             internal_squads=[],
@@ -286,34 +258,9 @@ class PlanRepository:
 
     async def update(self, data: UpdatePlanDto) -> PlanDto:
         row = await self._get_or_raise(data.plan_id)
-        was_trial = row.is_trial
-
         apply_partial_update(row, data, skip=frozenset({"plan_id", "cleared", "translations"}))
-        if row.is_trial and not was_trial:
-            _check_trial_availability(row.availability)
         for name in data.cleared:
             setattr(row, name, None)
-        _check_trial_badge(row.is_trial, row.badge)
-
-        if row.icon_emoji_id is None:
-            row.icon_emoji_fallback = None
-
-        row.traffic_limit, row.device_limit = _zero_irrelevant_limits(
-            row.type, row.traffic_limit, row.device_limit
-        )
-
-        if row.is_active:
-            if not row.internal_squads:
-                raise ValidationError(
-                    "Cannot activate a plan with no squads", code=ErrorCode.PLAN_NO_SQUADS
-                )
-            duration_count = await self.session.scalar(
-                select(func.count()).select_from(PlanDuration).where(PlanDuration.plan_id == row.id)
-            )
-            if not duration_count:
-                raise ValidationError(
-                    "Cannot activate a plan with no durations", code=ErrorCode.PLAN_NO_DURATIONS
-                )
 
         try:
             await self.session.flush()
@@ -350,20 +297,7 @@ class PlanRepository:
 
     async def set_durations(self, data: SetPlanDurationsDto) -> PlanDto:
         row = await self._get_or_raise(data.plan_id)
-
-        if row.is_active and not data.durations:
-            raise ValidationError(
-                "Cannot remove all durations from an active plan", code=ErrorCode.PLAN_NO_DURATIONS
-            )
-
-        seen_days: set[int] = set()
-        for duration in data.durations:
-            if duration.days in seen_days:
-                raise ValidationError(
-                    f"Duplicate duration of {duration.days} days",
-                    code=ErrorCode.PLAN_DURATION_DUPLICATE,
-                )
-            seen_days.add(duration.days)
+        kept_days = {duration.days for duration in data.durations}
 
         await self.session.execute(select(func.pg_advisory_xact_lock(_PLAN_DURATIONS_LOCK_KEY)))
         # updated in place by days: a kept duration keeps its pinned per-currency prices
@@ -375,7 +309,7 @@ class PlanRepository:
         }
         await self.session.execute(
             delete(PlanDuration).where(
-                PlanDuration.plan_id == data.plan_id, PlanDuration.days.not_in(seen_days)
+                PlanDuration.plan_id == data.plan_id, PlanDuration.days.not_in(kept_days)
             )
         )
         for duration in data.durations:
@@ -481,19 +415,7 @@ class PlanRepository:
         await self.session.flush()
 
     async def update_access(self, data: UpdatePlanAccessDto) -> PlanDto:
-        if (
-            data.availability == PlanAvailability.ALLOWED
-            and not data.allowed_telegram_ids
-            and not data.allowed_emails
-        ):
-            raise ValidationError(
-                "availability=ALLOWED requires at least one allowed telegram id or email",
-                code=ErrorCode.ALLOWED_LIST_EMPTY,
-            )
-
         row = await self._get_or_raise(data.plan_id)
-        if row.is_trial:
-            _check_trial_availability(data.availability)
         row.availability = data.availability
         row.allowed_telegram_ids = data.allowed_telegram_ids
         row.allowed_emails = data.allowed_emails

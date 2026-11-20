@@ -13,6 +13,7 @@ from app.core.usecase import UseCase
 from app.modules.plans.dto import CreatePlanDto, PlanDto
 from app.modules.plans.events import PlanChangedEvent
 from app.modules.plans.repository import PlanRepository
+from app.modules.plans.rules import normalize_new_plan
 
 # A LINK plan is bought by its code alone, so it is random, never chosen by an admin.
 _PUBLIC_CODE_ALPHABET: Final[str] = string.ascii_letters + string.digits
@@ -36,6 +37,7 @@ class CreatePlanUseCase(UseCase[CreatePlanDto, PlanDto]):
     async def _execute(self, actor: Actor, data: CreatePlanDto) -> PlanDto:
         if data.public_code is None:
             data = replace(data, public_code=_generate_public_code())
+        data = normalize_new_plan(data)
         async with self._uow:
             plan = await self._plan_repository.create(data)
             await self._event_publisher.publish(
