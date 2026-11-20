@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Optional
 
 from loguru import logger
@@ -24,6 +23,7 @@ from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import SubscriptionEditedEvent
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.paid_amount import paid_in_currency
 from app.modules.subscriptions.panel import restore, revert_panel_to_owner
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.revoker import PanelSubscriptionRevoker
@@ -204,7 +204,12 @@ class PurchaseRollbackService:
             async with self._uow:
                 current = await self._subscription_repository.get_by_id_for_update(renewed.id)
                 _assert_unchanged(current, renewed)
-                paid = await self._paid_in_snapshot_currency(data, current)
+                paid = await paid_in_currency(
+                    self._pricing_repository,
+                    data.price_paid,
+                    data.currency,
+                    current.plan_snapshot.currency,
+                )
                 await self._lifecycle_service.shorten_after_refund(
                     current.id, days=data.days_to_take_back, paid=paid, now=now
                 )
@@ -236,15 +241,6 @@ class PurchaseRollbackService:
         await revert_panel_to_owner(
             self._remnawave_sdk, self._subscription_repository, self._uow, current
         )
-
-    async def _paid_in_snapshot_currency(
-        self, data: PurchaseRollbackDto, target: SubscriptionDto
-    ) -> Decimal:
-        currency = target.plan_snapshot.currency
-        if data.price_paid <= 0 or data.currency is currency:
-            return data.price_paid
-        rates = await self._pricing_repository.get_rate_table()
-        return rates.convert(data.price_paid, data.currency, currency)
 
     async def _publish(self, actor: Actor, subscription: SubscriptionDto) -> None:
         subscriber = await subscription_owner(self._user_repository, subscription)

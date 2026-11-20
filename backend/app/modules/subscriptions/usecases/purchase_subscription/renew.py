@@ -1,6 +1,5 @@
 from dataclasses import replace
 from datetime import datetime
-from decimal import Decimal
 from typing import Optional
 
 from loguru import logger
@@ -21,6 +20,7 @@ from app.modules.subscriptions.eligibility import get_owned_target
 from app.modules.subscriptions.events import SubscriptionRenewedEvent
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.paid_amount import paid_in_currency
 from app.modules.subscriptions.panel import (
     configure_for_renewal,
     panel_update,
@@ -208,7 +208,12 @@ class RenewPurchase:
                     "Subscription was deleted while this renewal was in flight",
                     code=ErrorCode.SUBSCRIPTION_DELETED,
                 )
-            paid = await self._paid_in_snapshot_currency(data, locked)
+            paid = await paid_in_currency(
+                self._pricing_repository,
+                data.price_paid,
+                data.currency,
+                locked.plan_snapshot.currency,
+            )
             subscription = await self._lifecycle_service.renew(
                 locked.id,
                 expire_at,
@@ -278,15 +283,6 @@ class RenewPurchase:
             except Exception:
                 logger.exception(f"Failed to give subscription '{target.id}' its plan's terms")
         return tag_applied, terms_applied
-
-    async def _paid_in_snapshot_currency(
-        self, data: PurchaseSubscriptionDto, target: SubscriptionDto
-    ) -> Decimal:
-        currency = target.plan_snapshot.currency
-        if data.price_paid <= 0 or data.currency is currency:
-            return data.price_paid
-        rates = await self._pricing_repository.get_rate_table()
-        return rates.convert(data.price_paid, data.currency, currency)
 
     async def _renewal_base(self, target: SubscriptionDto) -> datetime:
         """What the panel's extend adds to: max(expire_at, now)."""
