@@ -1,4 +1,4 @@
-import { BarChart3, Link2, Package, Trophy, User, Users, Wallet } from "lucide-react";
+import { BarChart3, Link2, Package, Trophy, Users, Wallet } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { getLtvBreakdown, getLtvDistribution } from "@entities/analytics/api";
@@ -195,7 +195,7 @@ function Breakdown({ data }: { data: LtvBreakdown }) {
                     className={TOP_GRID}
                   >
                     <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-foreground">
-                      {payer.name ? initials(payer.name) : <User className="size-4" />}
+                      {initials(payer.name)}
                     </span>
                     <span className="min-w-0">
                       <span className="flex min-w-0 items-center gap-2">

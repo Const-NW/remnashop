@@ -1,5 +1,5 @@
 import type { ParseKeys } from "i18next";
-import { ChevronRight, Link2, Share2, Trophy, User } from "lucide-react";
+import { ChevronRight, Link2, Share2, Trophy } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -362,7 +362,7 @@ function TopReferrers({ data }: { data: Sources }) {
             className="grid grid-cols-[32px_minmax(0,1fr)_auto_auto] items-center gap-3"
           >
             <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-foreground">
-              {row.name ? initials(row.name) : <User className="size-4" />}
+              {initials(row.name)}
             </span>
             <span className="min-w-0">
               <span className="flex min-w-0 items-center gap-2">

@@ -176,7 +176,7 @@ export function Header({ onLogout }: HeaderProps) {
               className={TAB_HOVER_CLASS}
             />
             <div className="glass-control relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-foreground md:size-8">
-              {login ? initials(login) : <UserIcon className="size-4" />}
+              {initials(login)}
             </div>
             <div className="relative z-10 hidden text-left leading-tight md:block">
               <span className="block text-[13px] font-semibold text-foreground">{login ?? t("header.account")}</span>
