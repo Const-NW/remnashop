@@ -1,5 +1,4 @@
-import { motion } from "motion/react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ComponentType } from "react";
 
 import { useHorizontalWheelScroll } from "@shared/lib/use-horizontal-wheel-scroll";
@@ -23,55 +22,51 @@ export function DialogTabs<T extends string>({
 }) {
   const wheelRef = useHorizontalWheelScroll<HTMLDivElement>();
   const stripRef = useRef<HTMLDivElement | null>(null);
-  const pillId = useId();
 
   // keep the active tab in view when the strip overflows; scrolls the strip only
   useEffect(() => {
     const strip = stripRef.current;
     const active = strip?.querySelector<HTMLElement>('[aria-selected="true"]');
     if (!strip || !active) return;
-    strip.scrollTo({ left: active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2 });
+    strip.scrollTo({ left: active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2, behavior: "smooth" });
   }, [activeKey]);
 
   // same shape as TabBar: the pill stays put, the tabs scroll inside it
   return (
     <div className="flex rounded-full border border-glass-border bg-white/[0.03] p-1 backdrop-blur-md">
-      <motion.div
-        layoutScroll
+      <div
         ref={(el) => {
           stripRef.current = el;
           wheelRef(el);
         }}
-        className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full"
+        className="no-scrollbar relative isolate flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full"
       >
+        <ActivePill activeIndex={items.findIndex((item) => item.key === activeKey)} />
         {items.map((item) => {
           const isActive = activeKey === item.key;
           return (
-            <motion.button
+            <button
               key={item.key}
               type="button"
+              data-tab
               aria-selected={isActive}
               onClick={() => onSelect(item.key)}
               // flex-1 without min-w-0: equal widths while they fit, never narrower than the label
-              className="group relative isolate flex-1 rounded-full text-sm font-medium"
+              className="group relative flex-1 rounded-full text-sm font-medium"
             >
-              {isActive ? (
-                <ActivePill layoutId={pillId} />
-              ) : (
-                <span className={TAB_HOVER_CLASS} />
-              )}
+              {!isActive && <span className={TAB_HOVER_CLASS} />}
               <span
-                className={`relative z-10 flex h-[30px] items-center justify-center gap-1.5 whitespace-nowrap px-3.5 ${
+                className={`relative z-10 flex h-[30px] items-center justify-center gap-1.5 whitespace-nowrap px-3.5 transition-colors ${
                   isActive ? "text-primary" : "text-foreground"
                 }`}
               >
                 <item.icon className="size-4 shrink-0" />
                 {item.label}
               </span>
-            </motion.button>
+            </button>
           );
         })}
-      </motion.div>
+      </div>
     </div>
   );
 }
