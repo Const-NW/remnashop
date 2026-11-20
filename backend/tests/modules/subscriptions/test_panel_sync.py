@@ -12,12 +12,20 @@ from remnapy.models import UserResponseDto
 from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Locale, PanelSyncDirection, PlanType, Role, SubscriptionStatus
+from app.core.enums import (
+    BlacklistKind,
+    Locale,
+    PanelSyncDirection,
+    PlanType,
+    Role,
+    SubscriptionStatus,
+)
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import TOKEN_GRANTABLE_PERMISSIONS, Permission
 from app.core.utils.time import datetime_now
+from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.plans.dto import CreatePlanDto
 from app.modules.plans.repository import PlanRepository
 from app.modules.subscriptions import panel_sync
@@ -45,6 +53,7 @@ from app.modules.subscriptions.usecases import (
     SyncAllToPanelUseCase,
     SyncSubscriptionStatusUseCase,
 )
+from app.modules.translations.repository import TranslationRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
@@ -100,7 +109,12 @@ async def test_a_second_start_while_running_is_refused(
         with pytest.raises(ConflictError):
             await start(OWNER, _FROM)
         assert dispatch.messages == [
-            {"direction": "FROM_PANEL", "adopt_unnamed": True, "respect_subscription_limit": True}
+            {
+                "direction": "FROM_PANEL",
+                "adopt_unnamed": True,
+                "respect_subscription_limit": True,
+                "create_users": False,
+            }
         ]
         status = await GetPanelSyncStatusUseCase(redis)(OWNER)
         assert status.from_panel.running is True
@@ -332,6 +346,8 @@ async def test_sync_from_panel_imports_a_shop_users_panel_user(
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     ).system(_FROM)
 
     imported = await subscription_repository.find_by_remnawave_user_id(89_051)
@@ -640,11 +656,79 @@ async def test_sync_from_panel_adopts_unnamed_panel_users_only_when_asked(
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     ).system(SyncFromPanelOptionsDto(adopt_unnamed=adopt_unnamed, respect_subscription_limit=True))
 
     assert await subscription_repository.find_by_remnawave_user_id(89_111) is not None
     adopted = await subscription_repository.find_by_remnawave_user_id(89_112)
     assert (adopted is not None) is adopt_unnamed
+
+
+@pytest.mark.parametrize("create_users", [True, False])
+async def test_sync_from_panel_creates_customers_only_when_asked(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+    blacklist_repository: BlacklistRepository,
+    create_users: bool,
+) -> None:
+    named = await user_repository.create(CreateUserDto(name="named", telegram_id=89_151))
+    await user_repository.create(CreateUserDto(name="mail", email="taken@example.com"))
+    await blacklist_repository.add_entry(BlacklistKind.TELEGRAM_ID, "89152")
+    remnawave_store[89_161] = _panel_user(
+        89_161, username="old_bot_1", telegramId=89_150, createdAt=_old()
+    )
+    remnawave_store[89_162] = _panel_user(
+        89_162, username="old_bot_2", telegramId=89_152, createdAt=_old()
+    )
+    remnawave_store[89_163] = _panel_user(89_163, username="old_bot_3", createdAt=_old())
+    # its keys point at two different shop users
+    remnawave_store[89_164] = _panel_user(
+        89_164,
+        username=f"rs_{named.id}_0123abcd",
+        telegramId=89_154,
+        email="taken@example.com",
+        createdAt=_old(),
+    )
+
+    result = await SyncAllFromPanelUseCase(
+        subscription_repository,
+        user_repository,
+        plan_repository,
+        remnawave_sdk,
+        _sync(subscription_repository, uow, event_publisher),
+        uow,
+        redis,
+        event_publisher,
+        make_eligibility(subscription_repository.session),
+        AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
+    ).system(
+        SyncFromPanelOptionsDto(
+            adopt_unnamed=True, respect_subscription_limit=True, create_users=create_users
+        )
+    )
+
+    created = await user_repository.find_by_telegram_id(89_150)
+    imported = await subscription_repository.find_by_remnawave_user_id(89_161)
+    if create_users:
+        assert created is not None and imported is not None
+        assert imported.user_id == created.id
+        assert (created.role, created.name, created.email) == (Role.USER, "", None)
+    else:
+        assert created is None and imported is None
+    assert await user_repository.find_by_telegram_id(89_152) is None
+    assert await user_repository.find_by_telegram_id(89_154) is None
+    for skipped in (89_162, 89_163, 89_164):
+        assert await subscription_repository.find_by_remnawave_user_id(skipped) is None
+    assert (result.imported, result.users_created) == (int(create_users), int(create_users))
 
 
 async def test_sync_to_panel_can_skip_recreating_and_deleting(
@@ -765,6 +849,8 @@ async def test_sync_from_panel_imports_past_the_subscription_cap_only_when_asked
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     ).system(SyncFromPanelOptionsDto(adopt_unnamed=True, respect_subscription_limit=respect_limit))
 
     imported = [
@@ -808,6 +894,8 @@ async def test_sync_from_panel_fills_a_missing_reset_anchor_without_counting_it(
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     ).system(_FROM)
 
     assert result.updated == 0

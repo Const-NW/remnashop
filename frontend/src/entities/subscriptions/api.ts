@@ -251,6 +251,7 @@ export interface PanelSyncResult {
   missing: number;
   recreated: number;
   imported: number;
+  users_created: number;
   deleted: number;
   over_limit: number;
   finished_at: string;
@@ -316,9 +317,9 @@ export async function getPanelSyncStatus(signal?: AbortSignal): Promise<PanelSyn
   return apiGet<PanelSyncStatus>("/subscriptions/panel-sync", signal);
 }
 
-/** each direction reads its own: pull adopt_unnamed and respect_subscription_limit, push recreate_missing and delete_orphans */
+/** each direction reads its own: pull adopt_unnamed, respect_subscription_limit and create_users, push recreate_missing and delete_orphans */
 export type PanelSyncOptions = Record<
-  "adopt_unnamed" | "respect_subscription_limit" | "recreate_missing" | "delete_orphans",
+  "adopt_unnamed" | "respect_subscription_limit" | "create_users" | "recreate_missing" | "delete_orphans",
   boolean
 >;
 

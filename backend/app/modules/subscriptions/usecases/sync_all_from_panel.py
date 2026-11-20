@@ -9,11 +9,12 @@ from remnapy.models import UserResponseDto
 from app.core.actor import Actor
 from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PanelSyncDirection, SubscriptionStatus
+from app.core.enums import Locale, PanelSyncDirection, SubscriptionStatus
 from app.core.exceptions import RemnawavePanelUnavailableError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.blacklist import BlacklistRepository
 from app.modules.plans import PlanRepository
 from app.modules.subscriptions.dto import (
     PanelSyncResultDto,
@@ -37,7 +38,8 @@ from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases.sync_subscription_status import (
     SyncSubscriptionStatusUseCase,
 )
-from app.modules.users import UserRepository
+from app.modules.translations import TranslationRepository
+from app.modules.users import CreateUserDto, UserDto, UserRepository
 
 _SOURCE: Final[StatusSyncSource] = "panel_sync"
 
@@ -64,6 +66,8 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
         event_publisher: EventPublisher,
         eligibility: PurchaseEligibility,
         config: AppConfig,
+        blacklist_repository: BlacklistRepository,
+        translation_repository: TranslationRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
@@ -75,6 +79,8 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
         self._event_publisher = event_publisher
         self._eligibility = eligibility
         self._prefix = config.remnawave.username_prefix
+        self._blacklist_repository = blacklist_repository
+        self._translation_repository = translation_repository
 
     async def _execute(self, actor: Actor, data: SyncFromPanelOptionsDto) -> PanelSyncResultDto:
         async with holding_panel_sync(self._redis, PanelSyncDirection.FROM_PANEL):
@@ -99,7 +105,7 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
         async with self._uow:
             subscriptions = await self._subscription_repository.list_non_terminal()
             linked = await self._subscription_repository.list_linked_remnawave_user_ids()
-        updated = failed = missing = imported = over_limit = 0
+        updated = failed = missing = imported = users_created = over_limit = 0
         try:
             snapshot = {user.id: user async for user in panel_users(self._remnawave_sdk)}
             await self._fill_reset_anchors(subscriptions, snapshot)
@@ -134,7 +140,7 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
                     continue
                 updated += 1
             else:
-                imported, over_limit, import_failed = await self._import_orphans(
+                imported, users_created, over_limit, import_failed = await self._import_orphans(
                     actor, snapshot, linked, options
                 )
                 failed += import_failed
@@ -148,6 +154,7 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
             failed=failed,
             missing=missing,
             imported=imported,
+            users_created=users_created,
             over_limit=over_limit,
             finished_at=datetime_now(),
         )
@@ -161,6 +168,7 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
                     failed=result.failed,
                     missing=result.missing,
                     imported=result.imported,
+                    users_created=result.users_created,
                 )
             )
         logger.info(f"{actor.log} Synced subscriptions from the panel: {result}")
@@ -172,15 +180,17 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
         snapshot: dict[int, UserResponseDto],
         linked: set[int],
         options: SyncFromPanelOptionsDto,
-    ) -> tuple[int, int, int]:
-        """(imported, over_limit, failed) for the panel users no subscription stands for."""
+    ) -> tuple[int, int, int, int]:
+        """(imported, users_created, over_limit, failed) for the panel users no
+        subscription stands for."""
         now = datetime_now()
         orphans = [user for user in snapshot.values() if is_orphan(user, linked, now)]
         if not orphans:
-            return 0, 0, 0
+            return 0, 0, 0, 0
         async with self._uow:
             plans = await self._plan_repository.list_all()
-        imported = over_limit = failed = 0
+            language = await self._translation_repository.get_default_locale()
+        imported = users_created = over_limit = failed = 0
         for user in orphans:
             try:
                 async with self._uow:
@@ -191,6 +201,10 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
                             self._user_repository, user.username, self._prefix
                         )
                     )
+                    is_new = False
+                    if owner is None and options.create_users:
+                        owner = await self._create_owner(user, language)
+                        is_new = owner is not None
                     if owner is None or owner.deleted_at is not None:
                         continue
                     # linked while the sync ran
@@ -217,11 +231,30 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
                 failed += 1
                 continue
             imported += 1
+            users_created += is_new
             logger.info(
                 f"{actor.log} Imported panel user {user.id} "
                 f"as subscription '{created.id}' of user '{owner.id}'"
             )
-        return imported, over_limit, failed
+        return imported, users_created, over_limit, failed
+
+    async def _create_owner(self, user: UserResponseDto, language: Locale) -> Optional[UserDto]:
+        """A customer for a panel user no shop user matches by any key, by its
+        Telegram id; no registration event, so no greeting or referral."""
+        telegram_id = user.telegram_id
+        if (
+            telegram_id is None
+            or await self._user_repository.find_by_telegram_id(telegram_id) is not None
+            or await named_shop_user(self._user_repository, user.username, self._prefix) is not None
+            or (user.email and await self._user_repository.find_by_email(user.email) is not None)
+            or await self._blacklist_repository.is_blacklisted_telegram_id(telegram_id)
+        ):
+            return None
+        created = await self._user_repository.create(
+            CreateUserDto(name="", telegram_id=telegram_id, language=language)
+        )
+        logger.info(f"Created user '{created.id}' for panel user {user.id}")
+        return created
 
     async def _fresh(self, remnawave_user_id: int) -> Optional[UserResponseDto]:
         try:

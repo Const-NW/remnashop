@@ -104,6 +104,7 @@ async def start_panel_sync_from_panel(
         SyncFromPanelOptionsDto(
             adopt_unnamed=body.adopt_unnamed,
             respect_subscription_limit=body.respect_subscription_limit,
+            create_users=body.create_users,
         ),
     )
     return PanelSyncDirectionStatusResponse.model_validate(result, from_attributes=True)

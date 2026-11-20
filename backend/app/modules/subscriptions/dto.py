@@ -482,6 +482,8 @@ class PanelSyncResultDto(BaseDto):
     recreated: int = 0
     # rows made for a shop user's panel user without one (from panel only)
     imported: int = 0
+    # customers made for the imported rows (from panel only)
+    users_created: int = 0
     # shop users' panel users without a row, deleted (to panel only)
     deleted: int = 0
     # panel users left unimported: their shop user is at the subscription cap (from panel only)
@@ -495,6 +497,8 @@ class SyncFromPanelOptionsDto:
     adopt_unnamed: bool
     # skip a panel user whose shop user is at max_active_subscriptions
     respect_subscription_limit: bool
+    # a customer for a panel user nobody in the shop matches, by its Telegram id
+    create_users: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

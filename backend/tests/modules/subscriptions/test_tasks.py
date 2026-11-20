@@ -21,6 +21,7 @@ from app.core.enums import (
 )
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
+from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.plans.addon_repository import AddOnRepository
 from app.modules.plans.dto import (
     CreateAddOnDto,
@@ -58,6 +59,7 @@ from app.modules.subscriptions.usecases import (
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.unpaid_orders import PaidOrderHolder
+from app.modules.translations.repository import TranslationRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.events import RecordingEventPublisher
@@ -105,6 +107,8 @@ def _reconcile_use_case(
         event_publisher,
         make_eligibility(subscription_repository.session),
         AppConfig.get(),
+        BlacklistRepository(subscription_repository.session),
+        TranslationRepository(subscription_repository.session),
     )
 
 
