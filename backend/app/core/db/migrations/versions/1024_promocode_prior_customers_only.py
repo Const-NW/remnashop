@@ -3,18 +3,18 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "1022"
-down_revision: Union[str, None] = "1021"
+revision: str = "1024"
+down_revision: Union[str, None] = "1023"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
     op.add_column(
-        "subscription_purchase_idempotency",
-        sa.Column("renew_subscription_id", sa.Integer(), nullable=True),
+        "promocodes",
+        sa.Column("prior_customers_only", sa.Boolean(), server_default=sa.false(), nullable=False),
     )
 
 
 def downgrade() -> None:
-    op.drop_column("subscription_purchase_idempotency", "renew_subscription_id")
+    op.drop_column("promocodes", "prior_customers_only")

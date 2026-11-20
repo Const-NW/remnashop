@@ -4,8 +4,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "1020"
-down_revision: Union[str, None] = "1019"
+revision: str = "1023"
+down_revision: Union[str, None] = "1022"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
