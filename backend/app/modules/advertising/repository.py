@@ -35,11 +35,11 @@ def _in_range(
     return filters
 
 
-def _ensure_some_channel(row: AdLink) -> None:
-    if not row.allow_bot and not row.allow_webcabinet:
+def _raise_if_no_channel(error: IntegrityError) -> None:
+    if constraint_name(error) == "ck_ad_links_some_channel":
         raise ValidationError(
             "AdLink must allow at least one channel", code=ErrorCode.AD_LINK_NO_CHANNEL
-        )
+        ) from error
 
 
 class AdLinkRepository:
@@ -96,11 +96,11 @@ class AdLinkRepository:
             note=data.note,
             created_by=data.created_by,
         )
-        _ensure_some_channel(row)
         self.session.add(row)
         try:
             await self.session.flush()
         except IntegrityError as error:
+            _raise_if_no_channel(error)
             if constraint_name(error) != "ix_ad_links_code":
                 raise
             raise ConflictError(
@@ -115,8 +115,11 @@ class AdLinkRepository:
         if data.note is not None:
             # "" clears it: None already means "leave unchanged"
             row.note = data.note or None
-        _ensure_some_channel(row)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except IntegrityError as error:
+            _raise_if_no_channel(error)
+            raise
         await self.session.refresh(row)
         return self._to_dto(row)
 
