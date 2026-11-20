@@ -16,6 +16,7 @@ from app.modules.dialogs.dto import (
     UpdateDialogWindowButtonsDto,
 )
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 from app.modules.dialogs.usecases import (
     CreateCustomDialogWindowUseCase,
     DeleteCustomDialogWindowUseCase,
@@ -65,7 +66,7 @@ def _catalog():
 
 
 async def _seed(repo: DialogRepository) -> None:
-    await repo.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(repo, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
 
 
 async def test_non_admin_denied(
@@ -180,7 +181,7 @@ async def test_only_a_required_system_button_cannot_be_hidden(
     required = {**_SNAPSHOT, "buttons": [{**button, "required": True}]}
     # committed: each refusal below rolls its transaction back
     async with uow:
-        await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", required)
+        await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", required)
     shown = DialogButtonInputDto(**{**hidden.__dict__, "is_hidden": False})
     for buttons, code in (
         ([hidden], ErrorCode.DIALOG_SYSTEM_BUTTON_NOT_HIDEABLE),
@@ -569,6 +570,32 @@ async def test_reset_window_restores_snapshot(dialog_repository, uow, redis) -> 
         dialog_repository, uow, RedisBotSignals(redis), RecordingEventPublisher()
     )(OWNER, "menu.main")
     assert [b.text_key for b in result.buttons] == ["btn-menu.trial"]
+
+
+async def test_reset_window_rejects_a_custom_window(dialog_repository, uow, redis) -> None:
+    await dialog_repository.create_custom_window("custom.faq", CreateCustomWindowDto())
+    with pytest.raises(ValidationError) as error:
+        await ResetDialogWindowUseCase(
+            dialog_repository, uow, RedisBotSignals(redis), RecordingEventPublisher()
+        )(OWNER, "custom.faq")
+    assert error.value.code is ErrorCode.DIALOG_WINDOW_NOT_RESETTABLE
+
+
+async def test_delete_rejects_a_seed_window(
+    dialog_repository, banner_repository, config, uow, redis
+) -> None:
+    await _seed(dialog_repository)
+    use_case = DeleteCustomDialogWindowUseCase(
+        dialog_repository,
+        banner_repository,
+        config,
+        uow,
+        RedisBotSignals(redis),
+        RecordingEventPublisher(),
+    )
+    with pytest.raises(ValidationError) as error:
+        await use_case(OWNER, "menu.main")
+    assert error.value.code is ErrorCode.DIALOG_WINDOW_NOT_DELETABLE
 
 
 async def test_reset_all_restores_every_seed_window(
@@ -1132,8 +1159,12 @@ async def test_update_dialog_text_rejects_invalid_html(
     redis,
 ) -> None:
     _register_text_window("msg-window-html")
-    await dialog_repository.upsert_seed(
-        "menu.text_window", DialogFlow.MENU, None, {"banner_name": None, "buttons": []}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.text_window",
+        DialogFlow.MENU,
+        None,
+        {"banner_name": None, "buttons": []},
     )
     if Locale.EN not in await translation_repository.list_active_locales():
         await translation_repository.add_active_locale(Locale.EN)

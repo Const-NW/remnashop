@@ -16,6 +16,7 @@ from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
 from app.modules.dialogs import catalog
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 from app.modules.translations.repository import TranslationRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
@@ -111,7 +112,8 @@ async def test_owner_lists_and_updates(
     config: AppConfig,
 ) -> None:
     headers = await _owner_headers(user_repository, session_repository, uow, config)
-    await dialog_repository.upsert_seed(
+    await upsert_seed_window(
+        dialog_repository,
         "menu.main",
         DialogFlow.MENU,
         "menu",
@@ -176,8 +178,12 @@ async def test_replace_buttons_bad_action_is_400(
     config: AppConfig,
 ) -> None:
     headers = await _owner_headers(user_repository, session_repository, uow, config)
-    await dialog_repository.upsert_seed(
-        "menu.main", DialogFlow.MENU, "menu", {"banner_name": "menu", "buttons": []}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.main",
+        DialogFlow.MENU,
+        "menu",
+        {"banner_name": "menu", "buttons": []},
     )
     await uow.commit()
 
@@ -208,8 +214,12 @@ async def test_replace_buttons_overlong_text_key_is_422(
     config: AppConfig,
 ) -> None:
     headers = await _owner_headers(user_repository, session_repository, uow, config)
-    await dialog_repository.upsert_seed(
-        "menu.main", DialogFlow.MENU, "menu", {"banner_name": "menu", "buttons": []}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.main",
+        DialogFlow.MENU,
+        "menu",
+        {"banner_name": "menu", "buttons": []},
     )
     await uow.commit()
 
@@ -265,8 +275,12 @@ async def test_delete_seed_window_is_400(
     config: AppConfig,
 ) -> None:
     headers = await _owner_headers(user_repository, session_repository, uow, config)
-    await dialog_repository.upsert_seed(
-        "menu.main", DialogFlow.MENU, "menu", {"banner_name": "menu", "buttons": []}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.main",
+        DialogFlow.MENU,
+        "menu",
+        {"banner_name": "menu", "buttons": []},
     )
     await uow.commit()
 
@@ -295,8 +309,12 @@ async def test_reset_window_and_reset_all(
     config: AppConfig,
 ) -> None:
     headers = await _owner_headers(user_repository, session_repository, uow, config)
-    await dialog_repository.upsert_seed(
-        "menu.main", DialogFlow.MENU, "menu", {"banner_name": "menu", "buttons": []}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.main",
+        DialogFlow.MENU,
+        "menu",
+        {"banner_name": "menu", "buttons": []},
     )
     await uow.commit()
 
@@ -328,8 +346,12 @@ async def test_window_response_includes_text_keys_for_seed_window(
             banner_name=None,
         )
     )
-    await dialog_repository.upsert_seed(
-        "menu.text_keys_test", DialogFlow.MENU, None, {"banner_name": None, "buttons": []}
+    await upsert_seed_window(
+        dialog_repository,
+        "menu.text_keys_test",
+        DialogFlow.MENU,
+        None,
+        {"banner_name": None, "buttons": []},
     )
     await uow.commit()
 

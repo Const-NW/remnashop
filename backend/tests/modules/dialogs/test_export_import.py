@@ -15,6 +15,7 @@ from app.modules.dialogs.dto import (
 )
 from app.modules.dialogs.export import EXPORT_VERSION, LOCKED_CONDITIONS_EXPORT_VERSION
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.seed import upsert_seed_window
 from app.modules.dialogs.usecases import ExportDialogsUseCase, ImportDialogsUseCase
 from app.modules.users.dto import UserDto
 from tests.fakes.events import RecordingEventPublisher
@@ -74,7 +75,7 @@ async def _export(dialog_repository, translation_repository, settings_repository
 async def test_export_carries_windows_and_their_texts(
     dialog_repository: DialogRepository, translation_repository, settings_repository, uow
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     if Locale.EN not in await translation_repository.list_active_locales():
         await translation_repository.add_active_locale(Locale.EN)
     await translation_repository.seed_missing(Locale.EN, "btn-menu", "trial", "Try for free")
@@ -93,7 +94,7 @@ async def test_export_carries_windows_and_their_texts(
 async def test_import_restores_an_exported_configuration(
     dialog_repository: DialogRepository, translation_repository, settings_repository, uow, redis
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     if Locale.EN not in await translation_repository.list_active_locales():
         await translation_repository.add_active_locale(Locale.EN)
     await translation_repository.seed_missing(Locale.EN, "btn-menu", "trial", "Try for free")
@@ -122,7 +123,7 @@ async def test_import_restores_an_exported_configuration(
 async def test_import_deletes_custom_windows_missing_from_the_file(
     dialog_repository: DialogRepository, translation_repository, settings_repository, uow, redis
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     export = await _export(dialog_repository, translation_repository, settings_repository, uow)
     await dialog_repository.create_custom_window("custom.later", CreateCustomWindowDto())
 
@@ -140,7 +141,7 @@ async def test_import_deletes_custom_windows_missing_from_the_file(
 async def test_import_creates_a_custom_window_from_the_file(
     dialog_repository: DialogRepository, translation_repository, settings_repository, uow, redis
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     if Locale.EN not in await translation_repository.list_active_locales():
         await translation_repository.add_active_locale(Locale.EN)
 
@@ -191,7 +192,7 @@ async def test_import_creates_a_custom_window_from_the_file(
 async def test_import_rejects_a_button_pointing_nowhere(
     dialog_repository: DialogRepository, translation_repository, settings_repository, uow, redis
 ) -> None:
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     payload = DialogExportDto(
         version=EXPORT_VERSION,
         windows=[
@@ -252,7 +253,7 @@ async def test_import_takes_system_button_conditions_from_the_file_only_once_edi
     expected: object,
 ) -> None:
     # before conditions were editable, an export carried whatever the catalog said then
-    await dialog_repository.upsert_seed("menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
+    await upsert_seed_window(dialog_repository, "menu.main", DialogFlow.MENU, "menu", _SNAPSHOT)
     export = await _export(dialog_repository, translation_repository, settings_repository, uow)
     [window] = export.windows
     [button] = window.buttons

@@ -1,5 +1,4 @@
-from enum import Enum
-from typing import Final, Optional
+from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,19 +15,7 @@ from app.modules.dialogs.dto import (
     DialogWindowDto,
     UpdateDialogWindowDto,
 )
-
-_LAYOUT_FIELDS: Final[tuple[str, ...]] = (
-    "row",
-    "column",
-    "text_key",
-    "link_type",
-    "action_key",
-    "target_window_key",
-    "url_value",
-    "visibility_condition",
-    "style",
-    "is_hidden",
-)
+from app.modules.dialogs.snapshot import snapshot_conditions, snapshot_required_keys
 
 
 def _optional_enum(value: Optional[str], enum: type) -> object:
@@ -123,42 +110,17 @@ class DialogRepository:
             is_hidden=raw.get("is_hidden", False),
         )
 
-    async def upsert_seed(
+    async def get_default_snapshot(self, key: str) -> dict:
+        return (await self._get_row_or_raise(key)).default_snapshot
+
+    async def create_seed(
         self,
         key: str,
         flow: DialogFlow,
         banner_name: Optional[str],
         default_snapshot: dict,
-        position: int = 0,
-    ) -> bool:
-        existing = await self._get_row(key)
-        if existing is not None:
-            # The catalog owns a seed window's place in its flow and its default layout;
-            # buttons the admin edited stay, untouched ones follow the new layout.
-            existing.position = position
-            previous_conditions = _system_conditions(existing)
-            shipped_layout = _snapshot_layout(existing.default_snapshot)
-            untouched = _layout(existing.buttons) == shipped_layout
-            # recreated buttons get new ids, which kills them in messages already sent
-            if untouched and shipped_layout != _snapshot_layout(default_snapshot):
-                for button in list(existing.buttons):
-                    await self.session.delete(button)
-                await self.session.flush()
-                for raw in default_snapshot.get("buttons", []):
-                    self.session.add(self._button_from_snapshot(existing.id, raw))
-            existing.default_snapshot = default_snapshot
-            # a condition the admin left as shipped follows the catalog; an edited one stays
-            conditions = _system_conditions(existing)
-            for button in existing.buttons:
-                if (
-                    button.text_key in conditions
-                    and button.text_key in previous_conditions
-                    and button.visibility_condition == previous_conditions[button.text_key]
-                ):
-                    button.visibility_condition = conditions[button.text_key]
-            await self.session.flush()
-            await self.session.refresh(existing)
-            return False
+        position: int,
+    ) -> None:
         window = DialogWindow(
             key=key,
             kind=DialogWindowKind.SEED,
@@ -173,7 +135,31 @@ class DialogRepository:
         for raw in default_snapshot.get("buttons", []):
             self.session.add(self._button_from_snapshot(window.id, raw))
         await self.session.flush()
-        return True
+
+    async def update_seed(
+        self,
+        key: str,
+        *,
+        position: int,
+        default_snapshot: dict,
+        replace_buttons: bool,
+        conditions: dict[int, Optional[str]],
+    ) -> None:
+        """`conditions`: new visibility conditions by button id."""
+        row = await self._get_row_or_raise(key)
+        row.position = position
+        row.default_snapshot = default_snapshot
+        if replace_buttons:
+            for button in list(row.buttons):
+                await self.session.delete(button)
+            await self.session.flush()
+            for raw in default_snapshot.get("buttons", []):
+                self.session.add(self._button_from_snapshot(row.id, raw))
+        for button in row.buttons:
+            if button.id in conditions:
+                button.visibility_condition = conditions[button.id]
+        await self.session.flush()
+        await self.session.refresh(row)
 
     async def update_window(self, key: str, data: UpdateDialogWindowDto) -> DialogWindowDto:
         row = await self._get_row_or_raise(key)
@@ -182,10 +168,6 @@ class DialogRepository:
         if data.is_enabled is not None:
             row.is_enabled = data.is_enabled
         if data.name is not None:
-            if row.kind != DialogWindowKind.CUSTOM:
-                raise ValidationError(
-                    "Only custom windows can be renamed", code=ErrorCode.DIALOG_WINDOW_NOT_RENAMABLE
-                )
             row.name = data.name
         await self.session.flush()
         await self.session.refresh(row)
@@ -263,10 +245,6 @@ class DialogRepository:
 
     async def delete_custom_window(self, key: str) -> None:
         row = await self._get_row_or_raise(key)
-        if row.kind != DialogWindowKind.CUSTOM:
-            raise ValidationError(
-                "Only custom windows can be deleted", code=ErrorCode.DIALOG_WINDOW_NOT_DELETABLE
-            )
         await self.session.delete(row)
         await self.session.flush()
 
@@ -298,11 +276,6 @@ class DialogRepository:
             raise NotFoundError(
                 f"Dialog window '{key}' not found", code=ErrorCode.DIALOG_WINDOW_NOT_FOUND
             )
-        if row.kind == DialogWindowKind.CUSTOM:
-            raise ValidationError(
-                "Custom windows have no default to reset to; delete instead",
-                code=ErrorCode.DIALOG_WINDOW_NOT_RESETTABLE,
-            )
         snapshot = row.default_snapshot
         raw_banner = snapshot.get("banner_name")
         row.banner_name = raw_banner or None
@@ -324,32 +297,10 @@ def _system_text_keys(row: DialogWindow) -> set[str]:
 def _required_text_keys(row: DialogWindow) -> set[str]:
     if row.kind != DialogWindowKind.SEED:
         return set()
-    return {b["text_key"] for b in row.default_snapshot.get("buttons", []) if b.get("required")}
+    return snapshot_required_keys(row.default_snapshot)
 
 
 def _system_conditions(row: DialogWindow) -> dict[str, Optional[str]]:
-    # a seed window's catalog buttons, by text key, with the condition the catalog gave them
     if row.kind != DialogWindowKind.SEED:
         return {}
-    return {
-        b["text_key"]: b.get("visibility_condition")
-        for b in row.default_snapshot.get("buttons", [])
-    }
-
-
-def _layout(buttons: list[DialogButton]) -> set[tuple[object, ...]]:
-    return {
-        tuple(
-            value.value if isinstance(value, Enum) else value
-            for value in (getattr(button, name) for name in _LAYOUT_FIELDS)
-        )
-        for button in buttons
-    }
-
-
-def _snapshot_layout(snapshot: dict) -> set[tuple[object, ...]]:
-    defaults: dict[str, object] = {"is_hidden": False}
-    return {
-        tuple(raw.get(name, defaults.get(name)) for name in _LAYOUT_FIELDS)
-        for raw in snapshot.get("buttons", [])
-    }
+    return snapshot_conditions(row.default_snapshot)
