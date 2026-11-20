@@ -1,9 +1,12 @@
 import asyncio
 from datetime import timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from redis.asyncio import Redis
 from remnapy import RemnawaveSDK
+from remnapy.exceptions import ApiErrorResponse
+from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 from remnapy.models import UserResponseDto
 
 from app.core.config import AppConfig
@@ -418,6 +421,38 @@ async def test_push_without_a_panel_user_creates_one_from_the_row(
     assert (await subscription_repository.get_by_id(created.id)).remnawave_user_id == (
         pushed.remnawave_user_id
     )
+
+
+async def test_push_does_not_recreate_on_another_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    created = await create_subscription(
+        subscription_repository, user_repository, telegram_id=89_022, remnawave_user_id=89_022
+    )
+    squad_missing = RemnawaveNotFoundError(
+        404, ApiErrorResponse(message="Internal squad not found", code="A107")
+    )
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", AsyncMock(side_effect=squad_missing))
+    create_user = AsyncMock()
+    monkeypatch.setattr(remnawave_sdk.users, "create_user", create_user)
+
+    with pytest.raises(RemnawaveNotFoundError):
+        await PushSubscriptionToPanelUseCase(
+            subscription_repository,
+            user_repository,
+            remnawave_sdk,
+            event_publisher,
+            uow,
+            AppConfig.get(),
+        )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id))
+
+    create_user.assert_not_awaited()
+    assert (await subscription_repository.get_by_id(created.id)).remnawave_user_id == 89_022
 
 
 async def test_diff_lists_fields_that_differ_and_pull_takes_them(

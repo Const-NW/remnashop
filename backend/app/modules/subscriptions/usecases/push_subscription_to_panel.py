@@ -3,6 +3,7 @@ from uuid import UUID
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import ErrorCode as RemnawaveErrorCode
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
@@ -60,8 +61,12 @@ class PushSubscriptionToPanelUseCase(UseCase[PushSubscriptionToPanelDto, Subscri
                 actor, owner, subscription, data.squad_replacements
             )
         try:
-            await self._remnawave_sdk.users.get_user_by_id(subscription.remnawave_user_id)
-        except RemnawaveNotFoundError:
+            await push_to_panel(self._remnawave_sdk, subscription, owner)
+        except RemnawaveNotFoundError as error:
+            # a missing squad or a proxy's bare 404 isn't a missing user: recreating then
+            # would leave the old panel user working with no row behind it
+            if error.code != RemnawaveErrorCode.USER_NOT_FOUND:
+                raise
             subscription = await recreate_in_panel(
                 self._remnawave_sdk,
                 self._subscription_repository,
@@ -70,8 +75,6 @@ class PushSubscriptionToPanelUseCase(UseCase[PushSubscriptionToPanelDto, Subscri
                 subscription,
                 self._prefix,
             )
-        else:
-            await push_to_panel(self._remnawave_sdk, subscription, owner)
 
         async with self._uow:
             await self._event_publisher.publish(

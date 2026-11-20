@@ -47,6 +47,10 @@ from app.telegram.middlewares.base import EventTypedMiddleware, is_successful_pa
 CHANNEL_CHECK_CALLBACK: Final[str] = "requirements:channel"
 
 _SUBSCRIBED_TTL_S: Final[int] = 5 * 60
+# short: a customer who just joined is let in by the check button, which drops the key
+_NOT_SUBSCRIBED_TTL_S: Final[int] = 30
+_MEMBER: Final[str] = "1"
+_NOT_MEMBER: Final[str] = "0"
 _LEFT_STATUSES: Final[frozenset[str]] = frozenset({"left", "kicked"})
 # opting out of marketing must work even before the requirements are met
 _REQUIREMENT_CALLBACKS: Final[frozenset[str]] = frozenset(
@@ -71,8 +75,10 @@ async def is_channel_member(
     telegram_id: int,
     report: ReportBotStatusUseCase,
 ) -> bool:
-    if await redis.exists(channel_member_key(channel_id, telegram_id)):
-        return True
+    key = channel_member_key(channel_id, telegram_id)
+    cached = await redis.get(key)
+    if cached is not None:
+        return bool(cached != _NOT_MEMBER)
     try:
         member = await bot.get_chat_member(chat_id=channel_id, user_id=telegram_id)
     except TelegramNetworkError as error:
@@ -94,8 +100,9 @@ async def is_channel_member(
             logger.exception(f"Failed to report the channel {channel_id} check failure")
         return True
     if member.status in _LEFT_STATUSES:
+        await redis.set(key, _NOT_MEMBER, ex=_NOT_SUBSCRIBED_TTL_S)
         return False
-    await redis.set(channel_member_key(channel_id, telegram_id), "1", ex=_SUBSCRIBED_TTL_S)
+    await redis.set(key, _MEMBER, ex=_SUBSCRIBED_TTL_S)
     return True
 
 

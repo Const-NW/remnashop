@@ -20,6 +20,8 @@ class BotSettings(BaseSql, TimestampMixin):
 
     # reported by the telegram process on start, cleared with a new token
     username: Mapped[Optional[str]] = mapped_column(String(32))
+    # sha256 of the command menu last accepted by Telegram, so an unchanged one isn't resent
+    commands_hash: Mapped[Optional[str]] = mapped_column(String(64))
 
     drop_pending_updates: Mapped[bool] = mapped_column(
         Boolean(), default=False, server_default="false"

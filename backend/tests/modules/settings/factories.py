@@ -1,7 +1,9 @@
 from typing import Final
 
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
 from app.modules.settings.bot_commands_sync import BotCommandsPusher
 from app.modules.settings.repository import SettingsRepository
@@ -16,6 +18,7 @@ def make_bot_commands_sync(session: AsyncSession, uow: UnitOfWork) -> BotCommand
         TranslationRepository(session),
         GetBotCommandsUseCase(settings_repository, uow),
         uow,
+        Redis.from_url(AppConfig.get().redis.dsn, decode_responses=True),
     )
 
 

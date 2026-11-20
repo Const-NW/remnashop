@@ -1,5 +1,5 @@
 from collections.abc import Awaitable
-from typing import Any, Final, Optional
+from typing import Any, Final, Optional, TypeAlias
 
 from fluent_compiler.bundle import FluentBundle
 from loguru import logger
@@ -16,48 +16,57 @@ _TIMEOUT_SECONDS: Final[float] = 10.0
 _PRIVATE_CHATS_SCOPE: Final[dict[str, str]] = {"type": "all_private_chats"}
 
 
-async def push_bot_commands_to_telegram(
-    token: Optional[str],
-    proxy: Optional[str],
+# language_code -> the commands set for it; None is the fallback for every other language
+CommandMenu: TypeAlias = dict[Optional[str], list[dict[str, str]]]
+
+
+def build_command_menu(
     commands: list[BotCommandDto],
     active_locales: list[Locale],
     translations_by_locale: dict[Locale, str],
     default_locale: Locale,
-) -> bool:
+) -> CommandMenu:
+    """Raises when a description can't be rendered."""
     # bare fluent_compiler bundles, not fluentogram: this runs in the api process
     # too (every translation write re-pushes), and fluentogram lives under the
     # telegram extra
-    assert token is not None
     by_command = {item.command: item for item in BOT_COMMANDS}
-    locales: list[Optional[str]] = [locale.value for locale in active_locales] + [None]
+    bundles = {
+        locale.value: FluentBundle.from_string(  # type: ignore[no-untyped-call]
+            locale.value, text=translations_by_locale[locale]
+        )
+        for locale in active_locales
+    }
 
+    def describe(lang: str, key: str) -> str:
+        # a missing key raises KeyError, same as fluentogram's lookup failing
+        text, errors = bundles[lang].format(key, {})
+        if errors:
+            raise errors[0]
+        return premium_emoji_glyphs(str(text))
+
+    languages: list[Optional[str]] = [locale.value for locale in active_locales] + [None]
+    return {
+        lang: [
+            {
+                "command": item.command,
+                "description": describe(
+                    lang or default_locale.value, by_command[item.command].description_key
+                ),
+            }
+            for item in commands
+        ]
+        for lang in languages
+    }
+
+
+async def push_bot_commands_to_telegram(
+    token: str, proxy: Optional[str], menu: CommandMenu
+) -> bool:
     try:
-        bundles = {
-            locale.value: FluentBundle.from_string(  # type: ignore[no-untyped-call]
-                locale.value, text=translations_by_locale[locale]
-            )
-            for locale in active_locales
-        }
-
-        def describe(lang: str, key: str) -> str:
-            # a missing key raises KeyError, same as fluentogram's lookup failing
-            text, errors = bundles[lang].format(key, {})
-            if errors:
-                raise errors[0]
-            return premium_emoji_glyphs(str(text))
-
         ok = True
         async with bot_client(token, proxy, timeout=_TIMEOUT_SECONDS) as bot:
-            for lang in locales:
-                bot_commands = [
-                    {
-                        "command": item.command,
-                        "description": describe(
-                            lang or default_locale.value, by_command[item.command].description_key
-                        ),
-                    }
-                    for item in commands
-                ]
+            for lang, bot_commands in menu.items():
                 ok &= await _accepted(
                     bot.call(
                         "setMyCommands",

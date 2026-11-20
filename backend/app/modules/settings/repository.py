@@ -94,6 +94,11 @@ class SettingsRepository:
         row.username = username
         await self.session.flush()
 
+    async def set_bot_commands_hash(self, commands_hash: Optional[str]) -> None:
+        row = await self._get_or_create_singleton(BotSettings)
+        row.commands_hash = commands_hash
+        await self.session.flush()
+
     async def set_bot_proxy_url(self, proxy_url: Optional[str]) -> BotSettingsDto:
         row = await self._get_or_create_singleton(BotSettings)
         row.proxy_url = proxy_url
