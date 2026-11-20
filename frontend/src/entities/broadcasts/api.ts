@@ -5,7 +5,7 @@ import type { VariableOption } from "@entities/dialogs/api";
 export type BroadcastStatus = "DRAFT" | "SCHEDULED" | "SENDING" | "COMPLETED" | "CANCELED" | "FAILED";
 export type BroadcastCategory = "SERVICE" | "MARKETING";
 export type BroadcastRecipientStatus = "PENDING" | "SENT" | "FAILED" | "BLOCKED" | "CANCELED" | "RECALLED";
-export type BroadcastButtonKind = "URL" | "PROMOCODE" | "MENU" | "CLOSE";
+export type BroadcastButtonKind = "URL" | "PROMOCODE" | "MENU" | "CLOSE" | "SHARE_REFERRAL";
 export type BroadcastMediaType = "PHOTO" | "VIDEO" | "ANIMATION" | "DOCUMENT";
 export type SubscriptionFilter = "ACTIVE" | "TRIAL" | "EXPIRED" | "LIMITED" | "NONE";
 export type BroadcastDelivery = "TELEGRAM" | "EMAIL" | "ALL";
@@ -157,6 +157,7 @@ export const BROADCAST_VARIABLES: VariableOption[] = [
   { name: "expire_date", category: "subscription" },
   { name: "days_left", category: "subscription" },
   { name: "promocode", category: "promo" },
+  { name: "referral_link", category: "referral" },
 ];
 
 export interface BroadcastListFilters {

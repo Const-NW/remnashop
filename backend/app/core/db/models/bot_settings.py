@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import Boolean
+from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db.base import BaseSql
@@ -17,6 +17,9 @@ class BotSettings(BaseSql, TimestampMixin):
     secret_token: Mapped[Optional[str]] = mapped_column(EncryptedString())
     # may carry proxy credentials, hence encrypted like the token
     proxy_url: Mapped[Optional[str]] = mapped_column(EncryptedString())
+
+    # reported by the telegram process on start, cleared with a new token
+    username: Mapped[Optional[str]] = mapped_column(String(32))
 
     drop_pending_updates: Mapped[bool] = mapped_column(
         Boolean(), default=False, server_default="false"

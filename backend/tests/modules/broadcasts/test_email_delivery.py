@@ -43,6 +43,7 @@ from app.modules.email import (
     smtp_pause_key,
 )
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings import GetPublicAppearanceImageUseCase
 from app.modules.settings.appearance_storage import appearance_image_path
 from app.modules.settings.dto import SmtpProfileDto, UpdateEmailSettingsDto
@@ -154,6 +155,7 @@ def make_deliver(
             broadcast_repository,
             settings_repository,
             promocode_repository,
+            ReferralRepository(promocode_repository.session),
             translation_repository,
             user_repository,
             GetPublicAppearanceImageUseCase(settings_repository, cfg, uow),

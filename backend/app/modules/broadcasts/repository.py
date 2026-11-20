@@ -836,6 +836,7 @@ class BroadcastRepository:
                 points=int(user.points),
                 plan_name=current_name or (plan_names or {}).get(user.language.value, plan_name),
                 expire_at=expire_at,
+                referral_code=user.referral_code,
             )
             for user, current_name, plan_name, plan_names, expire_at in rows.tuples()
         }

@@ -60,6 +60,7 @@ from app.modules.broadcasts.usecases import (
 from app.modules.broadcasts.validation import promocode_is_usable
 from app.modules.promocodes.dto import CreatePromocodeDto, UpdatePromocodeDto
 from app.modules.promocodes.repository import PromocodeRepository
+from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings.dto import UpdateBotSettingsDto, UpdateEmailSettingsDto
 from app.modules.settings.repository import SettingsRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -884,6 +885,7 @@ def _test_use_case(
         broadcast_repository,
         settings_repository,
         promocode_repository,
+        ReferralRepository(promocode_repository.session),
         telegram,
         media_config,
         uow,

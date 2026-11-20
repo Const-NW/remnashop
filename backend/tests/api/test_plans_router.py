@@ -19,7 +19,7 @@ from app.modules.api_tokens.dto import CreateApiTokenDto
 from app.modules.api_tokens.repository import ApiTokenRepository
 from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
-from app.modules.plans.usecases import get_plan_share_urls
+from app.modules.settings import telegram_status
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 
@@ -381,7 +381,7 @@ async def test_share_urls_link_the_plan_into_the_cabinet(
     async def no_bot(token: str, proxy: object) -> None:
         return None
 
-    monkeypatch.setattr(get_plan_share_urls, "fetch_bot_username", no_bot)
+    monkeypatch.setattr(telegram_status, "fetch_bot_username", no_bot)
     monkeypatch.setattr(config.cabinet, "domain", "cabinet.example.com")
     token = await _token_for(Role.OWNER, user_repository, session_repository, uow, config)
     headers = {"Authorization": f"Bearer {token}"}

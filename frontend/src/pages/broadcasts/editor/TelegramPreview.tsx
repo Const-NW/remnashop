@@ -13,6 +13,7 @@ import type { EditorForm } from "@pages/broadcasts/editor/form";
 
 const SAMPLE_DAYS_LEFT = 4;
 const SAMPLE_PROMOCODE = "PROMO";
+const SAMPLE_REFERRAL_LINK = "https://t.me/your_bot?start=ref_a1b2c3";
 
 interface TelegramPreviewProps {
   form: EditorForm;
@@ -41,6 +42,7 @@ export function TelegramPreview({ form, locale, mediaType, mediaName, promocodeC
     points: "120",
     // the email preview renders the same sample: PROMO stands in until a promocode is picked
     promocode: promocodeCode ?? SAMPLE_PROMOCODE,
+    referral_link: SAMPLE_REFERRAL_LINK,
   };
   const text = content?.text ?? "";
   const labels = content?.button_labels ?? [];

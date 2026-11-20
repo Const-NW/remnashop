@@ -301,6 +301,7 @@ class BroadcastButtonKind(UpperStrEnum):
     PROMOCODE = auto()
     MENU = auto()
     CLOSE = auto()
+    SHARE_REFERRAL = auto()
 
 
 class BroadcastMediaType(UpperStrEnum):

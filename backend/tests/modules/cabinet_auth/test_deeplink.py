@@ -54,9 +54,7 @@ async def test_deeplink_then_bot_link_signs_in_once(
     async def _username(token: str, proxy: object) -> str:
         return "shop_bot"
 
-    monkeypatch.setattr(
-        "app.modules.cabinet_auth.usecases.request_deeplink.fetch_bot_username", _username
-    )
+    monkeypatch.setattr("app.modules.settings.telegram_status.fetch_bot_username", _username)
     monkeypatch.setattr(config.cabinet, "domain", "cabinet.example.com")
     async with uow:
         await settings_repository.update_cabinet_auth_settings(

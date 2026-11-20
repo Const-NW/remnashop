@@ -40,6 +40,7 @@ from app.modules.broadcasts.pacing import (
     GROUP_SIZE,
     MAX_ATTEMPTS,
 )
+from app.modules.broadcasts.referral import cabinet_links_allowed, referral_link_bases
 from app.modules.broadcasts.render import load_unsubscribe_labels
 from app.modules.broadcasts.repository import UNDELIVERABLE_ERROR, BroadcastRepository
 from app.modules.broadcasts.validation import promocode_is_usable
@@ -56,6 +57,7 @@ from app.modules.email import (
     smtp_pause_key,
 )
 from app.modules.promocodes import PromocodeRepository
+from app.modules.referrals import ReferralRepository
 from app.modules.settings import (
     GetPublicAppearanceImageUseCase,
     SettingsRepository,
@@ -78,6 +80,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         broadcast_repository: BroadcastRepository,
         settings_repository: SettingsRepository,
         promocode_repository: PromocodeRepository,
+        referral_repository: ReferralRepository,
         translation_repository: TranslationRepository,
         user_repository: UserRepository,
         get_public_appearance_image_use_case: GetPublicAppearanceImageUseCase,
@@ -91,6 +94,7 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
         self._broadcast_repository = broadcast_repository
         self._settings_repository = settings_repository
         self._promocode_repository = promocode_repository
+        self._referral_repository = referral_repository
         self._translation_repository = translation_repository
         self._user_repository = user_repository
         self._get_public_appearance_image_use_case = get_public_appearance_image_use_case
@@ -165,6 +169,10 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
                 if broadcast.promocode_id is not None
                 else None
             )
+            cabinet_allowed = await cabinet_links_allowed(
+                broadcast, self._referral_repository, self._settings_repository
+            )
+            bot = await self._settings_repository.get_bot_settings()
             labels = await load_unsubscribe_labels(
                 self._translation_repository,
                 sorted({c.language for c in contexts.values()} | {broadcast.default_locale}),
@@ -199,6 +207,9 @@ class DeliverBroadcastEmailBatchUseCase(UseCase[int, None]):
             ),
             unsubscribe_labels=labels,
             image_src=lambda i: f"cid:img-{i}",
+            referral_bases=await referral_link_bases(
+                cabinet_allowed, bot, self._config.cabinet.url
+            ),
         )
 
         compose = partial(self._email, renderer, contexts, images, logo)

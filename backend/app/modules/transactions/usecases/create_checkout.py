@@ -35,7 +35,7 @@ from app.core.utils.time import datetime_now
 from app.modules.gateways import REQUIRE_PAID_PURCHASE_FIELD_KEY, GatewayRepository, gateway_flags
 from app.modules.legal import LegalAcceptanceRecorder
 from app.modules.plans import PlanDto
-from app.modules.settings import GetAccessSettingsUseCase, SettingsRepository, fetch_bot_username
+from app.modules.settings import GetAccessSettingsUseCase, SettingsRepository, bot_username
 from app.modules.subscriptions import (
     PlanSnapshot,
     PurchaseEligibility,
@@ -123,9 +123,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 bot_settings = await self._settings_repository.get_bot_settings()
             if bot_settings.token is None:
                 return None
-            username = await fetch_bot_username(
-                bot_settings.token.get_secret_value(), bot_settings.proxy
-            )
+            username = await bot_username(bot_settings)
             return f"{T_ME}{username}" if username else None
         cabinet_url = self._config.cabinet.url
         if data.return_to != "cabinet" or not cabinet_url:

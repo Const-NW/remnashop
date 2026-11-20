@@ -1,5 +1,6 @@
 import secrets
 from dataclasses import replace
+from typing import Optional
 
 from loguru import logger
 
@@ -12,6 +13,10 @@ from app.core.usecase import UseCase
 from app.modules.settings.dto import BotSettingsDto, UpdateBotSettingsDto
 from app.modules.settings.events import BotSettingsChangedEvent
 from app.modules.settings.repository import SettingsRepository
+
+
+def _token(settings: BotSettingsDto) -> Optional[str]:
+    return settings.token.get_secret_value() if settings.token is not None else None
 
 
 class UpdateBotSettingsUseCase(UseCase[UpdateBotSettingsDto, BotSettingsDto]):
@@ -33,6 +38,9 @@ class UpdateBotSettingsUseCase(UseCase[UpdateBotSettingsDto, BotSettingsDto]):
             # the webhook secret only links us to Telegram: nobody needs to type it
             if before.secret_token is None and data.secret_token is None:
                 data = replace(data, secret_token=secrets.token_urlsafe(32))
+            if data.token is not None and data.token != _token(before):
+                # a new bot: the next start reports its username
+                await self._settings_repository.set_bot_username(None)
             settings = await self._settings_repository.update_bot_settings(data)
             await self._event_publisher.publish(
                 BotSettingsChangedEvent(

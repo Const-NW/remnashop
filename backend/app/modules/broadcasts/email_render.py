@@ -11,9 +11,11 @@ from app.modules.broadcasts.dto import (
     BroadcastDto,
     BroadcastEmailContentDto,
     RecipientContextDto,
+    ReferralLinkBasesDto,
     RenderedEmailDto,
 )
 from app.modules.broadcasts.email_html import email_image_ids, email_text, style_email_html
+from app.modules.broadcasts.referral import NO_REFERRAL_LINKS
 from app.modules.broadcasts.render import FALLBACK_UNSUBSCRIBE, recipient_values
 from app.modules.email import EmailBrandDto, brand_accent, render_email_html
 from app.modules.users import unsubscribe_token
@@ -43,6 +45,7 @@ class BroadcastEmailRenderer:
         unsubscribe: Optional[UnsubscribeLinks],
         unsubscribe_labels: dict[Locale, str],
         image_src: Callable[[int], str],
+        referral_bases: ReferralLinkBasesDto = NO_REFERRAL_LINKS,
     ) -> None:
         self._broadcast = broadcast
         self._promocode_code = promocode_code
@@ -50,6 +53,7 @@ class BroadcastEmailRenderer:
         self._unsubscribe = unsubscribe
         self._unsubscribe_labels = unsubscribe_labels
         self._image_src = image_src
+        self._referral_bases = referral_bases
 
     def _content(self, locale: Locale) -> tuple[Locale, BroadcastEmailContentDto]:
         content = self._broadcast.email_contents.get(locale)
@@ -60,7 +64,13 @@ class BroadcastEmailRenderer:
 
     def render(self, context: RecipientContextDto, now: datetime) -> RenderedEmailDto:
         locale, content = self._content(context.language)
-        values = recipient_values(context, now, self._promocode_code)
+        values = recipient_values(
+            context,
+            now,
+            self._promocode_code,
+            # the bot's link when the cabinet can't take a sign-up
+            self._referral_bases.cabinet or self._referral_bases.bot,
+        )
         # a header is plain text: no HTML escaping, but no line breaks either
         subject = VARIABLE_RE.sub(
             lambda m: values.get(m.group(1)) or EMPTY_VALUE,

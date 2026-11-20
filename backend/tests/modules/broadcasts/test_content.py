@@ -28,3 +28,8 @@ def test_a_long_value_is_cut_to_its_reserved_length() -> None:
     out = render_text("Hi { $name }", {"name": "a" * 200})
 
     assert out == "Hi " + "a" * 63 + "…"
+
+
+def test_a_link_is_never_cut() -> None:
+    link = "https://cabinet.example/" + "x" * 300
+    assert render_text("{ $referral_link }", {"referral_link": link}) == link

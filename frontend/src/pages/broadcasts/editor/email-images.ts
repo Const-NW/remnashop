@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchEmailImage } from "@entities/broadcasts/api";
 
 const STORED_SRC_RE = /src="bc-image:(\d+)"/g;
-/** the link schemes the backend accepts in a letter */
-export const EMAIL_URL_RE = /^(https?:\/\/|mailto:)\S+$/;
+/** the link schemes the backend accepts in a letter, or the recipient's own referral link */
+export const EMAIL_URL_RE = /^((https?:\/\/|mailto:)\S+|\{\s*\$referral_link\s*\})$/;
 // what the backend accepts on each tag; every other tag keeps no attributes
 const ALLOWED_ATTRS: Record<string, string[]> = { A: ["href", "data-button"], IMG: ["alt"] };
 

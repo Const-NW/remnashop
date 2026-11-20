@@ -2,7 +2,7 @@ import time
 from typing import Final, Optional
 
 from app.core.telegram_api import BOT_API_ERRORS, bot_api_error_text, bot_client
-from app.modules.settings.dto import BotStatusDto
+from app.modules.settings.dto import BotSettingsDto, BotStatusDto
 
 _TIMEOUT_SECONDS: Final[float] = 5.0
 # token -> username; a bot's username can't change without a new token
@@ -51,6 +51,15 @@ async def fetch_bot_username(token: str, proxy: Optional[str]) -> Optional[str]:
         return None
     _USERNAME_CACHE[token] = username
     return username
+
+
+async def bot_username(settings: BotSettingsDto) -> Optional[str]:
+    """The username the telegram process reported; asks Telegram until it has."""
+    if settings.token is None:
+        return None
+    if settings.username:
+        return settings.username
+    return await fetch_bot_username(settings.token.get_secret_value(), settings.proxy)
 
 
 async def is_bot_channel_admin(token: str, proxy: Optional[str], channel_id: int) -> bool:

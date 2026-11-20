@@ -15,6 +15,7 @@ from app.modules.settings.events import (
     RequiredChannelCheckFailedEvent,
     TelegramWebhookFailedEvent,
 )
+from app.modules.settings.repository import SettingsRepository
 
 _CHANNEL_FAILURE_KEY: Final[str] = f"{REDIS_KEY_PREFIX}channel_check_failed"
 
@@ -23,7 +24,14 @@ class ReportBotStatusUseCase(UseCase[ReportBotStatusDto, None]):
     # system-only: the telegram process reports its own state
     required_permission = None
 
-    def __init__(self, uow: UnitOfWork, event_publisher: EventPublisher, redis: Redis) -> None:
+    def __init__(
+        self,
+        settings_repository: SettingsRepository,
+        uow: UnitOfWork,
+        event_publisher: EventPublisher,
+        redis: Redis,
+    ) -> None:
+        self._settings_repository = settings_repository
         self._uow = uow
         self._event_publisher = event_publisher
         self._redis = redis
@@ -46,4 +54,7 @@ class ReportBotStatusUseCase(UseCase[ReportBotStatusDto, None]):
         else:
             event = BotStoppedEvent(uptime_seconds=data.uptime_seconds)
         async with self._uow:
+            if isinstance(event, BotStartedEvent) and event.username:
+                # every other process reads it instead of asking Telegram
+                await self._settings_repository.set_bot_username(event.username)
             await self._event_publisher.publish(event)

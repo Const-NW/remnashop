@@ -3025,7 +3025,8 @@
       "device_limit": "Лимит устройств",
       "referrals_level_1": "Рефералов 1 уровня",
       "referrals_level_2": "Рефералов 2 уровня",
-      "promocode": "Промокод"
+      "promocode": "Промокод",
+      "referral_link": "Реферальная ссылка"
     },
     "variableCategories": {
       "user": "Пользователь",
@@ -4933,15 +4934,19 @@
           "URL": "Ссылка",
           "PROMOCODE": "Промокод",
           "MENU": "Меню",
-          "CLOSE": "Закрыть"
+          "CLOSE": "Закрыть",
+          "SHARE_REFERRAL": "Поделиться"
         },
         "limit_one": "Не больше {{count}} кнопки",
         "limit_few": "Не больше {{count}} кнопок",
         "limit_many": "Не больше {{count}} кнопок",
         "limit_other": "Не больше {{count}} кнопки",
         "label": "Текст кнопки",
-        "menuTarget": "Главное меню бота",
-        "closeTarget": "Удаляет сообщение",
+        "target": {
+          "MENU": "Главное меню бота",
+          "CLOSE": "Удаляет сообщение",
+          "SHARE_REFERRAL": "Реферальная ссылка клиента"
+        },
         "empty": "Нет заданных кнопок"
       },
       "promocode": {

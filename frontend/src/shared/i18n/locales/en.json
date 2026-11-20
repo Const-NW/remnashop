@@ -2933,7 +2933,8 @@
       "device_limit": "Device limit",
       "referrals_level_1": "Level 1 referrals",
       "referrals_level_2": "Level 2 referrals",
-      "promocode": "Promocode"
+      "promocode": "Promocode",
+      "referral_link": "Referral link"
     },
     "variableCategories": {
       "user": "User",
@@ -4805,13 +4806,17 @@
           "URL": "Link",
           "PROMOCODE": "Promocode",
           "MENU": "Menu",
-          "CLOSE": "Close"
+          "CLOSE": "Close",
+          "SHARE_REFERRAL": "Share"
         },
         "limit_one": "Up to {{count}} button",
         "limit_other": "Up to {{count}} buttons",
         "label": "Button text",
-        "menuTarget": "The bot’s main menu",
-        "closeTarget": "Deletes the message",
+        "target": {
+          "MENU": "The bot’s main menu",
+          "CLOSE": "Deletes the message",
+          "SHARE_REFERRAL": "The customer’s referral link"
+        },
         "empty": "No buttons set"
       },
       "promocode": {

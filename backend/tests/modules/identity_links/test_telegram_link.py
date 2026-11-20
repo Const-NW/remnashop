@@ -59,9 +59,7 @@ async def test_link_free_telegram(
     async def _username(token: str, proxy: object) -> str:
         return "shop_bot"
 
-    monkeypatch.setattr(
-        "app.modules.cabinet_auth.usecases.request_deeplink.fetch_bot_username", _username
-    )
+    monkeypatch.setattr("app.modules.settings.telegram_status.fetch_bot_username", _username)
     monkeypatch.setattr(config.cabinet, "domain", "cabinet.example.com")
 
     response = await client.post(LINK_DEEPLINK, headers=headers)
