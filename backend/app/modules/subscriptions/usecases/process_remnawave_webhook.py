@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Final
@@ -10,7 +11,7 @@ from remnapy.models.webhook import UserDto as WebhookUserDto
 from remnapy.models.webhook import WebhookPayloadDto
 
 from app.core.actor import Actor
-from app.core.constants import REDIS_KEY_PREFIX, TIME_1M, TTL_10M
+from app.core.constants import REDIS_KEY_PREFIX, TIME_1M, TTL_1D, TTL_10M
 from app.core.enums import SubscriptionStatus
 from app.core.exceptions import RetryableTaskError
 from app.core.panel_writes import WRITE_MARK_TTL_S, written_after
@@ -35,6 +36,9 @@ _APPLIED_TTL_S: Final[int] = TTL_10M
 _LOCK_PREFIX: Final[str] = f"{REDIS_KEY_PREFIX}remnawave_webhook_lock:"
 _LOCK_TTL_S: Final[int] = TIME_1M
 _LOCK_WAIT_S: Final[float] = 10
+# webhook body hash -> its event was published; outlives every redelivery of the task
+_PUBLISHED_PREFIX: Final[str] = f"{REDIS_KEY_PREFIX}remnawave_webhook_published:"
+_PUBLISHED_TTL_S: Final[int] = TTL_1D
 
 
 def _utc(moment: datetime) -> datetime:
@@ -61,10 +65,16 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
             if not await self._apply(payload):
                 return
 
+        # a task redelivered after its event went out re-syncs, harmlessly, but must
+        # not tell the customer twice
+        published_key = _PUBLISHED_PREFIX + hashlib.sha256(data.body.encode()).hexdigest()
+        if not await self._redis.set(published_key, "1", nx=True, ex=_PUBLISHED_TTL_S):
+            return
         # a notification must never undo or fail the status sync
         try:
             await self._publish_panel_event_use_case.system(PublishPanelEventDto(payload=payload))
         except Exception:
+            await self._redis.delete(published_key)
             logger.exception(f"Failed to publish panel event '{payload.event}'")
 
     async def _apply(self, payload: WebhookPayloadDto) -> bool:
