@@ -339,6 +339,8 @@ async def test_fulfill_transaction_marks_a_failed_order_paid_and_dispatches_it(
     assert isinstance(event, TransactionFulfilledManuallyEvent)
     assert event.ip_address == "10.0.0.1"
     assert [message["idempotency_key"] for message in dispatch.messages] == ["fulfill-failed"]
+    # nothing was held for a plan change: no leave to renew another plan
+    assert dispatch.messages[0]["renew_other_plan"] is False
 
     with pytest.raises(ConflictError):
         await use_case(

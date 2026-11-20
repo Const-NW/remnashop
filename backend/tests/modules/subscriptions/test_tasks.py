@@ -290,9 +290,12 @@ async def test_a_free_order_over_the_cap_fails_instead_of_provisioning(
 
     assert result is None
     assert len(await subscription_repository.get_active_by_user(buyer.id)) == 1
-    assert (await transactions.get_by_id(order.id)).status is TransactionStatus.FAILED
-    # the spent 100% purchase discount that made the order free comes back
+    failed = await transactions.get_by_id(order.id)
+    assert failed.status is TransactionStatus.FAILED
+    # the spent 100% purchase discount that made the order free comes back, and the
+    # order remembers it, so an admin issuing it later spends it again
     assert (await user_repository.find_by_id(buyer.id)).purchase_discount == 100  # type: ignore[union-attr]
+    assert failed.purchase_discount_returned
 
 
 async def test_grant_addon_task_body_grants_an_entitlement(

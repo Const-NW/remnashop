@@ -22,6 +22,10 @@ class OrderFailer(Protocol):
         """The one-shot discount to hand back when this call failed the order."""
         ...
 
+    async def mark_discount_returned(self, idempotency_key: str) -> None:
+        """Records that the failed order's discount went back, for a late manual issue."""
+        ...
+
 
 class PaidOrderHold(Protocol):
     async def hold_paid_order(self, idempotency_key: str, hold: FulfillmentHold) -> bool:

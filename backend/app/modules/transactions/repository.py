@@ -370,11 +370,18 @@ class TransactionRepository:
             .values(fulfillment_hold=None, fulfillment_approved=True, updated_at=NOW_FUNC)
         )
 
+    async def mark_discount_returned(self, idempotency_key: str) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.idempotency_key == idempotency_key)
+            .values(purchase_discount_returned=True, updated_at=NOW_FUNC)
+        )
+
     async def mark_purchase_discount_returned(self, transaction_id: int) -> None:
         await self.session.execute(
             update(Transaction)
             .where(Transaction.id == transaction_id)
-            .values(purchase_discount_returned=True)
+            .values(purchase_discount_returned=True, updated_at=NOW_FUNC)
         )
 
     async def set_fulfillment_hold(

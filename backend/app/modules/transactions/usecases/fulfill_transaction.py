@@ -4,7 +4,7 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import DiscountSource, TransactionStatus
+from app.core.enums import FulfillmentHold, TransactionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
@@ -64,11 +64,16 @@ class FulfillTransactionUseCase(UseCase[FulfillTransactionDto, TransactionWithUs
                     self._transaction_repository, self._idempotency_repository, order, linked
                 )
             else:
-                # an admin's call, kept on the order: the sweep's redispatch carries it too
-                await self._transaction_repository.approve_fulfillment(order.id)
-                order = order.model_copy(
-                    update={"fulfillment_hold": None, "fulfillment_approved": True}
-                )
+                if order.fulfillment_hold is FulfillmentHold.PLAN_CHANGED:
+                    # renewing the plan it changed to is the admin's call; kept on the
+                    # order, so the sweep's redispatch carries it too
+                    await self._transaction_repository.approve_fulfillment(order.id)
+                    order = order.model_copy(
+                        update={"fulfillment_hold": None, "fulfillment_approved": True}
+                    )
+                elif order.fulfillment_hold is not None:
+                    await self._transaction_repository.set_fulfillment_hold(order.id, None)
+                    order = order.model_copy(update={"fulfillment_hold": None})
                 if unpaid:
                     changed = await self._transaction_repository.mark_status_if(
                         order.id, TransactionStatus.PAID, current=UNPAID_FINAL
@@ -78,7 +83,7 @@ class FulfillTransactionUseCase(UseCase[FulfillTransactionDto, TransactionWithUs
                             f"Transaction '{order.id}' changed status meanwhile",
                             code=ErrorCode.PAYMENT_ORDER_NOT_FULFILLABLE,
                         )
-                    if order.discount_source is DiscountSource.PURCHASE:
+                    if order.purchase_discount_returned:
                         # handed back on cancel; a no-op once spent elsewhere
                         await self._user_repository.spend_purchase_discount(
                             order.user_id, order.discount_percent

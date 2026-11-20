@@ -614,3 +614,25 @@ async def test_an_issued_order_drops_its_hold_and_takes_no_new_one(
         )
     assert held is False
     assert (await transaction_repository.get_by_id(order.id)).fulfillment_hold is None
+
+
+async def test_an_admin_approved_order_is_not_held_again(
+    transaction_repository: TransactionRepository,
+    uow,
+    user_id,
+    plan_id,
+    event_publisher: EventPublisher,
+) -> None:
+    async with uow:
+        order = await transaction_repository.create(
+            _paid_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="approved-no-hold")
+        )
+        await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
+        await transaction_repository.approve_fulfillment(order.id)
+        # a stale sweep redispatch, sent before the admin's click, meets the plan change
+        held = await PaidOrderHolder(transaction_repository, event_publisher).hold_paid_order(
+            "approved-no-hold", FulfillmentHold.PLAN_CHANGED
+        )
+
+    assert held is False
+    assert (await transaction_repository.get_by_id(order.id)).fulfillment_hold is None

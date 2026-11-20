@@ -23,6 +23,12 @@ def upgrade() -> None:
             "transactions",
             sa.Column(column, sa.Boolean(), server_default=sa.false(), nullable=False),
         )
+    # canceled before this column, their discount was handed back as now; a late payment
+    # spends it again, or holds the order when it's gone
+    op.execute(
+        "UPDATE transactions SET purchase_discount_returned = true "
+        "WHERE status IN ('CANCELED', 'FAILED') AND discount_source = 'PURCHASE'"
+    )
 
 
 def downgrade() -> None:

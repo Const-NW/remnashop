@@ -71,9 +71,7 @@ class RenewPurchase:
                 self._subscription_repository, data.target_subscription_id, data.user_id
             )
             if target.status is SubscriptionStatus.DELETED:
-                raise ValidationError(
-                    "Cannot renew a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
-                )
+                target = await self._successor(target)
             # before the panel call: refusing after it would leave the panel
             # extended and a pinned key a caller can only retry, never undo
             if data.refuse_disabled_target and target.status is SubscriptionStatus.DISABLED:
@@ -166,6 +164,22 @@ class RenewPurchase:
                 target, data.idempotency_key, data.claim_token, data, keep_key
             )
         return expire_at, added_days, anchor_day
+
+    async def _successor(self, target: SubscriptionDto) -> SubscriptionDto:
+        """What a renewal of a deleted subscription goes to: the row a plan change put in
+        its place, on the same panel user. The plan check below decides whether it may."""
+        successor = await self._subscription_repository.find_by_remnawave_user_id(
+            target.remnawave_user_id
+        )
+        if (
+            successor is None
+            or successor.status is SubscriptionStatus.DELETED
+            or successor.user_id != target.user_id
+        ):
+            raise ValidationError(
+                "Cannot renew a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
+            )
+        return successor
 
     async def _finish(
         self,

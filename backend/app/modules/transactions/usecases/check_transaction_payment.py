@@ -91,7 +91,8 @@ class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, Payment
                         current=frozenset({current.status}),
                         external_payment_id=payment.provider_payment_id,
                     )
-                    issuable = await clear_late_payment(
+                    # a test order is never issued, nor held
+                    issuable = not current.is_test and await clear_late_payment(
                         current,
                         transaction_repository=self._transaction_repository,
                         user_repository=self._user_repository,
@@ -107,7 +108,7 @@ class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, Payment
                             ip_address=data.client_ip,
                         )
                     )
-                    if issuable and not current.is_test:
+                    if issuable:
                         await self._uow.after_commit(
                             partial(dispatch_fulfillment, self._purchase_dispatch, current)
                         )

@@ -85,13 +85,13 @@ class FulfillPurchaseUseCase(UseCase[PurchaseSubscriptionDto, Optional[Subscript
         # failed, not retried: a retry or the reconcile sweep would hit the same cap
         async with self._uow:
             spent = await self._order_failer.fail_unpaid_free_order(free_order_key)
-            if spent is not None:
-                await self._user_repository.restore_purchase_discount(
-                    spent.user_id,
-                    spent.percent,
-                    spent.promocode_id,
-                    from_promocode=spent.from_promocode,
-                )
+            if spent is not None and await self._user_repository.restore_purchase_discount(
+                spent.user_id,
+                spent.percent,
+                spent.promocode_id,
+                from_promocode=spent.from_promocode,
+            ):
+                await self._order_failer.mark_discount_returned(free_order_key)
         logger.warning(
             f"{buyer.log} Free order '{free_order_key}' failed: subscription cap reached"
         )

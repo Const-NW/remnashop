@@ -91,8 +91,14 @@ class PaidOrderHolder:
 
     async def hold_paid_order(self, idempotency_key: str, hold: FulfillmentHold) -> bool:
         order = await self._transaction_repository.find_by_idempotency_key(idempotency_key)
-        # a retry landing after the order was issued has nothing left to hold
-        if order is None or order.status is not TransactionStatus.PAID or order.fulfilled_at:
+        # a retry landing after the order was issued, or after an admin chose to
+        # issue it, has nothing left to hold
+        if (
+            order is None
+            or order.status is not TransactionStatus.PAID
+            or order.fulfilled_at is not None
+            or order.fulfillment_approved
+        ):
             return False
         await hold_paid_order(
             order,

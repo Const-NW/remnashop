@@ -4194,18 +4194,30 @@ async def test_a_paid_renewal_of_a_since_changed_plan_is_held_then_issued_by_an_
     buyer = await _create_buyer(user_repository, 444)
     plan_a = await _create_plan(plan_repository, "held-renew-a")
     plan_b = await _create_plan(plan_repository, "held-renew-b")
-    # the subscription is on plan A; the order paid for renewing plan B
     original = await purchase_subscription_use_case(
         buyer, _paid_purchase(buyer, plan_a, "held-renew-new")
     )
+    # a renewal of plan A is paid for; meanwhile the subscription changes to plan B,
+    # which replaces its row on the same panel user
     await _paid_order(
         plan_repository.session,
         buyer,
-        plan_b,
+        plan_a,
         "held-renew",
         purchase_type=PurchaseType.RENEW,
         target_subscription_id=original.id,
     )
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan_b,
+            "held-renew-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+    assert changed.id != original.id
     transactions = TransactionRepository(user_repository.session)
     events = RecordingEventPublisher()
     fulfill = FulfillPurchaseUseCase(
@@ -4216,18 +4228,56 @@ async def test_a_paid_renewal_of_a_since_changed_plan_is_held_then_issued_by_an_
         UnitOfWork(user_repository.session),
     )
     renewal = _paid_purchase(
-        buyer, plan_b, "held-renew", PurchaseType.RENEW, target_subscription_id=original.id
+        buyer, plan_a, "held-renew", PurchaseType.RENEW, target_subscription_id=original.id
     )
 
-    # new plan days at the old plan's price: left to an admin
+    # plan B's days at plan A's price: left to an admin
     assert await fulfill.system(renewal) is None
     order = await transactions.find_by_idempotency_key("held-renew")
     assert order is not None and order.fulfillment_hold is FulfillmentHold.PLAN_CHANGED
     assert [type(event).__name__ for event in events.events] == ["PaidOrderNotFulfilledEvent"]
-    assert (await subscription_repository.get_by_id(original.id)).expire_at == original.expire_at
+    assert (await subscription_repository.get_by_id(changed.id)).expire_at == changed.expire_at
 
-    # the admin issues it: the days go on, the subscription keeps plan A
+    # the admin issues it: the subscription that replaced it gets the days and keeps plan B
     renewed = await fulfill.system(replace(renewal, renew_other_plan=True))
-    assert renewed is not None
-    assert abs(renewed.expire_at - add_term(original.expire_at, 30)) < timedelta(seconds=1)
-    assert renewed.plan_snapshot.plan_id == plan_a.id
+    assert renewed is not None and renewed.id == changed.id
+    assert abs(renewed.expire_at - add_term(changed.expire_at, 30)) < timedelta(seconds=1)
+    assert renewed.plan_snapshot.plan_id == plan_b.id
+
+
+async def test_a_renewal_of_a_row_replaced_on_the_same_plan_goes_to_its_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 445)
+    plan = await _create_plan(plan_repository, "successor-same")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "successor-new")
+    )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "successor-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "successor-renew",
+            PurchaseType.RENEW,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    # nothing to hold: the same plan's days go to the row that replaced it
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
