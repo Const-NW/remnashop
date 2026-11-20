@@ -4131,6 +4131,31 @@ async def test_fulfilling_a_refunded_order_ends_without_a_retry(
     assert await subscription_repository.get_active_by_user(buyer.id) == []
 
 
+async def test_fulfilling_an_order_another_attempt_holds_ends_without_a_retry(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 444)
+    plan = await _create_plan(plan_repository, "held-fulfill")
+    await _paid_order(plan_repository.session, buyer, plan, "held-fulfill")
+    # a worker died mid-purchase and its message came back before the claim went stale
+    await PurchaseIdempotencyRepository(user_repository.session).claim(
+        "held-fulfill", stale_after=timedelta(minutes=15)
+    )
+    fulfill = FulfillPurchaseUseCase(
+        user_repository,
+        purchase_subscription_use_case,
+        TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
+        UnitOfWork(user_repository.session),
+    )
+
+    assert await fulfill.system(_paid_purchase(buyer, plan, "held-fulfill")) is None
+    assert await subscription_repository.get_active_by_user(buyer.id) == []
+
+
 @pytest.mark.parametrize("reset_traffic", [True, False])
 async def test_a_paid_renewal_of_a_limited_subscription_resets_its_traffic(
     reset_traffic: bool,
