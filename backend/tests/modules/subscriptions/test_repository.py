@@ -966,9 +966,13 @@ async def test_pinning_a_renewal_needs_the_current_claim(
 
     with pytest.raises(SupersededError):
         async with uow:
-            await idempotency_repository.pin_renew_expire_at("pin-1", pinned, 30, None, old_token)
+            await idempotency_repository.pin_renew_expire_at(
+                "pin-1", pinned, 30, None, old_token, subscription_id=1
+            )
     async with uow:
-        await idempotency_repository.pin_renew_expire_at("pin-1", pinned, 30, None, new_token)
+        await idempotency_repository.pin_renew_expire_at(
+            "pin-1", pinned, 30, None, new_token, subscription_id=1
+        )
 
     assert await idempotency_repository.find_pending_renew_expire_at("pin-1") is not None
 

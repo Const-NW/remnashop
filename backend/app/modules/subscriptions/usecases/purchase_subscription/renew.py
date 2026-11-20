@@ -71,7 +71,7 @@ class RenewPurchase:
                 self._subscription_repository, data.target_subscription_id, data.user_id
             )
             if target.status is SubscriptionStatus.DELETED:
-                target = await self._successor(target)
+                target = await self._successor(target, data)
             # before the panel call: refusing after it would leave the panel
             # extended and a pinned key a caller can only retry, never undo
             if data.refuse_disabled_target and target.status is SubscriptionStatus.DISABLED:
@@ -165,14 +165,18 @@ class RenewPurchase:
             )
         return expire_at, added_days, anchor_day
 
-    async def _successor(self, target: SubscriptionDto) -> SubscriptionDto:
-        """What a renewal of a deleted subscription goes to: the row a plan change put in
-        its place, on the same panel user. The plan check below decides whether it may."""
+    async def _successor(
+        self, target: SubscriptionDto, data: PurchaseSubscriptionDto
+    ) -> SubscriptionDto:
+        """What a paid renewal of a deleted subscription goes to: the row a plan change
+        put in its place, on the same panel user. The plan check below decides whether
+        it may. An admin's keyless grant names its row and gets no stand-in."""
         successor = await self._subscription_repository.find_by_remnawave_user_id(
             target.remnawave_user_id
         )
         if (
-            successor is None
+            data.idempotency_key is None
+            or successor is None
             or successor.status is SubscriptionStatus.DELETED
             or successor.user_id != target.user_id
         ):
@@ -314,6 +318,11 @@ class RenewPurchase:
             pinned = await self._idempotency.find_pending_renew_expire_at(key)
             added_days = await self._idempotency.find_pending_renew_added_days(key)
             anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
+            pinned_for = await self._idempotency.find_pending_renew_subscription_id(key)
+        if pinned is not None and pinned_for is not None and pinned_for != target.id:
+            # worked out from the row a plan change replaced, whose expiry the change
+            # overwrote on the panel: counted again from the successor's
+            pinned = None
         anchor = _live_anchor(target)
         if pinned is None:
             base = await self._renewal_base(target)
@@ -329,7 +338,7 @@ class RenewPurchase:
             added_days = term_days(base, pinned, data.duration_days)
             async with self._uow:
                 await self._idempotency.pin_renew_expire_at(
-                    key, pinned, added_days, anchor_day, token
+                    key, pinned, added_days, anchor_day, token, subscription_id=target.id
                 )
             keep_key()
         else:

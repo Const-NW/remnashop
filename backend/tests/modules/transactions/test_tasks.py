@@ -335,7 +335,12 @@ async def test_reconcile_paid_transactions_skips_when_a_subscription_is_already_
         token = await idempotency_repository.claim("recon-linked", stale_after=STALE_CLAIM_AFTER)
         # a renewal pinned its days, then its fulfilled task was lost
         await idempotency_repository.pin_renew_expire_at(
-            "recon-linked", datetime_now() + timedelta(days=31), 31, None, token
+            "recon-linked",
+            datetime_now() + timedelta(days=31),
+            31,
+            None,
+            token,
+            subscription_id=subscription.id,
         )
         await idempotency_repository.link("recon-linked", subscription.id, token)
 

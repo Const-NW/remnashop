@@ -377,20 +377,26 @@ class TransactionRepository:
             .values(purchase_discount_returned=True, updated_at=NOW_FUNC)
         )
 
-    async def mark_purchase_discount_returned(self, transaction_id: int) -> None:
-        await self.session.execute(
+    async def set_fulfillment_hold(self, transaction_id: int, hold: FulfillmentHold) -> bool:
+        # conditional: an admin's approval or an issue that got in first stays
+        result = await self.session.execute(
             update(Transaction)
-            .where(Transaction.id == transaction_id)
-            .values(purchase_discount_returned=True, updated_at=NOW_FUNC)
-        )
-
-    async def set_fulfillment_hold(
-        self, transaction_id: int, hold: Optional[FulfillmentHold]
-    ) -> None:
-        await self.session.execute(
-            update(Transaction)
-            .where(Transaction.id == transaction_id)
+            .where(
+                Transaction.id == transaction_id,
+                Transaction.status == TransactionStatus.PAID,
+                Transaction.fulfilled_at.is_(None),
+                Transaction.fulfillment_approved.is_(False),
+            )
             .values(fulfillment_hold=hold, updated_at=NOW_FUNC)
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult, result).rowcount > 0
+
+    async def clear_fulfillment_hold(self, transaction_id: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(fulfillment_hold=None, updated_at=NOW_FUNC)
         )
 
     async def mark_fulfilled_by_key(self, idempotency_key: str, subscription_id: int) -> None:

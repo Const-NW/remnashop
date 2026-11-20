@@ -72,7 +72,13 @@ class FulfillTransactionUseCase(UseCase[FulfillTransactionDto, TransactionWithUs
                         update={"fulfillment_hold": None, "fulfillment_approved": True}
                     )
                 elif order.fulfillment_hold is not None:
-                    await self._transaction_repository.set_fulfillment_hold(order.id, None)
+                    await self._transaction_repository.clear_fulfillment_hold(order.id)
+                    if order.fulfillment_hold is FulfillmentHold.PURCHASE_DISCOUNT_SPENT:
+                        # back with the customer since (another order of theirs
+                        # expired): this one spends it; a no-op while it's gone
+                        await self._user_repository.spend_purchase_discount(
+                            order.user_id, order.discount_percent
+                        )
                     order = order.model_copy(update={"fulfillment_hold": None})
                 if unpaid:
                     changed = await self._transaction_repository.mark_status_if(

@@ -4281,3 +4281,88 @@ async def test_a_renewal_of_a_row_replaced_on_the_same_plan_goes_to_its_successo
     # nothing to hold: the same plan's days go to the row that replaced it
     assert renewed.id == replaced.id
     assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
+
+
+async def test_a_renewal_pinned_for_a_since_replaced_row_counts_again_from_its_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 446)
+    plan = await _create_plan(plan_repository, "stale-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "stale-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "stale-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    # a first attempt pinned its expiry from the old row, then failed before finishing
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("stale-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "stale-pin",
+            original.expire_at + timedelta(days=1),
+            1,
+            None,
+            token,
+            subscription_id=original.id,
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "stale-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    assert replaced.expire_at > original.expire_at + timedelta(days=1)
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "stale-pin", PurchaseType.RENEW, target_subscription_id=original.id
+        ),
+    )
+
+    # the old row's pin would have taken the successor back in time
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
+
+
+async def test_an_admin_grant_to_a_replaced_row_is_refused(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 447)
+    plan = await _create_plan(plan_repository, "grant-replaced")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "grant-replaced-new")
+    )
+    await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "grant-replaced-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await purchase_subscription_use_case(
+            buyer,
+            replace(
+                _paid_purchase(
+                    buyer, plan, "unused", PurchaseType.RENEW, target_subscription_id=original.id
+                ),
+                idempotency_key=None,
+            ),
+        )
+    assert error.value.code is ErrorCode.SUBSCRIPTION_DELETED

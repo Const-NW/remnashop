@@ -30,7 +30,7 @@ async def give_back_purchase_discount(
         order.discount_promocode_id,
         from_promocode=order.discount_from_promocode,
     ):
-        await transaction_repository.mark_purchase_discount_returned(order.id)
+        await transaction_repository.mark_discount_returned(order.idempotency_key)
 
 
 async def hold_paid_order(
@@ -39,9 +39,11 @@ async def hold_paid_order(
     *,
     transaction_repository: TransactionRepository,
     event_publisher: EventPublisher,
-) -> None:
-    """Leaves a paid order to an admin, who hears of it, as the customer does."""
-    await transaction_repository.set_fulfillment_hold(order.id, hold)
+) -> bool:
+    """Leaves a paid order to an admin, who hears of it, as the customer does; False
+    when it was issued or approved meanwhile."""
+    if not await transaction_repository.set_fulfillment_hold(order.id, hold):
+        return False
     await event_publisher.publish(
         PaidOrderNotFulfilledEvent(
             order_id=order.id,
@@ -53,6 +55,7 @@ async def hold_paid_order(
         )
     )
     logger.warning(f"Paid order '{order.id}' held for an admin: {hold.value}")
+    return True
 
 
 async def clear_late_payment(
@@ -100,10 +103,9 @@ class PaidOrderHolder:
             or order.fulfillment_approved
         ):
             return False
-        await hold_paid_order(
+        return await hold_paid_order(
             order,
             hold,
             transaction_repository=self._transaction_repository,
             event_publisher=self._event_publisher,
         )
-        return True

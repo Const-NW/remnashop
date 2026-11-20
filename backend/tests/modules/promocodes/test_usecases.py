@@ -930,10 +930,11 @@ async def test_activate_prior_customers_only_refuses_a_customer_since_the_code(
                 plan_snapshot=make_plan_snapshot(),
             )
         )
+    # imported from the panel after the code: as old as its panel user
     await subscription_repository.session.execute(
         update(Subscription)
         .where(Subscription.user_id == old_customer.id)
-        .values(created_at=promo.created_at - timedelta(days=1))
+        .values(panel_created_at=promo.created_at - timedelta(days=1))
     )
     use_case = _activate_use_case(
         promocode_repository,

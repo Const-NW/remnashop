@@ -254,7 +254,7 @@ async def test_a_late_payment_whose_discount_was_spent_again_is_held(
     async with uow:
         # canceled with its discount handed back, which the customer spent elsewhere since
         await transaction_repository.mark_status(order.id, TransactionStatus.CANCELED)
-        await transaction_repository.mark_purchase_discount_returned(order.id)
+        await transaction_repository.mark_discount_returned(order.idempotency_key)
     events, dispatch = RecordingEventPublisher(), RecordingDispatch()
 
     result = await _use_case(

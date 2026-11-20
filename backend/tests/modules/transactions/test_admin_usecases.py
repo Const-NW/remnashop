@@ -382,6 +382,63 @@ async def test_fulfill_transaction_releases_a_held_order(
     assert message["renew_other_plan"] is True
 
 
+async def test_fulfilling_an_order_held_for_a_spent_discount_spends_one_back_since(
+    transaction_repository: TransactionRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    admin_actor: UserDto,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    async with uow:
+        held = await transaction_repository.create(
+            replace(
+                _order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="fulfill-spent"),
+                discount_percent=20,
+                discount_source=DiscountSource.PURCHASE,
+            )
+        )
+        await transaction_repository.mark_status(held.id, TransactionStatus.PAID)
+        assert await transaction_repository.set_fulfillment_hold(
+            held.id, FulfillmentHold.PURCHASE_DISCOUNT_SPENT
+        )
+        # back with the customer since: another order of theirs expired
+        await user_repository.restore_purchase_discount(user_id, 20, None, from_promocode=False)
+
+    await FulfillTransactionUseCase(
+        transaction_repository,
+        idempotency_repository,
+        user_repository,
+        RecordingEventPublisher(),
+        uow,
+        RecordingDispatch(),
+    )(admin_actor, FulfillTransactionDto(transaction_id=held.id, client_ip="10.0.0.1"))
+
+    user = await user_repository.find_by_id(user_id)
+    assert user is not None and user.purchase_discount == 0
+
+
+async def test_a_hold_never_lands_on_an_approved_order(
+    transaction_repository: TransactionRepository,
+    uow: UnitOfWork,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    async with uow:
+        approved = await transaction_repository.create(
+            _order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="hold-approved")
+        )
+        await transaction_repository.mark_status(approved.id, TransactionStatus.PAID)
+        await transaction_repository.approve_fulfillment(approved.id)
+
+        # a sweep's task read the order before the admin's approval committed
+        assert not await transaction_repository.set_fulfillment_hold(
+            approved.id, FulfillmentHold.PLAN_CHANGED
+        )
+        assert (await transaction_repository.get_by_id(approved.id)).fulfillment_hold is None
+
+
 async def test_fulfill_response_hides_a_staff_owner_from_an_admin(
     transaction_repository: TransactionRepository,
     idempotency_repository: PurchaseIdempotencyRepository,

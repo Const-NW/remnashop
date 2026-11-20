@@ -34,7 +34,7 @@ def _has_subscription(*conditions: ColumnElement[bool]) -> ColumnElement[bool]:
 
 # its own alias: it's asked from inside a test of another subscription row,
 # and the plain table would correlate to that row instead of to the user
-_OtherSubscription: Final = aliased(Subscription)
+_OtherSubscription: Final[type[Subscription]] = aliased(Subscription)
 
 
 def _has_live() -> ColumnElement[bool]:

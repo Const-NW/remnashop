@@ -231,7 +231,7 @@
         "sub_other": "{{formatted}} orders waiting for delivery over 10 minutes",
         "what": "The payment was received, but the subscription has not been issued within 10 minutes.",
         "why": "The customer paid but has no access. This leads to support requests and refunds.",
-        "fix": "The shop retries delivery automatically. If the item persists, check the panel connection and the worker, then fulfill the order manually in transactions. An order paid after its cancel, whose one-shot discount was already used again, waits for you: fulfill it or refund it."
+        "fix": "The shop retries delivery automatically. If the item persists, check the panel connection and the worker, then fulfill the order manually in transactions. Two kinds of orders wait for you: one paid after its cancel whose one-shot discount was already used again, and a renewal of a subscription whose plan has changed since (fulfilling renews the new plan). Fulfill the order or refund it."
       },
       "stalePending": {
         "title": "Payments awaiting confirmation",

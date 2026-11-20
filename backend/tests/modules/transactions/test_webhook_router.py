@@ -663,7 +663,7 @@ async def test_late_payment_for_a_canceled_discounted_order(
         )
         await transaction_repository.mark_status(order.id, TransactionStatus.CANCELED)
         if returned:
-            await transaction_repository.mark_purchase_discount_returned(order.id)
+            await transaction_repository.mark_discount_returned(order.idempotency_key)
         if discount_back:
             # handed back on cancel, not spent since
             await user_repository.update_fields(user_id, UpdateUserDto(purchase_discount=20))

@@ -247,7 +247,10 @@ class SubscriptionRepository:
         if not include_trial:
             stmt = stmt.where(Subscription.is_trial.is_(False))
         if created_before is not None:
-            stmt = stmt.where(Subscription.created_at < created_before)
+            # an imported row is as old as its panel user, not the import
+            stmt = stmt.where(
+                func.least(Subscription.created_at, Subscription.panel_created_at) < created_before
+            )
         count = await self.session.scalar(stmt)
         return bool(count)
 
