@@ -12,6 +12,7 @@ from app.core.enums import (
     AddOnType,
     Currency,
     DiscountSource,
+    PanelSyncDirection,
     PaymentGatewayType,
     PlanType,
     PurchaseChannel,
@@ -42,6 +43,7 @@ from app.modules.subscriptions.dto import (
     SyncSubscriptionStatusDto,
 )
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.panel_sync import claim_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.tasks import (
     grant_addon_task,
@@ -572,3 +574,33 @@ async def test_a_delivered_purchase_uses_up_the_trial(
     assert subscription is not None and subscription.is_trial is is_trial
     reloaded = await user_repository.find_by_id(buyer.id)
     assert reloaded is not None and reloaded.is_trial_available is False
+
+
+_run_panel_sync = run_panel_sync_task.original_func.__dishka_orig_func__
+
+
+class _RecordingSync:
+    def __init__(self) -> None:
+        self.runs = 0
+
+    async def system(self, data: object) -> None:
+        self.runs += 1
+
+
+@pytest.mark.parametrize("claimed", [True, False])
+async def test_panel_sync_task_runs_only_while_its_start_is_marked(
+    redis: Redis, claimed: bool
+) -> None:
+    if claimed:
+        await claim_panel_sync(redis, PanelSyncDirection.TO_PANEL)
+    to_panel = _RecordingSync()
+
+    # unclaimed: the sync finished and its message came back to another worker
+    await _run_panel_sync(
+        direction=PanelSyncDirection.TO_PANEL.value,
+        from_panel=_RecordingSync(),
+        to_panel=to_panel,
+        redis=redis,
+    )
+
+    assert to_panel.runs == (1 if claimed else 0)

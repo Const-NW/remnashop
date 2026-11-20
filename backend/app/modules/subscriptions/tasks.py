@@ -3,6 +3,8 @@ from typing import Optional
 from uuid import UUID
 
 from dishka.integrations.taskiq import FromDishka, inject
+from loguru import logger
+from redis.asyncio import Redis
 
 from app.core.broker import broker
 from app.core.enums import Currency, PanelSyncDirection, PurchaseType
@@ -14,6 +16,7 @@ from app.modules.subscriptions.dto import (
     SyncFromPanelOptionsDto,
     SyncToPanelOptionsDto,
 )
+from app.modules.subscriptions.panel_sync import read_panel_sync_status
 from app.modules.subscriptions.usecases import (
     FulfillPurchaseUseCase,
     GrantAddOnUseCase,
@@ -89,6 +92,7 @@ async def run_panel_sync_task(
     direction: str,
     from_panel: FromDishka[SyncAllFromPanelUseCase],
     to_panel: FromDishka[SyncAllToPanelUseCase],
+    redis: FromDishka[Redis],
     # defaults for a message queued before the options existed
     adopt_unnamed: bool = True,
     respect_subscription_limit: bool = False,
@@ -97,6 +101,11 @@ async def run_panel_sync_task(
     delete_orphans: bool = True,
     squad_replacements: Optional[dict[str, Optional[str]]] = None,
 ) -> None:
+    # the start set the running mark and the finish clears it: a message redelivered
+    # after the finish must not run a second, unclaimed sync
+    if not (await read_panel_sync_status(redis, PanelSyncDirection(direction))).running:
+        logger.info(f"Panel sync '{direction}' already finished, skipping a redelivered run")
+        return
     if PanelSyncDirection(direction) is PanelSyncDirection.FROM_PANEL:
         await from_panel.system(
             SyncFromPanelOptionsDto(
