@@ -27,7 +27,11 @@ from app.modules.transactions.gateways.base import (
 )
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.repository import TransactionRepository
-from app.modules.transactions.unpaid_orders import UNPAID_FINAL, give_back_purchase_discount
+from app.modules.transactions.unpaid_orders import (
+    UNPAID_FINAL,
+    clear_late_payment,
+    give_back_purchase_discount,
+)
 from app.modules.users import UserRepository
 
 # Final for a paid claim: an order the TTL sweep or a provider CANCELED/FAILED
@@ -90,7 +94,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
             return gateway.webhook_ack(signal)
 
         order = await self._resolve_order(data.gateway_type, signal)
-        if order is None or self._refuse(order, data.gateway_type):
+        if order is None or self._refuse(order):
             return gateway.webhook_ack(signal)
 
         try:
@@ -120,7 +124,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 return
             # status moved while confirm() ran
             moved_order = await self._resolve_order(gateway_type, signal)
-            if moved_order is None or self._refuse(moved_order, gateway_type):
+            if moved_order is None or self._refuse(moved_order):
                 return
             order = moved_order
         logger.warning(f"Order '{order.id}' kept changing status while its payment was settled")
@@ -142,25 +146,20 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 return False
             if order.is_test:
                 logger.info(f"Test transaction '{order.id}' confirmed by {gateway_type.value}")
-            else:
+            elif await clear_late_payment(
+                order,
+                transaction_repository=self._transaction_repository,
+                user_repository=self._user_repository,
+                event_publisher=self._event_publisher,
+            ):
                 await self._uow.after_commit(
                     partial(dispatch_fulfillment, self._purchase_dispatch, order)
                 )
             return True
 
     @staticmethod
-    def _refuse(order: TransactionDto, gateway_type: PaymentGatewayType) -> bool:
-        if order.status in _TERMINAL_STATUSES:
-            return True
-        if order.discount_source is DiscountSource.PURCHASE and order.status in UNPAID_FINAL:
-            # its one-shot discount went back to the customer when it was
-            # canceled; fulfilling it now would let that discount be spent twice
-            logger.warning(
-                f"Late payment for canceled order '{order.id}' quoted with a purchase discount "
-                f"was not fulfilled ({gateway_type.value}) -- refund it manually"
-            )
-            return True
-        return False
+    def _refuse(order: TransactionDto) -> bool:
+        return order.status in _TERMINAL_STATUSES
 
     @staticmethod
     def _assert_trusted_source(
@@ -240,7 +239,9 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 order.id, status, current=allowed_from
             )
             if changed and restores_discount:
-                await give_back_purchase_discount(self._user_repository, order)
+                await give_back_purchase_discount(
+                    self._user_repository, self._transaction_repository, order
+                )
             if changed and from_pending:
                 await self._event_publisher.publish(
                     TransactionCanceledEvent(order_id=order.id, user_id=order.user_id)

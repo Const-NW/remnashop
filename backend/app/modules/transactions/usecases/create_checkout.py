@@ -180,7 +180,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             replaced = await self._transaction_repository.cancel_own_pending(order_id, user_id)
             if replaced is None:
                 return None
-            await give_back_purchase_discount(self._user_repository, replaced)
+            await give_back_purchase_discount(
+                self._user_repository, self._transaction_repository, replaced
+            )
         logger.info(f"Order '{order_id}' of user '{user_id}' canceled, replaced by a new checkout")
         return order_id
 
@@ -292,7 +294,9 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                     current=frozenset({TransactionStatus.PENDING}),
                 )
                 if failed:
-                    await give_back_purchase_discount(self._user_repository, order)
+                    await give_back_purchase_discount(
+                        self._user_repository, self._transaction_repository, order
+                    )
             # the provider's answer stays in the log: it can name the merchant
             # account or the request, which is not the customer's business
             logger.exception(

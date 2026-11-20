@@ -46,6 +46,13 @@ class GetAdvertisingSummaryUseCase(UseCase[GetAdvertisingSummaryDto, Advertising
             paid_by_user = await self._transaction_repository.sum_paid_anchor_amount_per_user(
                 created_before=data.created_to
             )
+            # a paid trial isn't a purchase; its money still counts as revenue
+            buyers = await self._transaction_repository.list_user_ids_with_paid_order(
+                [user_id for _, user_id, _ in attributions],
+                # the same cut as the revenue above
+                created_before=data.created_to,
+                trial=False,
+            )
             rate_table = await self._pricing_repository.get_rate_table()
 
         report_currency = rate_table.anchor
@@ -63,8 +70,11 @@ class GetAdvertisingSummaryUseCase(UseCase[GetAdvertisingSummaryDto, Advertising
         links: list[AdLinkMetricsDto] = []
         for link in ad_links:
             user_ids = users_by_link[link.id]
-            paid = [user_id for user_id in user_ids if user_id in revenue_by_user]
-            revenue = sum((revenue_by_user[user_id] for user_id in paid), start=ZERO_AMOUNT)
+            paid = [user_id for user_id in user_ids if user_id in buyers]
+            revenue = sum(
+                (revenue_by_user.get(user_id, ZERO_AMOUNT) for user_id in user_ids),
+                start=ZERO_AMOUNT,
+            )
             cost = convert_for_report(
                 link.cost, link.cost_currency, report_currency, rate_table
             ) + link.revenue_share(revenue)

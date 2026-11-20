@@ -485,7 +485,7 @@ async def get_subscription_panel_diff(
 @router.post(
     "/{subscription_id:int}/actions/pull-from-panel",
     response_model=SubscriptionResponse,
-    responses=error_responses(400, 404, 503),
+    responses=error_responses(400, 404, 409, 503),
 )
 @inject
 async def pull_subscription_from_panel(

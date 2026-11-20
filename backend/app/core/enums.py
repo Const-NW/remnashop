@@ -111,6 +111,15 @@ class DiscountSource(UpperStrEnum):
     LOYALTY = auto()
 
 
+class FulfillmentHold(UpperStrEnum):
+    """Why a paid order waits for an admin to issue or refund it."""
+
+    # paid after its cancel, its one-shot discount already spent again
+    PURCHASE_DISCOUNT_SPENT = auto()
+    # a renewal whose subscription moved to another plan while it was paid
+    PLAN_CHANGED = auto()
+
+
 class SubscriptionStatus(UpperStrEnum):
     ACTIVE = auto()
     LIMITED = auto()

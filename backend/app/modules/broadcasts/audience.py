@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Final, Optional
 
-from sqlalchemy import ColumnElement, and_, exists, or_, select
+from sqlalchemy import ColumnElement, and_, exists, false, or_, select
+from sqlalchemy.orm import aliased
 
 from app.core.db.filters import in_ids
 from app.core.db.models.ad_link_attribution import AdLinkAttribution
@@ -31,20 +32,30 @@ def _has_subscription(*conditions: ColumnElement[bool]) -> ColumnElement[bool]:
     return exists(select(Subscription.id).where(Subscription.user_id == User.id, *conditions))
 
 
-def _live(*conditions: ColumnElement[bool]) -> ColumnElement[bool]:
-    return _has_subscription(Subscription.status.in_(_LIVE), *conditions)
+# its own alias: it's asked from inside a test of another subscription row,
+# and the plain table would correlate to that row instead of to the user
+_OtherSubscription: Final[type[Subscription]] = aliased(Subscription)
 
 
-def _subscription_bucket(bucket: BroadcastSubscriptionFilter) -> ColumnElement[bool]:
+def _has_live() -> ColumnElement[bool]:
+    return exists(
+        select(_OtherSubscription.id)
+        .where(_OtherSubscription.user_id == User.id, _OtherSubscription.status.in_(_LIVE))
+        .correlate(User)
+    )
+
+
+def _bucket_row(bucket: BroadcastSubscriptionFilter) -> Optional[ColumnElement[bool]]:
+    """The bucket as a test of one subscription; None for NONE, which has none."""
     if bucket is BroadcastSubscriptionFilter.ACTIVE:
-        return _live(Subscription.is_trial.is_(False))
+        return and_(Subscription.status.in_(_LIVE), Subscription.is_trial.is_(False))
     if bucket is BroadcastSubscriptionFilter.TRIAL:
-        return _live(Subscription.is_trial.is_(True))
+        return and_(Subscription.status.in_(_LIVE), Subscription.is_trial.is_(True))
     if bucket is BroadcastSubscriptionFilter.EXPIRED:
-        return and_(_has_subscription(Subscription.status == SubscriptionStatus.EXPIRED), ~_live())
+        return and_(Subscription.status == SubscriptionStatus.EXPIRED, ~_has_live())
     if bucket is BroadcastSubscriptionFilter.LIMITED:
-        return _has_subscription(Subscription.status == SubscriptionStatus.LIMITED)
-    return ~_has_subscription(Subscription.status != SubscriptionStatus.DELETED)
+        return Subscription.status == SubscriptionStatus.LIMITED
+    return None
 
 
 _PAID: Final[ColumnElement[bool]] = exists(
@@ -66,37 +77,54 @@ def _flag(condition: ColumnElement[bool], wanted: bool) -> ColumnElement[bool]:
 def _subscription_conditions(
     audience: BroadcastAudienceDto, now: datetime
 ) -> list[ColumnElement[bool]]:
-    conditions: list[ColumnElement[bool]] = []
-    if audience.subscription:
-        conditions.append(or_(*(_subscription_bucket(b) for b in audience.subscription)))
+    # every filter tests the same subscription: an expiring trial next to a paid
+    # subscription good for months doesn't make its owner "paid, expiring"
+    row_filters: list[ColumnElement[bool]] = []
     if audience.plan_ids:
-        conditions.append(
-            _live(Subscription.plan_snapshot["plan_id"].as_integer().in_(audience.plan_ids))
+        row_filters.append(
+            and_(
+                Subscription.status.in_(_LIVE),
+                Subscription.plan_snapshot["plan_id"].as_integer().in_(audience.plan_ids),
+            )
         )
     if audience.expires_within_days is not None:
-        conditions.append(
-            _live(
+        row_filters.append(
+            and_(
+                Subscription.status.in_(_LIVE),
                 Subscription.expire_at >= now,
                 Subscription.expire_at < now + timedelta(days=audience.expires_within_days),
             )
         )
     if audience.expired_within_days is not None:
-        conditions.append(
-            _has_subscription(
+        row_filters.append(
+            and_(
                 Subscription.status == SubscriptionStatus.EXPIRED,
                 Subscription.expire_at >= now - timedelta(days=audience.expired_within_days),
                 Subscription.expire_at < now,
+                ~_has_live(),
             )
         )
-        conditions.append(~_live())
     if audience.not_connected_within_days is not None:
-        conditions.append(
-            _live(
+        row_filters.append(
+            and_(
+                Subscription.status.in_(_LIVE),
                 Subscription.first_connected_at.is_(None),
                 Subscription.created_at >= now - timedelta(days=audience.not_connected_within_days),
             )
         )
-    return conditions
+    buckets = audience.subscription or []
+    bucket_rows = [row for row in map(_bucket_row, buckets) if row is not None]
+    parts: list[ColumnElement[bool]] = []
+    if bucket_rows or (row_filters and not buckets):
+        if bucket_rows:
+            row_filters.insert(0, or_(*bucket_rows))
+        parts.append(_has_subscription(and_(*row_filters)))
+    if BroadcastSubscriptionFilter.NONE in buckets and not row_filters:
+        parts.append(~_has_subscription(Subscription.status != SubscriptionStatus.DELETED))
+    if not parts:
+        # only NONE with a subscription filter: no one has both
+        return [false()] if buckets or row_filters else []
+    return [or_(*parts)]
 
 
 def _profile_conditions(audience: BroadcastAudienceDto) -> list[ColumnElement[bool]]:

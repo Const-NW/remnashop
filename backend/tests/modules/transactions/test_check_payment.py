@@ -9,6 +9,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
@@ -72,6 +73,7 @@ async def _order(
     user_id: int,
     plan_id: int,
     gateway_type: Optional[PaymentGatewayType] = PaymentGatewayType.YOOKASSA,
+    discount_source: DiscountSource = DiscountSource.NONE,
 ) -> TransactionDto:
     async with uow:
         return await repository.create(
@@ -86,8 +88,8 @@ async def _order(
                 target_subscription_id=None,
                 gateway_type=gateway_type,
                 base_price=Decimal("500"),
-                discount_percent=0,
-                discount_source=DiscountSource.NONE,
+                discount_percent=20 if discount_source is DiscountSource.PURCHASE else 0,
+                discount_source=discount_source,
                 final_price=Decimal("500"),
                 anchor_base_price=Decimal("500"),
                 anchor_final_price=Decimal("500"),
@@ -231,3 +233,34 @@ async def test_an_order_without_a_gateway_is_refused(
             admin_actor, CheckTransactionPaymentDto(transaction_id=order.id, client_ip="10.0.0.1")
         )
     assert error.value.code is ErrorCode.PAYMENT_ORDER_NOT_CHECKABLE
+
+
+async def test_a_late_payment_whose_discount_was_spent_again_is_held(
+    session: AsyncSession,
+    transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    admin_actor: UserDto,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    order = await _order(
+        transaction_repository,
+        uow,
+        user_id=user_id,
+        plan_id=plan_id,
+        discount_source=DiscountSource.PURCHASE,
+    )
+    async with uow:
+        # canceled with its discount handed back, which the customer spent elsewhere since
+        await transaction_repository.mark_status(order.id, TransactionStatus.CANCELED)
+        await transaction_repository.mark_discount_returned(order.idempotency_key)
+    events, dispatch = RecordingEventPublisher(), RecordingDispatch()
+
+    result = await _use_case(
+        _StubGateway(_PAID), session, transaction_repository, user_repository, uow, events, dispatch
+    )(admin_actor, CheckTransactionPaymentDto(transaction_id=order.id, client_ip="10.0.0.1"))
+
+    assert result.paid
+    assert result.transaction.order.fulfillment_hold is FulfillmentHold.PURCHASE_DISCOUNT_SPENT
+    assert dispatch.messages == []

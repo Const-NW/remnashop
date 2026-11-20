@@ -5,7 +5,7 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
-from app.core.enums import DiscountSource, TransactionStatus
+from app.core.enums import TransactionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, PaymentGatewayError
 from app.core.ports import EventPublisher
@@ -18,7 +18,7 @@ from app.modules.transactions.events import TransactionPaymentConfirmedEvent
 from app.modules.transactions.fulfillment import dispatch_fulfillment
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.repository import TransactionRepository
-from app.modules.transactions.unpaid_orders import UNPAID_FINAL
+from app.modules.transactions.unpaid_orders import UNPAID_FINAL, clear_late_payment
 from app.modules.transactions.visibility import visible_transaction
 from app.modules.users import UserRepository
 
@@ -91,14 +91,13 @@ class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, Payment
                         current=frozenset({current.status}),
                         external_payment_id=payment.provider_payment_id,
                     )
-                    if (
-                        current.status in UNPAID_FINAL
-                        and current.discount_source is DiscountSource.PURCHASE
-                    ):
-                        # handed back on cancel; a no-op once spent elsewhere
-                        await self._user_repository.spend_purchase_discount(
-                            current.user_id, current.discount_percent
-                        )
+                    # a test order is never issued, nor held
+                    issuable = not current.is_test and await clear_late_payment(
+                        current,
+                        transaction_repository=self._transaction_repository,
+                        user_repository=self._user_repository,
+                        event_publisher=self._event_publisher,
+                    )
                     await self._event_publisher.publish(
                         TransactionPaymentConfirmedEvent(
                             actor=actor,
@@ -109,7 +108,7 @@ class CheckTransactionPaymentUseCase(UseCase[CheckTransactionPaymentDto, Payment
                             ip_address=data.client_ip,
                         )
                     )
-                    if not current.is_test:
+                    if issuable:
                         await self._uow.after_commit(
                             partial(dispatch_fulfillment, self._purchase_dispatch, current)
                         )

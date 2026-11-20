@@ -231,7 +231,7 @@
         "sub_other": "{{formatted}} orders waiting for delivery over 10 minutes",
         "what": "The payment was received, but the subscription has not been issued within 10 minutes.",
         "why": "The customer paid but has no access. This leads to support requests and refunds.",
-        "fix": "The shop retries delivery automatically. If the item persists, check the panel connection and the worker, then fulfill the order manually in transactions."
+        "fix": "The shop retries delivery automatically. If the item persists, check the panel connection and the worker, then fulfill the order manually in transactions. Two kinds of orders wait for you: one paid after its cancel whose one-shot discount was already used again, and a renewal of a subscription whose plan has changed since (fulfilling renews the new plan). Fulfill the order or refund it."
       },
       "stalePending": {
         "title": "Payments awaiting confirmation",
@@ -273,6 +273,14 @@
         "why": "The bot does not receive messages or button presses, and customers cannot use it.",
         "fix": "Check the webhook URL in the bot settings and that the server is reachable from the internet over HTTPS. Restarting the bot usually helps."
       },
+      "panelUsersMissing": {
+        "title": "Subscriptions without a panel user",
+        "sub_one": "{{formatted}} subscription was missing in the panel at the last sync",
+        "sub_other": "{{formatted}} subscriptions were missing in the panel at the last sync",
+        "what": "The last sync from the panel found subscriptions whose user no longer exists in Remnawave.",
+        "why": "These customers have no access. A panel restored from an old backup loses users the shop still sells to; the sync no longer deletes such subscriptions on its own.",
+        "fix": "Run the sync to the panel with “Recreate missing panel users” to give them access back, or delete the subscriptions that really ended. The item clears after the next sync from the panel."
+      },
       "planSquadsMissing": {
         "title": "Plan “{{name}}” is off sale",
         "subOne": "A squad of the plan is missing in Remnawave",
@@ -304,7 +312,8 @@
         "email": "Go to email settings",
         "apiTokens": "Go to API tokens",
         "plans": "Go to plans",
-        "pricing": "Go to pricing"
+        "pricing": "Go to pricing",
+        "subscriptions": "Go to subscriptions"
       }
     },
     "revenue": {
@@ -2823,6 +2832,7 @@
     "stats": {
       "attributions": "Sign-ups",
       "paidCount": "Purchases",
+      "trialCount": "paid trials",
       "conversionRate": "Conversion",
       "revenue": "Revenue",
       "cost": "Cost",
@@ -3377,6 +3387,8 @@
     "limits": {
       "availabilityLabel": "Who can use it",
       "allowedUserIdsLabel": "Allowed user IDs",
+      "priorCustomersOnlyLabel": "Only customers from before the code",
+      "priorCustomersOnlyHint": "Not available to anyone whose first purchase came after the code was created, e.g. with the same campaign’s code for new users",
       "allowedUserIdsPlaceholder": "ID, Enter to add",
       "plansLabel": "Which plans it applies to",
       "plansAll": "All",
@@ -3676,6 +3688,11 @@
       "purchaseType": "Purchase type",
       "targetSubscription": "Subscription",
       "notIssued": "Not issued yet",
+      "holdLabel": "Awaiting your decision",
+      "hold": {
+        "PURCHASE_DISCOUNT_SPENT": "Paid after its cancel, its one-shot discount already used. Fulfill the order or refund it",
+        "PLAN_CHANGED": "The subscription moved to another plan while it was paid. Fulfilling renews it on its current plan; otherwise refund it"
+      },
       "externalPaymentId": "External payment ID",
       "discount": "{{percent}}% off · {{source}}",
       "changeCredit": "credit {{amount}}",
@@ -3855,7 +3872,7 @@
         "held_other": "{{formatted}} subscriptions",
         "replace": "Squad {{squad}} is not in the panel. Choose a replacement:"
       },
-      "missing": "The panel has no user for this subscription. Taking from the panel marks it deleted, sending to the panel creates a new one.",
+      "missing": "The panel has no user for this subscription. Send it to the panel to create a new one, or delete the subscription.",
       "columns": {
         "shop": "Remnashop",
         "panel": "Remnawave"
@@ -3911,7 +3928,7 @@
           }
         },
         "started": "Sync started.",
-        "finished": "Sync finished: {{updated}} updated, {{imported}} imported, {{over_limit}} skipped over the limit, {{missing}} deleted, {{failed}} failed.",
+        "finished": "Sync finished: {{updated}} updated, {{imported}} imported, {{over_limit}} skipped over the limit, {{missing}} missing in the panel, {{failed}} failed.",
         "finishedToPanel": "Sync finished: {{updated}} updated, {{recreated}} recreated in the panel, {{deleted}} deleted from the panel, {{failed}} failed.",
         "error": "Failed to start the sync."
       }
@@ -4599,6 +4616,7 @@
     "SUBSCRIPTION_EXPIRE_AT_IN_PAST": "The expiry date must be in the future.",
     "TRIAL_NOT_RENEWABLE": "A trial can’t be renewed or changed. Buy a subscription instead.",
     "SUBSCRIPTION_LIMIT_REACHED": "The subscription limit is reached.",
+    "SUBSCRIPTION_MISSING_IN_PANEL": "The panel has no user for this subscription: send it to the panel or delete it.",
     "SUBSCRIPTION_NOT_FOUND": "Subscription not found.",
     "SUBSCRIPTION_ROLLBACK_BLOCKED": "The subscription changed after this purchase and can’t be rolled back.",
     "SUBSCRIPTION_STATUS_TRANSITION_INVALID": "This subscription status change isn’t allowed.",
@@ -4847,6 +4865,7 @@
         },
         "plans": "Plans",
         "expires": "Expires within",
+        "expiresTrialHint": "Trial subscriptions are included too. For paid ones only, pick the “Active” subscription.",
         "expired": "Expired within",
         "paid": "Has paid",
         "language": "Language",

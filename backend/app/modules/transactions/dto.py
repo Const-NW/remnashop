@@ -8,6 +8,7 @@ from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     Locale,
     PaymentGatewayType,
     PurchaseChannel,
@@ -90,6 +91,9 @@ class TransactionDto(BaseDto, TimestampMixin):
     added_days: Optional[int] = None
     paid_at: Optional[datetime] = None
     is_test: bool = False
+    fulfillment_hold: Optional[FulfillmentHold] = None
+    fulfillment_approved: bool = False
+    purchase_discount_returned: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

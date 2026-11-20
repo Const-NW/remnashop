@@ -20,7 +20,9 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     BackupKind,
     BroadcastStatus,
+    FulfillmentHold,
     Locale,
+    PanelSyncDirection,
     PlanType,
     Role,
     SubscriptionStatus,
@@ -50,6 +52,8 @@ from app.modules.plans.dto import (
 from app.modules.plans.repository import PlanRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import BotStatusDto, UpdateBotSettingsDto
+from app.modules.subscriptions.dto import PanelSyncResultDto
+from app.modules.subscriptions.panel_sync import finish_panel_sync
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
 from app.modules.transactions.repository import TransactionRepository
@@ -605,3 +609,60 @@ async def test_active_plan_with_a_squad_gone_from_the_panel(
 
     assert [(i.subject, i.count, i.severity) for i in items] == [("broken", 1, "critical")]
     assert "plan_squads_missing" not in unchecked
+
+
+async def test_subscriptions_missing_in_the_panel_follow_the_last_sync(
+    session: AsyncSession,
+    settings_repository: SettingsRepository,
+    uow: UnitOfWork,
+    redis_alive: Redis,
+) -> None:
+    def _result(missing: int) -> PanelSyncResultDto:
+        return PanelSyncResultDto(
+            direction=PanelSyncDirection.FROM_PANEL,
+            checked=10,
+            updated=0,
+            failed=0,
+            missing=missing,
+            imported=0,
+            over_limit=0,
+            finished_at=datetime_now(),
+        )
+
+    await finish_panel_sync(redis_alive, PanelSyncDirection.FROM_PANEL, _result(2))
+    (item,) = (await _kinds(session, settings_repository, uow, redis_alive))["panel_users_missing"]
+    assert item.count == 2
+
+    await finish_panel_sync(redis_alive, PanelSyncDirection.FROM_PANEL, _result(0))
+    assert "panel_users_missing" not in await _kinds(session, settings_repository, uow, redis_alive)
+
+
+async def test_a_held_order_stays_listed_however_long_ago_it_was_paid(
+    session: AsyncSession,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    redis_alive: Redis,
+    plan_id: int,
+) -> None:
+    repo = TransactionRepository(session)
+    user = await user_repository.create(CreateUserDto(name="Held", telegram_id=840_901))
+    async with uow:
+        held = await repo.create(
+            _paid_order_dto(user_id=user.id, plan_id=plan_id, idempotency_key="att-held")
+        )
+        old = await repo.create(
+            _paid_order_dto(user_id=user.id, plan_id=plan_id, idempotency_key="att-old")
+        )
+    for order in (held, old):
+        await repo.mark_status(order.id, TransactionStatus.PAID)
+    await repo.set_fulfillment_hold(held.id, FulfillmentHold.PLAN_CHANGED)
+    await session.execute(
+        update(Transaction)
+        .where(Transaction.id.in_([held.id, old.id]))
+        .values(paid_at=datetime_now() - timedelta(days=30))
+    )
+
+    (item,) = (await _kinds(session, settings_repository, uow, redis_alive))["paid_not_fulfilled"]
+    # the held one waits for an admin; the old unheld one left the sweep's window
+    assert item.count == 1

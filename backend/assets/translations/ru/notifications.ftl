@@ -43,7 +43,7 @@ ntf-transaction-partially-refunded = Заказ #{ $order_id }: частичны
     .emoji = ⚠️
 ntf-transaction-fulfilled-manually = { $actor } вручную выдал заказ #{ $order_id } пользователю { $target }
     .title = Ручная выдача подписки!
-ntf-paid-order-not-fulfilled = Заказ #{ $order_id }: { $amount } { $currency } через { $gateway_type } оплачен, но подписка ещё не выдана. Попытки продолжаются, проверьте заказ.
+ntf-paid-order-not-fulfilled = Заказ #{ $order_id }: { $amount } { $currency } через { $gateway_type } оплачен, но подписка ещё не выдана. Проверьте заказ.
     .title = Ошибка обработки платежа!
     .emoji = ⚠️
 ntf-broadcast-completed = Рассылка #{ $broadcast_id } завершена: доставлено { $sent }, ошибок { $failed }, заблокировали бота { $blocked }.
@@ -132,7 +132,7 @@ ntf-customer-transaction-refunded = { $money } вернутся тем же сп
 ntf-customer-transaction-partially-refunded = Часть платежа, { $money }, вернётся тем же способом, которым вы платили.
     .title = Частичный возврат
     .emoji = 💸
-ntf-customer-paid-order-not-fulfilled = Оплата { $money } получена, но подписка выдаётся дольше обычного. Не волнуйтесь: мы уже разбираемся. Если она скоро не появится, напишите в поддержку.
+ntf-customer-paid-order-not-fulfilled = Оплата { $money } получена, но подписка выдаётся дольше обычного. Мы уже разбираемся: выдадим подписку или вернём деньги. Если вопрос не решится в ближайшее время, напишите в поддержку.
     .title = Выдача задерживается
     .emoji = ⏳
 ntf-customer-subscription-expiring = { $is_trial ->
@@ -337,6 +337,7 @@ ntf-customer-promocode-discount-expiring = { $percent }% по промокоду
             [few] { $span } дня
            *[other] { $span } дней
         }
+        [minute] { $span } мин
        *[hour] { $span } ч
     }. Успейте оформить покупку.
     .title = Скидка скоро сгорит

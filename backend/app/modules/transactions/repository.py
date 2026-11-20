@@ -9,6 +9,7 @@ from sqlalchemy import (
     Numeric,
     and_,
     exists,
+    false,
     func,
     literal,
     or_,
@@ -27,6 +28,7 @@ from app.core.db.timestamp import NOW_FUNC
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
@@ -112,6 +114,10 @@ def _order_filters(
 
 # typed for its PAID rows, which always have it (ck_transactions_paid_has_paid_at)
 PAID_AT: Final[ColumnElement[datetime]] = type_coerce(Transaction.paid_at, DateTime(timezone=True))
+# an order without the key predates trials being sold
+_IS_TRIAL_ORDER: Final[ColumnElement[bool]] = func.coalesce(
+    Transaction.plan_snapshot["is_trial"].as_boolean(), false()
+)
 
 
 class TransactionRepository:
@@ -155,6 +161,9 @@ class TransactionRepository:
             added_days=row.added_days,
             paid_at=row.paid_at,
             is_test=row.is_test,
+            fulfillment_hold=row.fulfillment_hold,
+            fulfillment_approved=row.fulfillment_approved,
+            purchase_discount_returned=row.purchase_discount_returned,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -336,20 +345,59 @@ class TransactionRepository:
         return [self._to_dto(row) for row in rows.all()]
 
     async def list_paid_awaiting_reconciliation(
-        self, cutoff: datetime, *, since: datetime
+        self, cutoff: datetime, *, since: datetime, include_held: bool = False
     ) -> list[TransactionDto]:
-        rows = (
-            await self.session.scalars(
-                select(Transaction).where(
-                    Transaction.status == TransactionStatus.PAID,
-                    _NOT_TEST,
-                    Transaction.fulfilled_at.is_(None),
-                    Transaction.paid_at <= cutoff,
-                    Transaction.paid_at >= since,
-                )
+        conditions = [
+            Transaction.status == TransactionStatus.PAID,
+            _NOT_TEST,
+            Transaction.fulfilled_at.is_(None),
+            Transaction.paid_at <= cutoff,
+        ]
+        if include_held:
+            # a held order waits for an admin however long ago it was paid
+            conditions.append(
+                or_(Transaction.paid_at >= since, Transaction.fulfillment_hold.is_not(None))
             )
-        ).all()
+        else:
+            conditions += [Transaction.paid_at >= since, Transaction.fulfillment_hold.is_(None)]
+        rows = (await self.session.scalars(select(Transaction).where(*conditions))).all()
         return [self._to_dto(row) for row in rows]
+
+    async def approve_fulfillment(self, transaction_id: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(fulfillment_hold=None, fulfillment_approved=True, updated_at=NOW_FUNC)
+        )
+
+    async def mark_discount_returned(self, idempotency_key: str) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.idempotency_key == idempotency_key)
+            .values(purchase_discount_returned=True, updated_at=NOW_FUNC)
+        )
+
+    async def set_fulfillment_hold(self, transaction_id: int, hold: FulfillmentHold) -> bool:
+        # conditional: an admin's approval or an issue that got in first stays
+        result = await self.session.execute(
+            update(Transaction)
+            .where(
+                Transaction.id == transaction_id,
+                Transaction.status == TransactionStatus.PAID,
+                Transaction.fulfilled_at.is_(None),
+                Transaction.fulfillment_approved.is_(False),
+            )
+            .values(fulfillment_hold=hold, updated_at=NOW_FUNC)
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult, result).rowcount > 0
+
+    async def clear_fulfillment_hold(self, transaction_id: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(fulfillment_hold=None, updated_at=NOW_FUNC)
+        )
 
     async def mark_fulfilled_by_key(self, idempotency_key: str, subscription_id: int) -> None:
         await self._mark_fulfilled_where(
@@ -375,6 +423,8 @@ class TransactionRepository:
             .values(
                 fulfilled_at=NOW_FUNC,
                 fulfilled_subscription_id=subscription_id,
+                # issued, by whatever path: nothing waits for an admin any more
+                fulfillment_hold=None,
             )
         )
 
@@ -399,7 +449,7 @@ class TransactionRepository:
             Transaction.purchase_type == PurchaseType.NEW,
         ]
         if trial_only:
-            conditions.append(Transaction.plan_snapshot["is_trial"].as_boolean().is_(True))
+            conditions.append(_IS_TRIAL_ORDER.is_(True))
         if exclude_key is not None:
             conditions.append(Transaction.idempotency_key != exclude_key)
         count = await self.session.scalar(
@@ -639,8 +689,14 @@ class TransactionRepository:
         return count, amount or ZERO_AMOUNT
 
     async def list_user_ids_with_paid_order(
-        self, user_ids: list[int], *, paid_before: Optional[datetime] = None
+        self,
+        user_ids: list[int],
+        *,
+        paid_before: Optional[datetime] = None,
+        created_before: Optional[datetime] = None,
+        trial: Optional[bool] = None,
     ) -> set[int]:
+        """`trial` narrows to paid trials (True) or to everything else (False)."""
         if not user_ids:
             return set()
         paid: set[int] = set()
@@ -649,6 +705,10 @@ class TransactionRepository:
             Transaction.status == TransactionStatus.PAID,
             _NOT_TEST,
         )
+        if trial is not None:
+            stmt = stmt.where(_IS_TRIAL_ORDER.is_(trial))
+        if created_before is not None:
+            stmt = stmt.where(Transaction.created_at < created_before)
         if paid_before is not None:
             stmt = stmt.where(Transaction.paid_at < paid_before)
         result = await self.session.execute(stmt)

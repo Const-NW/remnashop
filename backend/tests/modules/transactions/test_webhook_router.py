@@ -15,6 +15,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PromocodeRewardType,
     PurchaseChannel,
@@ -28,6 +29,7 @@ from app.modules.subscriptions import PurchaseSubscriptionDispatch
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.gateways.base import ProviderPayment, WebhookAck, WebhookSignal
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY
+from app.modules.users.dto import UpdateUserDto
 from tests.fakes.container import make_test_container
 from tests.fakes.dispatch import RecordingDispatch
 from tests.modules.subscriptions.factories import make_plan_snapshot
@@ -638,22 +640,48 @@ async def test_provider_cancel_gives_back_the_purchase_discount_once(
     assert (await user_repository.find_by_id(user_id)).purchase_discount == 0
 
 
-async def test_late_payment_for_a_canceled_discounted_order_is_not_fulfilled(
-    client, transaction_repository, uow, user_id, plan_id, monkeypatch
+@pytest.mark.parametrize(
+    ("returned", "discount_back"), [(True, True), (True, False), (False, False)]
+)
+async def test_late_payment_for_a_canceled_discounted_order(
+    client,
+    transaction_repository,
+    user_repository,
+    uow,
+    session,
+    user_id,
+    plan_id,
+    monkeypatch,
+    purchase_dispatch,
+    returned,
+    discount_back,
 ) -> None:
+    key = f"wh-disc-2-{returned}-{discount_back}"
     async with uow:
         order = await transaction_repository.create(
-            _discounted_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="wh-disc-2")
+            _discounted_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key=key)
         )
         await transaction_repository.mark_status(order.id, TransactionStatus.CANCELED)
-    stub = _StubGateway(signal=_paid_signal("wh-disc-2"))
-    _install_stub(monkeypatch, stub)
+        if returned:
+            await transaction_repository.mark_discount_returned(order.idempotency_key)
+        if discount_back:
+            # handed back on cancel, not spent since
+            await user_repository.update_fields(user_id, UpdateUserDto(purchase_discount=20))
+    _install_stub(monkeypatch, _StubGateway(signal=_paid_signal(key)))
 
     response = await client.post("/api/v1/payments/yookassa", content=b"{}")
 
     assert response.status_code == 200
-    assert stub.confirm_calls == 0
-    assert (await transaction_repository.get_by_id(order.id)).status is (TransactionStatus.CANCELED)
+    paid = await transaction_repository.get_by_id(order.id)
+    assert paid.status is TransactionStatus.PAID
+    assert (await user_repository.find_by_id(user_id)).purchase_discount == 0
+    # returned and still there: spent again, issued; returned but spent elsewhere: held,
+    # and an admin hears of it; never returned: nothing to spend twice, issued
+    held = returned and not discount_back
+    assert len(purchase_dispatch.messages) == (0 if held else 1)
+    assert paid.fulfillment_hold is (FulfillmentHold.PURCHASE_DISCOUNT_SPENT if held else None)
+    reported = await _events(session, "PaidOrderNotFulfilledEvent")
+    assert len(reported) == (1 if held else 0)
 
 
 async def _discount_promocode(session) -> int:

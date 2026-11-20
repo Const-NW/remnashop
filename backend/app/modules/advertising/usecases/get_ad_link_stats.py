@@ -41,8 +41,12 @@ class GetAdLinkStatsUseCase(UseCase[GetAdLinkStatsDto, AdLinkStatsDto]):
                 data.ad_link_id, created_from=data.created_from, created_to=data.created_to
             )
 
+            # a paid trial isn't a purchase: it has its own count, its money stays in revenue
             paid_user_ids = await self._transaction_repository.list_user_ids_with_paid_order(
-                user_ids
+                user_ids, trial=False
+            )
+            trial_user_ids = await self._transaction_repository.list_user_ids_with_paid_order(
+                user_ids, trial=True
             )
             revenue_anchor = await self._transaction_repository.sum_paid_anchor_amount_by_user_ids(
                 user_ids
@@ -76,6 +80,7 @@ class GetAdLinkStatsUseCase(UseCase[GetAdLinkStatsDto, AdLinkStatsDto]):
                 attributions_count=attributions_count,
                 attributions_by_channel=attributions_by_channel,
                 paid_count=len(paid_user_ids),
+                trial_count=len(trial_user_ids),
                 conversion_rate=conversion_rate,
                 revenue=revenue,
                 cost=cost,

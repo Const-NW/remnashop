@@ -23,6 +23,7 @@ export type PromocodeReward = Pick<
 export interface PromocodeLimitsDraft {
   availability: PromocodeAvailability;
   allowedUserIds: number[];
+  priorCustomersOnly: boolean;
   allowedPlanIds: number[];
   expiresAt: string;
   maxActivations: string;
@@ -96,6 +97,7 @@ export function limitsDraftOf(promo: Promocode): PromocodeLimitsDraft {
   return {
     availability: promo.availability,
     allowedUserIds: promo.allowed_user_ids,
+    priorCustomersOnly: promo.prior_customers_only,
     allowedPlanIds: promo.allowed_plan_ids,
     expiresAt: isoToLastDay(promo.expires_at),
     maxActivations: promo.max_activations !== null ? String(promo.max_activations) : "",
@@ -117,6 +119,7 @@ export function limitsToPayload(
     availability: draft.availability,
     // the hidden allowlist is dropped with it, not left dangling on the row
     allowed_user_ids: draft.availability === "ALLOWED" ? draft.allowedUserIds : [],
+    prior_customers_only: draft.availability === "EXISTING" && draft.priorCustomersOnly,
     allowed_plan_ids: PLAN_LIMITED_REWARDS.includes(rewardType) ? draft.allowedPlanIds : [],
     // the end of the picked day in the admin's own time zone, as the list shows it
     expires_at: endOfDayToIso(draft.expiresAt),

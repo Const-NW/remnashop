@@ -27,6 +27,7 @@ async def test_fulfilment_carries_the_credit_fixed_at_checkout() -> None:
         purchase_type=PurchaseType.CHANGE,
         target_subscription_id=7,
         idempotency_key="order-key",
+        fulfillment_approved=False,
     )
 
     await dispatch_fulfillment(dispatch, order)  # type: ignore[arg-type]

@@ -10,7 +10,8 @@ from app.modules.promocodes.usecases import WarnExpiringPromocodeDiscountsUseCas
 _WARN_LOCK_TTL_S: Final[int] = 10 * 60
 
 
-@broker.task(schedule=[{"cron": "20 * * * *"}])
+# often enough for a 30-minute warning window
+@broker.task(schedule=[{"cron": "*/10 * * * *"}])
 @inject(patch_module=True)
 async def warn_expiring_promocode_discounts_task(
     use_case: FromDishka[WarnExpiringPromocodeDiscountsUseCase], redis: FromDishka[Redis]

@@ -38,6 +38,7 @@ from app.modules.subscriptions.idempotency_repository import (
     PurchaseIdempotencyRepository,
 )
 from app.modules.subscriptions.panel_squads import PanelSquadCatalog, missing_squads
+from app.modules.subscriptions.panel_sync import read_panel_sync_status
 from app.modules.subscriptions.plan_labels import (
     current_plan_snapshots,
     with_current_plan_labels,
@@ -46,6 +47,7 @@ from app.modules.subscriptions.plan_snapshot_response import PlanSnapshotRespons
 from app.modules.subscriptions.ports import (
     OpenOrderCounter,
     OrderFailer,
+    PaidOrderHold,
     ReferrerLookup,
     SpentPurchaseDiscount,
 )
@@ -95,6 +97,7 @@ __all__ = [
     "LiveSubscriptionDto",
     "OpenOrderCounter",
     "OrderFailer",
+    "PaidOrderHold",
     "PanelSquadCatalog",
     "PanelTrafficUsage",
     "PlanCatalogDto",
@@ -132,6 +135,7 @@ __all__ = [
     "get_subscriptions_providers",
     "is_unlimited_expiry",
     "missing_squads",
+    "read_panel_sync_status",
     "traffic_spent_for_good",
     "with_current_plan_labels",
 ]

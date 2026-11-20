@@ -43,7 +43,7 @@ ntf-transaction-partially-refunded = Order #{ $order_id }: partial refund { $amo
     .emoji = ⚠️
 ntf-transaction-fulfilled-manually = { $actor } issued order #{ $order_id } for { $target } by hand
     .title = Subscription issued manually!
-ntf-paid-order-not-fulfilled = Order #{ $order_id }: { $amount } { $currency } via { $gateway_type } is paid, but no subscription was issued yet. Retries continue; check it.
+ntf-paid-order-not-fulfilled = Order #{ $order_id }: { $amount } { $currency } via { $gateway_type } is paid, but no subscription was issued yet; check it.
     .title = Payment processing error!
     .emoji = ⚠️
 ntf-broadcast-completed = Broadcast #{ $broadcast_id } finished: { $sent } delivered, { $failed } failed, { $blocked } blocked the bot.
@@ -129,7 +129,7 @@ ntf-customer-transaction-refunded = { $money } will go back the way you paid.
 ntf-customer-transaction-partially-refunded = Part of your payment, { $money }, will go back the way you paid.
     .title = Partial refund
     .emoji = 💸
-ntf-customer-paid-order-not-fulfilled = We received your payment of { $money }, but the subscription is taking longer than usual. Don't worry: we're already on it. If it doesn't appear soon, contact support.
+ntf-customer-paid-order-not-fulfilled = We received your payment of { $money }, but the subscription is taking longer than usual. We're already on it: we'll issue the subscription or refund you. If it isn't settled soon, contact support.
     .title = Delivery delayed
     .emoji = ⏳
 ntf-customer-subscription-expiring = { $is_trial ->
@@ -322,6 +322,10 @@ ntf-customer-promocode-discount-expiring = Your { $percent }% off with promocode
         [day] { $span ->
             [one] { $span } more day
            *[other] { $span } more days
+        }
+        [minute] { $span ->
+            [one] { $span } more minute
+           *[other] { $span } more minutes
         }
        *[hour] { $span ->
             [one] { $span } more hour

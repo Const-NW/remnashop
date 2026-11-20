@@ -64,6 +64,15 @@ export function PromocodeLimitsFields({ idPrefix, value, onChange, plans }: Prom
         />
       </Field>
 
+      {value.availability === "EXISTING" && (
+        <PromocodeSwitchRow
+          label={t("promocodes.limits.priorCustomersOnlyLabel")}
+          hint={t("promocodes.limits.priorCustomersOnlyHint")}
+          checked={value.priorCustomersOnly}
+          onChange={(priorCustomersOnly) => set({ priorCustomersOnly })}
+        />
+      )}
+
       {value.availability === "ALLOWED" && (
         <Field label={t("promocodes.limits.allowedUserIdsLabel")} htmlFor={`${idPrefix}-allowed-users`}>
           <ChipsInput

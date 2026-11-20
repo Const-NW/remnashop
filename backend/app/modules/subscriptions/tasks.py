@@ -38,6 +38,7 @@ async def purchase_subscription_task(
     base_price: Optional[str] = None,
     idempotency_key: Optional[str] = None,
     change_credit: Optional[str] = None,
+    renew_other_plan: bool = False,
 ) -> None:
     await use_case.system(
         PurchaseSubscriptionDto(
@@ -54,6 +55,7 @@ async def purchase_subscription_task(
             reset_traffic=True,
             apply_current_plan=True,
             change_credit=Decimal(change_credit) if change_credit is not None else None,
+            renew_other_plan=renew_other_plan,
         )
     )
 

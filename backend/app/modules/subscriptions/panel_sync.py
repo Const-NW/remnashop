@@ -158,13 +158,9 @@ def imported_row(
 
 
 def from_panel(
-    user: Optional[UserResponseDto], remnawave_user_id: int, source: StatusSyncSource
+    user: UserResponseDto, remnawave_user_id: int, source: StatusSyncSource
 ) -> SyncSubscriptionStatusDto:
-    """What the row should take from the panel; a missing panel user deletes it."""
-    if user is None:
-        return SyncSubscriptionStatusDto(
-            remnawave_user_id=remnawave_user_id, status=SubscriptionStatus.DELETED, source=source
-        )
+    """What the row should take from the panel."""
     return SyncSubscriptionStatusDto(
         remnawave_user_id=remnawave_user_id,
         status=SubscriptionStatus(user.status),

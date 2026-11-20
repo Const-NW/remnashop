@@ -171,6 +171,24 @@ async def test_limited_bucket(session: AsyncSession, user_repository: UserReposi
     assert await _match(session, BroadcastAudienceDto(subscription=[F.EXPIRED])) & mine == {expired}
 
 
+async def test_every_filter_tests_the_same_subscription(
+    session: AsyncSession, user_repository: UserRepository
+) -> None:
+    now = datetime_now()
+    two_subs = await make_customer(user_repository, session, telegram_id=7121)
+    expiring_paid = await make_customer(user_repository, session, telegram_id=7122)
+    # a trial ending tomorrow beside a paid subscription good for months
+    await add_subscription(session, two_subs, is_trial=True, expire_at=now + timedelta(days=1))
+    await add_subscription(session, two_subs, expire_at=now + timedelta(days=90))
+    await add_subscription(session, expiring_paid, expire_at=now + timedelta(days=2))
+    mine = {two_subs, expiring_paid}
+
+    paid_expiring = BroadcastAudienceDto(subscription=[F.ACTIVE], expires_within_days=7)
+    assert await _match(session, paid_expiring) & mine == {expiring_paid}
+    trial_expiring = BroadcastAudienceDto(subscription=[F.TRIAL], expires_within_days=7)
+    assert await _match(session, trial_expiring) & mine == {two_subs}
+
+
 async def test_not_connected_within_days(
     session: AsyncSession, user_repository: UserRepository
 ) -> None:

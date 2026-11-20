@@ -7,7 +7,7 @@ from loguru import logger
 from redis.asyncio import Redis
 
 from app.core.actor import Actor
-from app.core.constants import REDIS_KEY_PREFIX, TIME_1H, TTL_7D
+from app.core.constants import REDIS_KEY_PREFIX, TIME_1H, TIME_1M, TTL_7D
 from app.core.db.uow import UnitOfWork
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
@@ -17,7 +17,10 @@ from app.modules.promocodes.events import PromocodeDiscountExpiringEvent
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.users import UserDto, UserRepository
 
-_WARN_BEFORE: Final[timedelta] = timedelta(hours=24)
+# a quarter of the code's life, within these: a sale of a few hours warns 30-60
+# minutes ahead, one of four days or more a day ahead
+_WARN_BEFORE_MIN: Final[timedelta] = timedelta(minutes=30)
+_WARN_BEFORE_MAX: Final[timedelta] = timedelta(hours=24)
 # outlives the warning window; the key carries expires_at, so an extension warns again
 _WARNED_TTL_S: Final[int] = TTL_7D
 
@@ -26,6 +29,12 @@ def _warned_key(promocode: PromocodeDto, user_id: int) -> str:
     assert promocode.expires_at is not None
     expires = int(promocode.expires_at.timestamp())
     return f"{REDIS_KEY_PREFIX}promocode_discount_warned:{promocode.id}:{expires}:{user_id}"
+
+
+def _warn_before(promocode: PromocodeDto) -> timedelta:
+    assert promocode.expires_at is not None
+    life = promocode.expires_at - (promocode.created_at or promocode.expires_at)
+    return min(_WARN_BEFORE_MAX, max(_WARN_BEFORE_MIN, life / 4))
 
 
 def _percents(user: UserDto, promocode_ids: set[int]) -> dict[int, int]:
@@ -61,8 +70,13 @@ class WarnExpiringPromocodeDiscountsUseCase(UseCase[None, int]):
         now = datetime_now()
         keys: list[str] = []
         async with self._uow:
-            expiring = await self._promocode_repository.list_expiring(now, now + _WARN_BEFORE)
-            promocodes = {promocode.id: promocode for promocode in expiring}
+            expiring = await self._promocode_repository.list_expiring(now, now + _WARN_BEFORE_MAX)
+            promocodes = {
+                promocode.id: promocode
+                for promocode in expiring
+                if promocode.expires_at is not None
+                and promocode.expires_at - now <= _warn_before(promocode)
+            }
             if not promocodes:
                 return 0
             users = await self._user_repository.list_with_discounts_from(list(promocodes))
@@ -89,6 +103,7 @@ class WarnExpiringPromocodeDiscountsUseCase(UseCase[None, int]):
                         code=promocode.code,
                         percent=percent,
                         hours=max(1, math.ceil(left / TIME_1H)),
+                        minutes=max(1, math.ceil(left / TIME_1M)) if left < TIME_1H else None,
                     )
                 )
                 keys.append(key)

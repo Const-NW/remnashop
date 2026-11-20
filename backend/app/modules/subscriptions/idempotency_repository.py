@@ -112,6 +112,12 @@ class PurchaseIdempotencyRepository:
             return None
         return row.renew_anchor_day
 
+    async def find_pending_renew_subscription_id(self, key: str) -> Optional[int]:
+        row = await self.session.get(SubscriptionPurchaseIdempotency, key)
+        if row is None or row.subscription_id is not None:
+            return None
+        return row.renew_subscription_id
+
     async def pin_renew_expire_at(
         self,
         key: str,
@@ -119,7 +125,12 @@ class PurchaseIdempotencyRepository:
         added_days: int,
         anchor_day: Optional[int],
         token: Optional[datetime],
-    ) -> None:
+        *,
+        subscription_id: int,
+        replacing: Optional[datetime] = None,
+    ) -> bool:
+        """False when another attempt holding the same claim pinned first: its pin
+        stands, read it again."""
         # pinned before the panel write: an attempt that lost its claim must not write at all
         result = await self.session.execute(
             update(SubscriptionPurchaseIdempotency)
@@ -127,17 +138,26 @@ class PurchaseIdempotencyRepository:
                 SubscriptionPurchaseIdempotency.key == key,
                 SubscriptionPurchaseIdempotency.created_at == token,
                 SubscriptionPurchaseIdempotency.subscription_id.is_(None),
+                SubscriptionPurchaseIdempotency.renew_expire_at.is_not_distinct_from(replacing),
             )
             .values(
                 renew_expire_at=expire_at,
                 renew_added_days=added_days,
                 renew_anchor_day=anchor_day,
+                renew_subscription_id=subscription_id,
             )
             .execution_options(synchronize_session=False)
         )
         if cast(CursorResult, result).rowcount == 0:
-            raise _claim_lost(key)
+            # refreshed: the find_pending_* reads that follow see the winner's pin
+            row = await self.session.get(
+                SubscriptionPurchaseIdempotency, key, populate_existing=True
+            )
+            if row is None or row.created_at != token or row.subscription_id is not None:
+                raise _claim_lost(key)
+            return False
         await self.session.flush()
+        return True
 
     async def lock(self, key: str, token: Optional[datetime]) -> Optional[int]:
         """Serializes completion of one purchase; returns its subscription id if
@@ -169,11 +189,13 @@ class PurchaseIdempotencyRepository:
 
     async def release(self, key: str, token: datetime) -> None:
         # a linked key belongs to a finished purchase: an attempt that failed after
-        # reclaiming it must not erase that link
+        # reclaiming it must not erase that link. A pinned one is kept so a retry
+        # re-applies the pin instead of extending again
         await self.session.execute(
             delete(SubscriptionPurchaseIdempotency).where(
                 SubscriptionPurchaseIdempotency.key == key,
                 SubscriptionPurchaseIdempotency.subscription_id.is_(None),
+                SubscriptionPurchaseIdempotency.renew_expire_at.is_(None),
                 SubscriptionPurchaseIdempotency.created_at == token,
             )
         )

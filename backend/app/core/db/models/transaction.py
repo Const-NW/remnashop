@@ -11,6 +11,7 @@ from app.core.db.timestamp import TimestampMixin
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
@@ -110,3 +111,10 @@ class Transaction(BaseSql, TimestampMixin):
     paid_at: Mapped[Optional[datetime]]
     # Dashboard gateway check: never provisioned, excluded from every revenue query.
     is_test: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # set: the sweep leaves it for an admin to issue or refund
+    fulfillment_hold: Mapped[Optional[FulfillmentHold]]
+    # an admin chose to issue it: a redispatch by the sweep renews a since-changed plan too
+    fulfillment_approved: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # its one-shot discount went back to the customer when it was canceled, so a late
+    # payment has to spend it again
+    purchase_discount_returned: Mapped[bool] = mapped_column(default=False, server_default="false")

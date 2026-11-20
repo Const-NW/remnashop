@@ -5,7 +5,7 @@ import httpx
 from dishka import Provider, Scope, alias, provide, provide_all
 
 from app.modules.plans import AnchorAmountRescaler
-from app.modules.subscriptions import OpenOrderCounter, OrderFailer
+from app.modules.subscriptions import OpenOrderCounter, OrderFailer, PaidOrderHold
 from app.modules.transactions.checkout_pricing import CheckoutPricer
 from app.modules.transactions.dispatch import ConfirmStarsPaymentDispatch
 from app.modules.transactions.gateways.base import HTTP_TIMEOUT_S, PaymentHttpClient
@@ -13,6 +13,7 @@ from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.stats_repository import TransactionStatsRepository
 from app.modules.transactions.tasks import confirm_stars_payment_task
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
 from app.modules.transactions.usecases import (
     CheckTransactionPaymentUseCase,
     ConfirmStarsPaymentUseCase,
@@ -54,6 +55,8 @@ class TransactionsProvider(Provider):
     checkout_pricer = provide(CheckoutPricer)
     anchor_amount_rescaler = alias(source=TransactionRepository, provides=AnchorAmountRescaler)
     order_failer = alias(source=TransactionRepository, provides=OrderFailer)
+    paid_order_holder = provide(PaidOrderHolder)
+    paid_order_hold = alias(source=PaidOrderHolder, provides=PaidOrderHold)
     open_order_counter = alias(source=TransactionRepository, provides=OpenOrderCounter)
     use_cases = provide_all(
         CreateCheckoutUseCase,

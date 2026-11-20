@@ -33,5 +33,7 @@ class PruneExpiredTransactionsUseCase(UseCase[None, None]):
                 await self._event_publisher.publish(
                     TransactionExpiredEvent(order_id=order.id, user_id=order.user_id)
                 )
-                await give_back_purchase_discount(self._user_repository, order)
+                await give_back_purchase_discount(
+                    self._user_repository, self._transaction_repository, order
+                )
         logger.info(f"Canceled {len(canceled)} unpaid transaction(s) past their expiry")

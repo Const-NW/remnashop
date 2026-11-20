@@ -29,3 +29,6 @@ class SubscriptionPurchaseIdempotency(BaseSql, TimestampMixin):
     # the anchor day it leaves on the row: a retry can't work it out from the end
     # alone, a shorter month having cut it
     renew_anchor_day: Mapped[Optional[int]]
+    # the row that expiry was worked out for: a plan change replacing it leaves the
+    # pin stale, the renewal going to the row put in its place
+    renew_subscription_id: Mapped[Optional[int]]

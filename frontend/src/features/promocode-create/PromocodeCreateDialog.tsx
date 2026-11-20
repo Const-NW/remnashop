@@ -76,6 +76,7 @@ function PromocodeCreateDialogBody({
   const [limits, setLimits] = useState<PromocodeLimitsDraft>({
     availability: "ALL",
     allowedUserIds: [],
+    priorCustomersOnly: false,
     allowedPlanIds: [],
     expiresAt: "",
     maxActivations: "",

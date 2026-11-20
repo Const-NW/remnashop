@@ -57,6 +57,8 @@ class AdLinkStatsDto(BaseDto):
     conversion_rate: Decimal
     attributions_by_channel: dict[AdLinkChannel, int] = Field(default_factory=dict)
     paid_count: int
+    # bought a paid trial; one who bought a plan too is in paid_count as well
+    trial_count: int = 0
     revenue: Decimal
     # fixed_cost + revenue_share
     cost: Decimal

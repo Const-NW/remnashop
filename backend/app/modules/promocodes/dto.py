@@ -20,6 +20,7 @@ class PromocodeDto(BaseDto, TimestampMixin):
     reward_duration_days: Optional[int] = None
     availability: PromocodeAvailability = PromocodeAvailability.ALL
     allowed_user_ids: list[int] = Field(default_factory=list)
+    prior_customers_only: bool = False
     allowed_plan_ids: list[int] = Field(default_factory=list)
     expires_at: Optional[datetime] = None
     max_activations: Optional[int] = None
@@ -45,6 +46,7 @@ class CreatePromocodeDto:
     reward_duration_days: Optional[int] = None
     availability: PromocodeAvailability = PromocodeAvailability.ALL
     allowed_user_ids: list[int] = field(default_factory=list)
+    prior_customers_only: bool = False
     allowed_plan_ids: list[int] = field(default_factory=list)
     expires_at: Optional[datetime] = None
     max_activations: Optional[int] = None
@@ -65,6 +67,7 @@ class UpdatePromocodeDto:
     is_active: Optional[bool] = None
     availability: Optional[PromocodeAvailability] = None
     allowed_user_ids: Optional[list[int]] = None
+    prior_customers_only: Optional[bool] = None
     allowed_plan_ids: Optional[list[int]] = None
     expires_at: Optional[datetime] = None
     max_activations: Optional[int] = None

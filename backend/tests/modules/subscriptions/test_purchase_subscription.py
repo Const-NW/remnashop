@@ -29,6 +29,7 @@ from app.core.enums import (
     AddOnType,
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PlanType,
     PurchaseChannel,
@@ -41,7 +42,7 @@ from app.core.enums import (
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.ports import EventPublisher
-from app.core.utils.time import add_term, datetime_now
+from app.core.utils.time import add_term, datetime_now, truncate_to_ms
 from app.modules.plans.addon_repository import AddOnRepository
 from app.modules.plans.dto import (
     CreateAddOnDto,
@@ -74,8 +75,10 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
 from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.remnawave import FakeUserStore
 from tests.modules.subscriptions.factories import (
     make_eligibility,
@@ -2808,6 +2811,7 @@ async def test_a_paid_order_still_renews_a_subscription_disabled_after_checkout(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
 
@@ -4119,6 +4123,7 @@ async def test_fulfilling_a_refunded_order_ends_without_a_retry(
         user_repository,
         purchase_subscription_use_case,
         TransactionRepository(user_repository.session),
+        PaidOrderHolder(TransactionRepository(user_repository.session), RecordingEventPublisher()),
         UnitOfWork(user_repository.session),
     )
 
@@ -4178,3 +4183,293 @@ async def test_a_paid_renewal_of_a_limited_subscription_resets_its_traffic(
     panel_user["userTraffic"]["usedTrafficBytes"] = 5
     await purchase_subscription_use_case(buyer, dto(PurchaseType.RENEW, old.id))
     assert panel_user["userTraffic"]["usedTrafficBytes"] == 5
+
+
+async def test_a_paid_renewal_of_a_since_changed_plan_is_held_then_issued_by_an_admin(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 444)
+    plan_a = await _create_plan(plan_repository, "held-renew-a")
+    plan_b = await _create_plan(plan_repository, "held-renew-b")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan_a, "held-renew-new")
+    )
+    # a renewal of plan A is paid for; meanwhile the subscription changes to plan B,
+    # which replaces its row on the same panel user
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan_a,
+        "held-renew",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan_b,
+            "held-renew-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+    assert changed.id != original.id
+    transactions = TransactionRepository(user_repository.session)
+    events = RecordingEventPublisher()
+    fulfill = FulfillPurchaseUseCase(
+        user_repository,
+        purchase_subscription_use_case,
+        transactions,
+        PaidOrderHolder(transactions, events),
+        UnitOfWork(user_repository.session),
+    )
+    renewal = _paid_purchase(
+        buyer, plan_a, "held-renew", PurchaseType.RENEW, target_subscription_id=original.id
+    )
+
+    # plan B's days at plan A's price: left to an admin
+    assert await fulfill.system(renewal) is None
+    order = await transactions.find_by_idempotency_key("held-renew")
+    assert order is not None and order.fulfillment_hold is FulfillmentHold.PLAN_CHANGED
+    assert [type(event).__name__ for event in events.events] == ["PaidOrderNotFulfilledEvent"]
+    assert (await subscription_repository.get_by_id(changed.id)).expire_at == changed.expire_at
+
+    # the admin issues it: the subscription that replaced it gets the days and keeps plan B
+    renewed = await fulfill.system(replace(renewal, renew_other_plan=True))
+    assert renewed is not None and renewed.id == changed.id
+    assert abs(renewed.expire_at - add_term(changed.expire_at, 30)) < timedelta(seconds=1)
+    assert renewed.plan_snapshot.plan_id == plan_b.id
+
+
+async def test_a_renewal_of_a_row_replaced_on_the_same_plan_goes_to_its_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 445)
+    plan = await _create_plan(plan_repository, "successor-same")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "successor-new")
+    )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "successor-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "successor-renew",
+            PurchaseType.RENEW,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    # nothing to hold: the same plan's days go to the row that replaced it
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
+
+
+async def test_a_renewal_pinned_for_a_since_replaced_row_counts_again_from_its_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 446)
+    plan = await _create_plan(plan_repository, "stale-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "stale-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "stale-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    # a first attempt pinned its expiry from the old row, then failed before finishing
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("stale-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "stale-pin",
+            original.expire_at + timedelta(days=1),
+            1,
+            None,
+            token,
+            subscription_id=original.id,
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "stale-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    assert replaced.expire_at > original.expire_at + timedelta(days=1)
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "stale-pin", PurchaseType.RENEW, target_subscription_id=original.id
+        ),
+    )
+
+    # the old row's pin would have taken the successor back in time
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
+
+
+async def test_a_stale_pin_the_panel_already_holds_is_not_extended_again(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    buyer = await _create_buyer(user_repository, 448)
+    plan = await _create_plan(plan_repository, "late-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "late-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "late-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    pinned = truncate_to_ms(original.expire_at + timedelta(days=90))
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("late-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "late-pin", pinned, 90, None, token, subscription_id=original.id
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "late-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    # the first attempt's panel write landed after the plan change
+    remnawave_store[replaced.remnawave_user_id]["expireAt"] = pinned.isoformat()
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "late-pin", PurchaseType.RENEW, target_subscription_id=original.id
+        ),
+    )
+
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - pinned) < timedelta(seconds=1)
+
+
+async def test_a_stale_pin_the_panel_holds_moves_to_the_successor(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    buyer = await _create_buyer(user_repository, 449)
+    plan = await _create_plan(plan_repository, "move-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "move-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "move-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    pinned = truncate_to_ms(original.expire_at + timedelta(days=90))
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("move-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "move-pin", pinned, 90, 20, token, subscription_id=original.id
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "move-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    remnawave_store[replaced.remnawave_user_id]["expireAt"] = pinned.isoformat()
+    # the late write's webhook already synced the successor's row
+    async with UnitOfWork(user_repository.session):
+        await user_repository.session.execute(
+            update(Subscription).where(Subscription.id == replaced.id).values(expire_at=pinned)
+        )
+
+    async def _die(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("worker died")
+
+    # dies after the panel holds the pin, before the database takes the renewal
+    monkeypatch.setattr(purchase_subscription_use_case._renew, "_finish", _die)
+    with pytest.raises(RuntimeError):
+        await purchase_subscription_use_case(
+            buyer,
+            _paid_purchase(
+                buyer, plan, "move-pin", PurchaseType.RENEW, target_subscription_id=original.id
+            ),
+        )
+
+    async with UnitOfWork(user_repository.session):
+        pinned_for = await idempotency_repository.find_pending_renew_subscription_id("move-pin")
+        added_days = await idempotency_repository.find_pending_renew_added_days("move-pin")
+        anchor_day = await idempotency_repository.find_pending_renew_anchor_day("move-pin")
+    assert pinned_for == replaced.id
+    assert (added_days, anchor_day) == (90, 20)
+
+
+async def test_an_admin_grant_to_a_replaced_row_is_refused(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 447)
+    plan = await _create_plan(plan_repository, "grant-replaced")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "grant-replaced-new")
+    )
+    await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer,
+            plan,
+            "grant-replaced-change",
+            PurchaseType.CHANGE,
+            target_subscription_id=original.id,
+        ),
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await purchase_subscription_use_case(
+            buyer,
+            replace(
+                _paid_purchase(
+                    buyer, plan, "unused", PurchaseType.RENEW, target_subscription_id=original.id
+                ),
+                idempotency_key=None,
+            ),
+        )
+    assert error.value.code is ErrorCode.SUBSCRIPTION_DELETED

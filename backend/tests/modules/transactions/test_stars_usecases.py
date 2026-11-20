@@ -8,11 +8,13 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
     DiscountSource,
+    FulfillmentHold,
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
     TransactionStatus,
 )
+from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
 from app.modules.gateways.repository import GatewayRepository
 from app.modules.transactions.dto import (
@@ -28,7 +30,7 @@ from app.modules.transactions.usecases import (
     ValidateStarsPreCheckoutUseCase,
 )
 from app.modules.users import UserRepository
-from app.modules.users.dto import CreateUserDto, UserDto
+from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.modules.subscriptions.factories import make_plan_snapshot
 
@@ -81,9 +83,10 @@ def confirm(
     user_repository: UserRepository,
     uow: UnitOfWork,
     purchase_dispatch: RecordingDispatch,
+    event_publisher: EventPublisher,
 ) -> ConfirmStarsPaymentUseCase:
     return ConfirmStarsPaymentUseCase(
-        transaction_repository, user_repository, uow, purchase_dispatch
+        transaction_repository, user_repository, uow, purchase_dispatch, event_publisher
     )
 
 
@@ -263,13 +266,19 @@ async def test_late_payment_on_a_canceled_order_is_fulfilled(
     assert len(purchase_dispatch.messages) == 1
 
 
-async def test_late_payment_on_a_canceled_discounted_order_is_not_fulfilled(
+@pytest.mark.parametrize(
+    ("returned", "discount_back"), [(True, True), (True, False), (False, False)]
+)
+async def test_late_payment_on_a_canceled_discounted_order(
     confirm: ConfirmStarsPaymentUseCase,
     buyer: UserDto,
     plan_id: int,
     purchase_dispatch: RecordingDispatch,
     transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
     uow: UnitOfWork,
+    returned: bool,
+    discount_back: bool,
 ) -> None:
     order = await _create(
         transaction_repository,
@@ -278,11 +287,22 @@ async def test_late_payment_on_a_canceled_discounted_order_is_not_fulfilled(
     )
     async with uow:
         await transaction_repository.mark_status(order.id, TransactionStatus.CANCELED)
+        if returned:
+            await transaction_repository.mark_discount_returned(order.idempotency_key)
+        if discount_back:
+            # handed back on cancel, not spent since
+            await user_repository.update_fields(buyer.id, UpdateUserDto(purchase_discount=20))
 
     await confirm.system(_paid(buyer, order, charge_id="late"))
 
-    assert purchase_dispatch.messages == []
-    assert (await transaction_repository.get_by_id(order.id)).status is TransactionStatus.CANCELED
+    paid = await transaction_repository.get_by_id(order.id)
+    assert paid.status is TransactionStatus.PAID
+    # returned and still there: spent again, issued; returned but spent elsewhere: held;
+    # never returned (its promocode gone, the slot taken): nothing to spend twice, issued
+    held = returned and not discount_back
+    assert len(purchase_dispatch.messages) == (0 if held else 1)
+    assert paid.fulfillment_hold is (FulfillmentHold.PURCHASE_DISCOUNT_SPENT if held else None)
+    assert (await user_repository.find_by_id(buyer.id)).purchase_discount == 0
 
 
 async def test_test_order_is_marked_paid_without_fulfillment(

@@ -222,6 +222,11 @@ function PromocodeDetailsDialogBody({
                   <InfoRow icon={Users} label={t("promocodes.details.availability")}>
                     <span className="truncate">{t(`promocodes.availability.${promocode.availability}`)}</span>
                   </InfoRow>
+                  {promocode.availability === "EXISTING" && (
+                    <InfoRow icon={UserCheck} label={t("promocodes.limits.priorCustomersOnlyLabel")}>
+                      {promocode.prior_customers_only ? t("common.yes") : t("common.no")}
+                    </InfoRow>
+                  )}
                   {promocode.availability === "ALLOWED" && (
                     <InfoRow icon={UserCheck} label={t("promocodes.limits.allowedUserIdsLabel")} mono>
                       <span className="truncate">

@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Protocol
 
+from app.core.enums import FulfillmentHold
+
 
 class ReferrerLookup(Protocol):
     async def has_referrer(self, user_id: int) -> bool: ...
@@ -18,6 +20,16 @@ class SpentPurchaseDiscount:
 class OrderFailer(Protocol):
     async def fail_unpaid_free_order(self, idempotency_key: str) -> Optional[SpentPurchaseDiscount]:
         """The one-shot discount to hand back when this call failed the order."""
+        ...
+
+    async def mark_discount_returned(self, idempotency_key: str) -> None:
+        """Records that the failed order's discount went back, for a late manual issue."""
+        ...
+
+
+class PaidOrderHold(Protocol):
+    async def hold_paid_order(self, idempotency_key: str, hold: FulfillmentHold) -> bool:
+        """Leaves a paid order to an admin; False when no paid order has the key."""
         ...
 
 

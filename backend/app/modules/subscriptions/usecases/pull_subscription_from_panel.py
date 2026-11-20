@@ -1,12 +1,13 @@
-from typing import Final, Optional
+from typing import Final
 
 from loguru import logger
 from remnapy import RemnawaveSDK
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
-from remnapy.models import UserResponseDto
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -50,11 +51,15 @@ class PullSubscriptionFromPanelUseCase(UseCase[int, SubscriptionDto]):
             subscription = await get_manageable_subscription(
                 self._subscription_repository, self._user_repository, actor, data
             )
-        user: Optional[UserResponseDto]
         try:
             user = await self._remnawave_sdk.users.get_user_by_id(subscription.remnawave_user_id)
-        except RemnawaveNotFoundError:
-            user = None
+        except RemnawaveNotFoundError as error:
+            # nothing to take: pushing it to the panel recreates the user, deleting it
+            # is the admin's call
+            raise ConflictError(
+                f"Subscription '{subscription.id}' has no user in the panel",
+                code=ErrorCode.SUBSCRIPTION_MISSING_IN_PANEL,
+            ) from error
         await self._sync_use_case.system(from_panel(user, subscription.remnawave_user_id, _SOURCE))
 
         async with self._uow:

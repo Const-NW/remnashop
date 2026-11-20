@@ -376,6 +376,9 @@ class PurchaseSubscriptionDto:
     # edited since the target was sold, its limits, strategy and squads; set for a
     # checkout order, whose snapshot is the plan as sold now, not the target's own
     apply_current_plan: bool = False
+    # an admin issues a renewal whose subscription moved to another plan: its days
+    # go on, the plan stays; otherwise such a renewal is refused and held
+    renew_other_plan: bool = False
     # CHANGE to unlimited: the old unlimited payment checkout took off the price;
     # None for an order queued before it was stored, which credits it afresh
     change_credit: Optional[Decimal] = None

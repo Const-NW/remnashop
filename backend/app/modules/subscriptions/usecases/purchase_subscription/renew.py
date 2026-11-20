@@ -1,6 +1,7 @@
+from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
-from typing import Callable, Optional
+from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
@@ -54,9 +55,7 @@ class RenewPurchase:
         self._lifecycle_service = lifecycle_service
         self._pricing_repository = pricing_repository
 
-    async def run(
-        self, actor: Actor, data: PurchaseSubscriptionDto, keep_key: Callable[[], None]
-    ) -> SubscriptionDto:
+    async def run(self, actor: Actor, data: PurchaseSubscriptionDto) -> SubscriptionDto:
         async with self._uow:
             if data.target_subscription_id is None:
                 raise ValidationError(
@@ -70,9 +69,7 @@ class RenewPurchase:
                 self._subscription_repository, data.target_subscription_id, data.user_id
             )
             if target.status is SubscriptionStatus.DELETED:
-                raise ValidationError(
-                    "Cannot renew a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
-                )
+                target = await self._successor(target, data)
             # before the panel call: refusing after it would leave the panel
             # extended and a pinned key a caller can only retry, never undo
             if data.refuse_disabled_target and target.status is SubscriptionStatus.DISABLED:
@@ -80,10 +77,13 @@ class RenewPurchase:
                     "Cannot renew a disabled subscription", code=ErrorCode.SUBSCRIPTION_DISABLED
                 )
             if target.plan_snapshot.plan_id != data.plan_snapshot.plan_id:
-                raise ValidationError(
-                    "Renewing a different plan is a CHANGE, not a RENEW",
-                    code=ErrorCode.RENEW_PLAN_MISMATCH,
-                )
+                if not data.renew_other_plan:
+                    raise ValidationError(
+                        "Renewing a different plan is a CHANGE, not a RENEW",
+                        code=ErrorCode.RENEW_PLAN_MISMATCH,
+                    )
+                # the old plan's terms and tag would land on the new plan's subscription
+                data = replace(data, apply_current_plan=False)
             # nothing to add to: a paid order for it stays unfulfilled for an admin to settle
             if target.is_unlimited:
                 raise ValidationError(
@@ -91,7 +91,7 @@ class RenewPurchase:
                     code=ErrorCode.SUBSCRIPTION_UNLIMITED,
                 )
 
-        expire_at, added_days, anchor_day = await self._extend_panel(target, data, keep_key)
+        expire_at, added_days, anchor_day = await self._extend_panel(target, data)
 
         tag_applied, terms_applied = await self._apply_current_plan(data, target)
 
@@ -123,7 +123,6 @@ class RenewPurchase:
         self,
         target: SubscriptionDto,
         data: PurchaseSubscriptionDto,
-        keep_key: Callable[[], None],
     ) -> tuple[datetime, int, Optional[int]]:
         """The panel's new expiry, the days it added and the anchor day it leaves."""
         if data.idempotency_key is None and data.duration_days == 0:
@@ -159,9 +158,29 @@ class RenewPurchase:
             expire_at = extended.expire_at
         else:
             expire_at, added_days, anchor_day = await self._apply_pinned_renewal(
-                target, data.idempotency_key, data.claim_token, data, keep_key
+                target, data.idempotency_key, data.claim_token, data
             )
         return expire_at, added_days, anchor_day
+
+    async def _successor(
+        self, target: SubscriptionDto, data: PurchaseSubscriptionDto
+    ) -> SubscriptionDto:
+        """What a paid renewal of a deleted subscription goes to: the row a plan change
+        put in its place, on the same panel user. The plan check below decides whether
+        it may. An admin's keyless grant names its row and gets no stand-in."""
+        successor = await self._subscription_repository.find_by_remnawave_user_id(
+            target.remnawave_user_id
+        )
+        if (
+            data.idempotency_key is None
+            or successor is None
+            or successor.status is SubscriptionStatus.DELETED
+            or successor.user_id != target.user_id
+        ):
+            raise ValidationError(
+                "Cannot renew a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
+            )
+        return successor
 
     async def _finish(
         self,
@@ -286,7 +305,6 @@ class RenewPurchase:
         key: str,
         token: Optional[datetime],
         data: PurchaseSubscriptionDto,
-        keep_key: Callable[[], None],
     ) -> tuple[datetime, int, Optional[int]]:
         """The expiry, the days it added and the anchor day it leaves. The panel's
         extend as an absolute value pinned before the call, so a retry can't extend
@@ -296,33 +314,72 @@ class RenewPurchase:
             pinned = await self._idempotency.find_pending_renew_expire_at(key)
             added_days = await self._idempotency.find_pending_renew_added_days(key)
             anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
-        anchor = _live_anchor(target)
+            pinned_for = await self._idempotency.find_pending_renew_subscription_id(key)
+        replacing = pinned
+        if pinned is not None and pinned_for is not None and pinned_for != target.id:
+            panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
+            # worked out from the row a plan change replaced, whose expiry the change
+            # overwrote on the panel: counted again from the successor's, unless the
+            # first attempt's write landed after the change
+            if panel_user.expire_at != pinned:
+                pinned = None
+            elif added_days is not None:
+                # moved to the successor so a refund finds it; the days and anchor
+                # stay the renewal's own, the successor's row may already show the pin
+                async with self._uow:
+                    if not await self._idempotency.pin_renew_expire_at(
+                        key,
+                        pinned,
+                        added_days,
+                        anchor_day,
+                        token,
+                        subscription_id=target.id,
+                        replacing=pinned,
+                    ):
+                        # a concurrent resume re-pinned first: its pin stands
+                        pinned = await self._idempotency.find_pending_renew_expire_at(key)
+                        added_days = await self._idempotency.find_pending_renew_added_days(key)
+                        anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
         if pinned is None:
             base = await self._renewal_base(target)
+            anchor = _live_anchor(target)
             # ms-truncated so the pinned value compares equal to the panel's
-            pinned = truncate_to_ms(
+            fresh = truncate_to_ms(
                 expiry_after(
                     base, data.duration_days, exact_days=data.exact_days, anchor_day=anchor
                 )
             )
-            anchor_day = term_anchor(
+            fresh_anchor_day = term_anchor(
                 base, data.duration_days, exact_days=data.exact_days, anchor_day=anchor
             )
-            added_days = term_days(base, pinned, data.duration_days)
+            fresh_days = term_days(base, fresh, data.duration_days)
             async with self._uow:
-                await self._idempotency.pin_renew_expire_at(
-                    key, pinned, added_days, anchor_day, token
+                won = await self._idempotency.pin_renew_expire_at(
+                    key,
+                    fresh,
+                    fresh_days,
+                    fresh_anchor_day,
+                    token,
+                    subscription_id=target.id,
+                    replacing=replacing,
                 )
-            keep_key()
-        else:
-            keep_key()
-            if added_days is None:
-                # pinned before the column existed, when a term was plain days
-                added_days = data.duration_days
-            panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
-            if panel_user.expire_at >= pinned:
-                return pinned, added_days, anchor_day
-
+                if not won:
+                    # a concurrent resume re-pinned first: its pin stands
+                    pinned = await self._idempotency.find_pending_renew_expire_at(key)
+                    added_days = await self._idempotency.find_pending_renew_added_days(key)
+                    anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
+            if won:
+                await self._remnawave_sdk.users.update_user(
+                    UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=fresh)
+                )
+                return fresh, fresh_days, fresh_anchor_day
+            assert pinned is not None  # the winner's pin, on a row still unlinked
+        if added_days is None:
+            # pinned before the column existed, when a term was plain days
+            added_days = data.duration_days
+        panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
+        if panel_user.expire_at >= pinned:
+            return pinned, added_days, anchor_day
         await self._remnawave_sdk.users.update_user(
             UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=pinned)
         )

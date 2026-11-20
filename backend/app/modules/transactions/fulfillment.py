@@ -19,6 +19,9 @@ async def dispatch_fulfillment(
         purchase_type=order.purchase_type.value,
         target_subscription_id=order.target_subscription_id,
         idempotency_key=order.idempotency_key,
+        # an admin chose to issue it: a renewal of a since-changed plan goes on,
+        # the sweep's redispatch included
+        renew_other_plan=order.fulfillment_approved,
     )
 
 

@@ -70,6 +70,7 @@ class AdLinkStatsResponse(BaseModel):
     attributions_count: int
     attributions_by_channel: dict[AdLinkChannel, int]
     paid_count: int
+    trial_count: int
     conversion_rate: Decimal
     revenue: Decimal
     cost: Decimal

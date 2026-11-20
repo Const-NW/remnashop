@@ -213,7 +213,12 @@ export function AudienceEditor({
       icon: CalendarClock,
       label: t("broadcasts.editor.audience.expires"),
       summary: daysSummary(audience.expires_within_days),
-      panel: dayChips(audience.expires_within_days, (days) => set({ expires_within_days: days })),
+      panel: [
+        ...dayChips(audience.expires_within_days, (days) => set({ expires_within_days: days })),
+        <p key="hint" className="w-full text-xs text-muted-foreground">
+          {t("broadcasts.editor.audience.expiresTrialHint")}
+        </p>,
+      ],
     },
     {
       key: "expired",

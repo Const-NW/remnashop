@@ -4,10 +4,11 @@ from typing import Optional
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 
 from app.core.config import AppConfig
 from app.core.db.models.plan import Plan
+from app.core.db.models.subscription import Subscription
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     AddOnType,
@@ -893,6 +894,60 @@ async def test_activate_existing_availability_allows_a_user_with_a_deleted_subsc
     )
 
     await use_case(actor, ActivatePromocodeDto(code="EXISTONLY2"))  # must not raise
+
+
+async def test_activate_prior_customers_only_refuses_a_customer_since_the_code(
+    promocode_repository: PromocodeRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk,
+    uow,
+    event_publisher,
+) -> None:
+    # the NEW code of the same campaign bought the subscription after this code existed
+    old_customer = await user_repository.create(CreateUserDto(name="Old", telegram_id=914))
+    newcomer = await user_repository.create(CreateUserDto(name="New", telegram_id=915))
+    promo = await promocode_repository.create(
+        CreatePromocodeDto(
+            code="LOYALONLY",
+            reward_type=PromocodeRewardType.PERSONAL_DISCOUNT,
+            reward=10,
+            availability=PromocodeAvailability.EXISTING,
+            prior_customers_only=True,
+            is_reusable=True,
+        )
+    )
+    for user, panel_id in ((old_customer, 914_001), (newcomer, 915_001)):
+        await subscription_repository.create(
+            CreateSubscriptionDto(
+                user_id=user.id,
+                remnawave_user_id=panel_id,
+                status=SubscriptionStatus.ACTIVE,
+                traffic_limit=100,
+                device_limit=3,
+                expire_at=datetime_now() + timedelta(days=30),
+                url=f"https://example.com/sub/{panel_id}",
+                plan_snapshot=make_plan_snapshot(),
+            )
+        )
+    # imported from the panel after the code: as old as its panel user
+    await subscription_repository.session.execute(
+        update(Subscription)
+        .where(Subscription.user_id == old_customer.id)
+        .values(panel_created_at=promo.created_at - timedelta(days=1))
+    )
+    use_case = _activate_use_case(
+        promocode_repository,
+        subscription_repository,
+        user_repository,
+        remnawave_sdk,
+        uow,
+        event_publisher,
+    )
+
+    with pytest.raises(ValidationError):
+        await use_case(newcomer, ActivatePromocodeDto(code="LOYALONLY"))
+    await use_case(old_customer, ActivatePromocodeDto(code="LOYALONLY"))  # must not raise
 
 
 async def test_activate_allowed_availability_denies_other_users(
