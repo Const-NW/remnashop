@@ -649,6 +649,7 @@ class SetSubscriptionEnabledDto:
 class GetAvailableTrialDto:
     plan: Optional[PlanDto]
     is_trial_available: bool
+    duration_days: Optional[int] = None
     # the trial's one duration, priced in the anchor currency; 0 for a free trial
     price: Decimal = ZERO_AMOUNT
     currency: Optional[Currency] = None

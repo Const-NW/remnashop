@@ -14,7 +14,6 @@ from app.modules.subscriptions.api.schemas import (
     OwnSubscriptionListResponse,
     OwnSubscriptionResponse,
     PublicPlanListResponse,
-    PublicPlanPriceResponse,
     PublicPlanResponse,
     TrialResponse,
 )
@@ -85,19 +84,7 @@ async def get_own_trial(
     use_case: FromDishka[GetAvailableTrialUseCase],
     actor: UserDto = Depends(get_current_user),
 ) -> TrialResponse:
-    trial = await use_case(actor)
-    if trial.plan is None:
-        return TrialResponse(is_available=False)
-    return TrialResponse(
-        is_available=trial.is_trial_available,
-        plan_id=trial.plan.id,
-        plan_name=trial.plan.display_name(actor.language),
-        duration_days=trial.plan.sellable_durations()[0].days,
-        is_free=trial.is_free,
-        price=trial.price,
-        currency=trial.currency,
-        prices=[PublicPlanPriceResponse(currency=p.currency, price=p.price) for p in trial.prices],
-    )
+    return TrialResponse.from_dto(await use_case(actor), locale=actor.language)
 
 
 @own_router.post(
