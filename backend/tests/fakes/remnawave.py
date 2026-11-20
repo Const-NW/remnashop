@@ -108,12 +108,10 @@ def _handle_update_user(request: httpx.Request, store: FakeUserStore) -> httpx.R
     body = json.loads(request.content)
     if (refused := _refused(body, update=True)) is not None:
         return refused
-    payload = store[body["id"]]
-    if "trafficLimitBytes" in body:
-        payload["trafficLimitBytes"] = body["trafficLimitBytes"]
-    if "hwidDeviceLimit" in body:
-        payload["hwidDeviceLimit"] = body["hwidDeviceLimit"]
-    for field in ("tag", "telegramId", "email"):
+    payload = store.get(body["id"])
+    if payload is None:
+        return httpx.Response(404, json={"message": f"user {body['id']} not found"})
+    for field in ("trafficLimitBytes", "hwidDeviceLimit", "tag", "telegramId", "email"):
         if field in body:
             payload[field] = body[field]
     if body.get("trafficLimitStrategy") is not None:

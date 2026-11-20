@@ -104,6 +104,17 @@ async def test_channel_check_rechecks_past_the_cache(redis: Redis) -> None:
     start.assert_not_awaited()
 
 
+async def test_channel_check_lets_in_a_customer_who_just_joined(redis: Redis) -> None:
+    assert _USER.telegram_id is not None
+    # cached "not a member" from before the join
+    await redis.set(channel_member_key(-100, _USER.telegram_id), "0")
+
+    callback, start = await _check(_Bot("member"), redis)
+
+    callback.answer.assert_awaited_once_with()
+    start.assert_awaited_once()
+
+
 async def test_channel_check_opens_the_menu_for_a_member(redis: Redis) -> None:
     callback, start = await _check(_Bot("member"), redis)
 

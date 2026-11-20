@@ -26,7 +26,11 @@ from app.modules.settings import (
 from app.modules.users import UserDto
 from app.telegram.broadcast_callbacks import UNSUBSCRIBE_CALLBACK
 from app.telegram.legal_gate import LegalAcceptCallback, LegalDocumentCallback, gate_message_key
-from app.telegram.middlewares.requirements import CHANNEL_CHECK_CALLBACK, RequirementsMiddleware
+from app.telegram.middlewares.requirements import (
+    CHANNEL_CHECK_CALLBACK,
+    RequirementsMiddleware,
+    channel_member_key,
+)
 
 
 class _Runner:
@@ -187,12 +191,13 @@ async def test_requirement_callbacks_pass_through(redis: Redis) -> None:
     )
 
 
-async def test_unsubscribed_customer_is_stopped_and_not_cached(redis: Redis) -> None:
+async def test_unsubscribed_customer_is_stopped_and_cached_briefly(redis: Redis) -> None:
     bot = _Bot("left")
     user = UserDto(id=1, name="c", telegram_id=42)
     assert await _run(_message([]), user, _CHANNEL, bot, redis) is False
     assert await _run(_message([]), user, _CHANNEL, bot, redis) is False
-    assert bot.calls == 2
+    assert bot.calls == 1
+    assert 0 < await redis.ttl(channel_member_key(-100, 42)) <= 30
 
 
 async def test_channel_gate_remembers_the_stopped_message(redis: Redis) -> None:
