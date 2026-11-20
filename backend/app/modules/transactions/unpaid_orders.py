@@ -16,18 +16,21 @@ UNPAID_FINAL: Final[frozenset[TransactionStatus]] = frozenset(
 
 
 async def give_back_purchase_discount(
-    user_repository: UserRepository, order: TransactionDto
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    order: TransactionDto,
 ) -> None:
     # the one-shot discount was spent when the order was created; an order
-    # nobody paid returns it
+    # nobody paid returns it, and remembers it did for a late payment
     if order.discount_source is not DiscountSource.PURCHASE:
         return
-    await user_repository.restore_purchase_discount(
+    if await user_repository.restore_purchase_discount(
         order.user_id,
         order.discount_percent,
         order.discount_promocode_id,
         from_promocode=order.discount_from_promocode,
-    )
+    ):
+        await transaction_repository.mark_purchase_discount_returned(order.id)
 
 
 async def hold_paid_order(
@@ -59,10 +62,12 @@ async def clear_late_payment(
     user_repository: UserRepository,
     event_publisher: EventPublisher,
 ) -> bool:
-    """Whether an order just moved to PAID may be issued. One paid after its cancel
-    had its one-shot discount handed back: it's spent again, and when it's gone the
-    order is held for an admin. Inside the transaction that marked it paid."""
-    if order.status not in UNPAID_FINAL or order.discount_source is not DiscountSource.PURCHASE:
+    """Whether an order just moved to PAID may be issued; `order` is the row as it was
+    before, read under the lock that moved it. One paid after its cancel had its
+    one-shot discount handed back: it's spent again, and when it's gone the order is
+    held for an admin. Inside the transaction that marked it paid."""
+    # not handed back (its promocode deleted, the slot taken): nothing to spend twice
+    if order.status not in UNPAID_FINAL or not order.purchase_discount_returned:
         return True
     if await user_repository.spend_purchase_discount(order.user_id, order.discount_percent):
         return True
@@ -86,7 +91,8 @@ class PaidOrderHolder:
 
     async def hold_paid_order(self, idempotency_key: str, hold: FulfillmentHold) -> bool:
         order = await self._transaction_repository.find_by_idempotency_key(idempotency_key)
-        if order is None or order.status is not TransactionStatus.PAID:
+        # a retry landing after the order was issued has nothing left to hold
+        if order is None or order.status is not TransactionStatus.PAID or order.fulfilled_at:
             return False
         await hold_paid_order(
             order,

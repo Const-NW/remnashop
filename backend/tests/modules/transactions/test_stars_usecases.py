@@ -266,7 +266,9 @@ async def test_late_payment_on_a_canceled_order_is_fulfilled(
     assert len(purchase_dispatch.messages) == 1
 
 
-@pytest.mark.parametrize("discount_back", [True, False])
+@pytest.mark.parametrize(
+    ("returned", "discount_back"), [(True, True), (True, False), (False, False)]
+)
 async def test_late_payment_on_a_canceled_discounted_order(
     confirm: ConfirmStarsPaymentUseCase,
     buyer: UserDto,
@@ -275,6 +277,7 @@ async def test_late_payment_on_a_canceled_discounted_order(
     transaction_repository: TransactionRepository,
     user_repository: UserRepository,
     uow: UnitOfWork,
+    returned: bool,
     discount_back: bool,
 ) -> None:
     order = await _create(
@@ -284,6 +287,8 @@ async def test_late_payment_on_a_canceled_discounted_order(
     )
     async with uow:
         await transaction_repository.mark_status(order.id, TransactionStatus.CANCELED)
+        if returned:
+            await transaction_repository.mark_purchase_discount_returned(order.id)
         if discount_back:
             # handed back on cancel, not spent since
             await user_repository.update_fields(buyer.id, UpdateUserDto(purchase_discount=20))
@@ -292,11 +297,11 @@ async def test_late_payment_on_a_canceled_discounted_order(
 
     paid = await transaction_repository.get_by_id(order.id)
     assert paid.status is TransactionStatus.PAID
-    # spent again and issued; already spent elsewhere, held for an admin
-    assert len(purchase_dispatch.messages) == (1 if discount_back else 0)
-    assert paid.fulfillment_hold is (
-        None if discount_back else FulfillmentHold.PURCHASE_DISCOUNT_SPENT
-    )
+    # returned and still there: spent again, issued; returned but spent elsewhere: held;
+    # never returned (its promocode gone, the slot taken): nothing to spend twice, issued
+    held = returned and not discount_back
+    assert len(purchase_dispatch.messages) == (0 if held else 1)
+    assert paid.fulfillment_hold is (FulfillmentHold.PURCHASE_DISCOUNT_SPENT if held else None)
     assert (await user_repository.find_by_id(buyer.id)).purchase_discount == 0
 
 

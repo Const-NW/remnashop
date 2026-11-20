@@ -640,7 +640,9 @@ async def test_provider_cancel_gives_back_the_purchase_discount_once(
     assert (await user_repository.find_by_id(user_id)).purchase_discount == 0
 
 
-@pytest.mark.parametrize("discount_back", [True, False])
+@pytest.mark.parametrize(
+    ("returned", "discount_back"), [(True, True), (True, False), (False, False)]
+)
 async def test_late_payment_for_a_canceled_discounted_order(
     client,
     transaction_repository,
@@ -651,14 +653,17 @@ async def test_late_payment_for_a_canceled_discounted_order(
     plan_id,
     monkeypatch,
     purchase_dispatch,
+    returned,
     discount_back,
 ) -> None:
-    key = f"wh-disc-2-{discount_back}"
+    key = f"wh-disc-2-{returned}-{discount_back}"
     async with uow:
         order = await transaction_repository.create(
             _discounted_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key=key)
         )
         await transaction_repository.mark_status(order.id, TransactionStatus.CANCELED)
+        if returned:
+            await transaction_repository.mark_purchase_discount_returned(order.id)
         if discount_back:
             # handed back on cancel, not spent since
             await user_repository.update_fields(user_id, UpdateUserDto(purchase_discount=20))
@@ -670,13 +675,13 @@ async def test_late_payment_for_a_canceled_discounted_order(
     paid = await transaction_repository.get_by_id(order.id)
     assert paid.status is TransactionStatus.PAID
     assert (await user_repository.find_by_id(user_id)).purchase_discount == 0
-    # spent again and issued; already spent elsewhere, held for an admin, who hears of it
-    assert len(purchase_dispatch.messages) == (1 if discount_back else 0)
-    assert paid.fulfillment_hold is (
-        None if discount_back else FulfillmentHold.PURCHASE_DISCOUNT_SPENT
-    )
+    # returned and still there: spent again, issued; returned but spent elsewhere: held,
+    # and an admin hears of it; never returned: nothing to spend twice, issued
+    held = returned and not discount_back
+    assert len(purchase_dispatch.messages) == (0 if held else 1)
+    assert paid.fulfillment_hold is (FulfillmentHold.PURCHASE_DISCOUNT_SPENT if held else None)
     reported = await _events(session, "PaidOrderNotFulfilledEvent")
-    assert len(reported) == (0 if discount_back else 1)
+    assert len(reported) == (1 if held else 0)
 
 
 async def _discount_promocode(session) -> int:

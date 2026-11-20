@@ -239,7 +239,9 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
                 order.id, status, current=allowed_from
             )
             if changed and restores_discount:
-                await give_back_purchase_discount(self._user_repository, order)
+                await give_back_purchase_discount(
+                    self._user_repository, self._transaction_repository, order
+                )
             if changed and from_pending:
                 await self._event_publisher.publish(
                     TransactionCanceledEvent(order_id=order.id, user_id=order.user_id)

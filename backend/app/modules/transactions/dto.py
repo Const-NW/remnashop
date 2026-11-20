@@ -92,6 +92,8 @@ class TransactionDto(BaseDto, TimestampMixin):
     paid_at: Optional[datetime] = None
     is_test: bool = False
     fulfillment_hold: Optional[FulfillmentHold] = None
+    fulfillment_approved: bool = False
+    purchase_discount_returned: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

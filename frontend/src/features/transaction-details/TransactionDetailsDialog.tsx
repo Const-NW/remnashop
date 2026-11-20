@@ -176,7 +176,8 @@ function TransactionDetailsDialogBody({
   const subscriptionId = order.target_subscription_id ?? order.fulfilled_subscription_id;
   const targetSubscription = subscriptionId !== null ? `#${subscriptionId}` : undefined;
   const missingSubscription = order.status === "PAID" ? t("transactions.details.notIssued") : none;
-  const hold = order.fulfillment_hold ? t(`transactions.details.hold.${order.fulfillment_hold}` as ParseKeys) : null;
+  const held = order.fulfillment_hold !== null && order.status === "PAID" && order.fulfilled_subscription_id === null;
+  const hold = held ? t(`transactions.details.hold.${order.fulfillment_hold}` as ParseKeys) : null;
   const createdAt = formatDateTime(order.created_at, i18n.language);
   const { user } = order;
   const username = user?.username ? `@${user.username}` : undefined;

@@ -36,13 +36,15 @@ from app.modules.subscriptions.usecases.purchase_subscription import STALE_CLAIM
 from app.modules.transactions.dto import CreateTransactionDto, ReconcilePaidTransactionsDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.tasks import confirm_stars_payment_task
+from app.modules.transactions.unpaid_orders import PaidOrderHolder
 from app.modules.transactions.usecases import (
     PruneExpiredTransactionsUseCase,
     ReconcilePaidTransactionsUseCase,
 )
+from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
-from tests.modules.subscriptions.factories import make_plan_snapshot
+from tests.modules.subscriptions.factories import create_subscription, make_plan_snapshot
 
 _confirm_stars = confirm_stars_payment_task.original_func.__dishka_orig_func__
 
@@ -553,3 +555,62 @@ async def test_a_stuck_paid_order_is_reported_once_across_sweeps(
         )
     )
     assert reported == 1
+
+
+async def test_reconcile_redispatches_an_admin_approved_order_with_the_approval(
+    transaction_repository: TransactionRepository,
+    uow,
+    user_id,
+    plan_id,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> None:
+    async with uow:
+        order = await transaction_repository.create(
+            _paid_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="recon-approved")
+        )
+        await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
+        await transaction_repository.approve_fulfillment(order.id)
+
+    dispatch = RecordingDispatch()
+    await ReconcilePaidTransactionsUseCase(
+        transaction_repository, idempotency_repository, uow, dispatch, event_publisher, redis
+    ).system(ReconcilePaidTransactionsDto(grace_period=timedelta(seconds=0)))
+
+    # the admin's issue failed in flight: the sweep's retry still renews a changed plan
+    (message,) = dispatch.messages
+    assert message["renew_other_plan"] is True
+
+
+async def test_an_issued_order_drops_its_hold_and_takes_no_new_one(
+    transaction_repository: TransactionRepository,
+    subscription_repository: SubscriptionRepository,
+    uow,
+    user_id,
+    plan_id,
+    event_publisher: EventPublisher,
+) -> None:
+    async with uow:
+        order = await transaction_repository.create(
+            _paid_order_dto(user_id=user_id, plan_id=plan_id, idempotency_key="held-issued")
+        )
+        await transaction_repository.mark_status(order.id, TransactionStatus.PAID)
+        await transaction_repository.set_fulfillment_hold(order.id, FulfillmentHold.PLAN_CHANGED)
+        subscription = await create_subscription(
+            subscription_repository,
+            UserRepository(subscription_repository.session),
+            telegram_id=555_901,
+            remnawave_user_id=555_901,
+        )
+        await transaction_repository.mark_fulfilled_by_key("held-issued", subscription.id)
+
+    issued = await transaction_repository.get_by_id(order.id)
+    assert issued.fulfillment_hold is None
+    # a task retry landing after the issue has nothing left to hold
+    async with uow:
+        held = await PaidOrderHolder(transaction_repository, event_publisher).hold_paid_order(
+            "held-issued", FulfillmentHold.PLAN_CHANGED
+        )
+    assert held is False
+    assert (await transaction_repository.get_by_id(order.id)).fulfillment_hold is None

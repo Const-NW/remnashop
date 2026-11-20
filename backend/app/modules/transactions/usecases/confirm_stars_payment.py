@@ -51,6 +51,9 @@ class ConfirmStarsPaymentUseCase(UseCase[StarsPaymentDto, None]):
                     "-- refund it manually"
                 )
                 return
+            # locked: the expiry sweep may cancel it and hand its discount back
+            # meanwhile, which the late-payment check below has to see
+            order = await self._transaction_repository.get_by_id_for_update(order.id)
             # a canceled order still takes a late payment
             moved = await self._transaction_repository.mark_status_if(
                 order.id,

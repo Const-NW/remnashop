@@ -162,6 +162,8 @@ class TransactionRepository:
             paid_at=row.paid_at,
             is_test=row.is_test,
             fulfillment_hold=row.fulfillment_hold,
+            fulfillment_approved=row.fulfillment_approved,
+            purchase_discount_returned=row.purchase_discount_returned,
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -350,12 +352,30 @@ class TransactionRepository:
             _NOT_TEST,
             Transaction.fulfilled_at.is_(None),
             Transaction.paid_at <= cutoff,
-            Transaction.paid_at >= since,
         ]
-        if not include_held:
-            conditions.append(Transaction.fulfillment_hold.is_(None))
+        if include_held:
+            # a held order waits for an admin however long ago it was paid
+            conditions.append(
+                or_(Transaction.paid_at >= since, Transaction.fulfillment_hold.is_not(None))
+            )
+        else:
+            conditions += [Transaction.paid_at >= since, Transaction.fulfillment_hold.is_(None)]
         rows = (await self.session.scalars(select(Transaction).where(*conditions))).all()
         return [self._to_dto(row) for row in rows]
+
+    async def approve_fulfillment(self, transaction_id: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(fulfillment_hold=None, fulfillment_approved=True, updated_at=NOW_FUNC)
+        )
+
+    async def mark_purchase_discount_returned(self, transaction_id: int) -> None:
+        await self.session.execute(
+            update(Transaction)
+            .where(Transaction.id == transaction_id)
+            .values(purchase_discount_returned=True)
+        )
 
     async def set_fulfillment_hold(
         self, transaction_id: int, hold: Optional[FulfillmentHold]
@@ -390,6 +410,8 @@ class TransactionRepository:
             .values(
                 fulfilled_at=NOW_FUNC,
                 fulfilled_subscription_id=subscription_id,
+                # issued, by whatever path: nothing waits for an admin any more
+                fulfillment_hold=None,
             )
         )
 
@@ -658,6 +680,7 @@ class TransactionRepository:
         user_ids: list[int],
         *,
         paid_before: Optional[datetime] = None,
+        created_before: Optional[datetime] = None,
         trial: Optional[bool] = None,
     ) -> set[int]:
         """`trial` narrows to paid trials (True) or to everything else (False)."""
@@ -671,6 +694,8 @@ class TransactionRepository:
         )
         if trial is not None:
             stmt = stmt.where(_IS_TRIAL_ORDER.is_(trial))
+        if created_before is not None:
+            stmt = stmt.where(Transaction.created_at < created_before)
         if paid_before is not None:
             stmt = stmt.where(Transaction.paid_at < paid_before)
         result = await self.session.execute(stmt)

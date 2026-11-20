@@ -18,8 +18,15 @@ def upgrade() -> None:
         "transactions",
         sa.Column("fulfillment_hold", postgresql.ENUM(name="fulfillmenthold", create_type=False)),
     )
+    for column in ("fulfillment_approved", "purchase_discount_returned"):
+        op.add_column(
+            "transactions",
+            sa.Column(column, sa.Boolean(), server_default=sa.false(), nullable=False),
+        )
 
 
 def downgrade() -> None:
+    op.drop_column("transactions", "purchase_discount_returned")
+    op.drop_column("transactions", "fulfillment_approved")
     op.drop_column("transactions", "fulfillment_hold")
     _HOLD.drop(op.get_bind())

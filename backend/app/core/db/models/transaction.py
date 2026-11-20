@@ -113,3 +113,8 @@ class Transaction(BaseSql, TimestampMixin):
     is_test: Mapped[bool] = mapped_column(default=False, server_default="false")
     # set: the sweep leaves it for an admin to issue or refund
     fulfillment_hold: Mapped[Optional[FulfillmentHold]]
+    # an admin chose to issue it: a redispatch by the sweep renews a since-changed plan too
+    fulfillment_approved: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # its one-shot discount went back to the customer when it was canceled, so a late
+    # payment has to spend it again
+    purchase_discount_returned: Mapped[bool] = mapped_column(default=False, server_default="false")
