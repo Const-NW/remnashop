@@ -21,6 +21,7 @@ class BotSettingsDto(BaseDto, TimestampMixin):
     secret_token: Optional[SecretStr] = None
     proxy_url: Optional[SecretStr] = None
     username: Optional[str] = None
+    commands_hash: Optional[str] = None
     drop_pending_updates: bool = False
 
     @property

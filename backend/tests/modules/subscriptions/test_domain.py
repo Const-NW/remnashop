@@ -14,6 +14,7 @@ from app.modules.subscriptions.domain import (
     SubscriptionState,
     assert_transition,
     calculate_proration_credit,
+    proration_uses_traffic,
 )
 from app.modules.subscriptions.dto import PlanSnapshot
 
@@ -295,3 +296,36 @@ def test_restore_after_refund_refuses_a_live_row() -> None:
     with pytest.raises(ValidationError) as exc:
         state.restore_after_refund(now)
     assert exc.value.code is ErrorCode.SUBSCRIPTION_STATUS_TRANSITION_INVALID
+
+
+@pytest.mark.parametrize("is_trial", [False, True])
+@pytest.mark.parametrize("credit_paid", [Decimal("0"), Decimal("300")])
+@pytest.mark.parametrize("credit_days", [0, 30])
+@pytest.mark.parametrize("unlimited", [False, True])
+@pytest.mark.parametrize("traffic_limit", [0, 100])
+@pytest.mark.parametrize("strategy", list(TrafficLimitStrategy))
+def test_proration_reads_traffic_only_when_it_says_so(
+    is_trial: bool,
+    credit_paid: Decimal,
+    credit_days: int,
+    unlimited: bool,
+    traffic_limit: int,
+    strategy: TrafficLimitStrategy,
+) -> None:
+    # the panel is skipped on a False answer, so the credit must not move with usage then
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    expire_at = datetime(2099, 1, 1, tzinfo=timezone.utc) if unlimited else now + timedelta(days=20)
+    terms = {
+        "credit_paid": credit_paid,
+        "credit_days": credit_days,
+        "expire_at": expire_at,
+        "is_trial": is_trial,
+        "traffic_limit": traffic_limit,
+        "traffic_limit_strategy": strategy,
+    }
+    credits = {
+        calculate_proration_credit(**terms, now=now, used_traffic_bytes=used)  # type: ignore[arg-type]
+        for used in (0, 95 * GB_TO_BYTES, 500 * GB_TO_BYTES)
+    }
+
+    assert proration_uses_traffic(**terms) is (len(credits) > 1)  # type: ignore[arg-type]

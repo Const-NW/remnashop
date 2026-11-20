@@ -82,7 +82,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with uow:
             await lock_startup_seeding(await startup_container.get(AsyncSession))
             await ensure_dialogs_seeded(dialog_repository, translation_repository)
-        await (await startup_container.get(BotCommandsSync)).push()
+        # forced: a menu edited in BotFather since the last push is put back
+        await (await startup_container.get(BotCommandsSync)).push(force=True)
 
         report_status = await startup_container.get(ReportBotStatusUseCase)
         webhook_url = config.bot.webhook_url(config.domain).get_secret_value()

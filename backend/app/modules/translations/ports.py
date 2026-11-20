@@ -9,8 +9,9 @@ class DefaultBannerSeed(Protocol):
 
 
 class BotCommandsSync(Protocol):
-    # re-sends the bot's command menu after a translation or locale change;
-    # both are no-ops while no bot is configured, push() is False on failure
-    async def push(self) -> bool: ...
+    # re-sends the bot's command menu after a translation or locale change, unless
+    # Telegram already has it (force resends anyway); both are no-ops while no bot
+    # is configured, push() is False on failure
+    async def push(self, *, force: bool = False) -> bool: ...
 
     async def drop_locale(self, locale: Locale) -> None: ...

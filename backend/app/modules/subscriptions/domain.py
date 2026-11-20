@@ -240,6 +240,35 @@ def refunded_unlimited_expiry(snapshot: PlanSnapshot, now: datetime) -> datetime
     return snapshot.unlimited_from if snapshot.unlimited_from is not None else now
 
 
+def _no_proration_credit(
+    credit_paid: Decimal, credit_days: int, expire_at: datetime, is_trial: bool
+) -> bool:
+    # an unlimited term has no remaining days to credit, whatever credit it still carries
+    return is_trial or credit_paid <= 0 or credit_days <= 0 or is_unlimited_expiry(expire_at)
+
+
+def _credit_capped_by_traffic(
+    traffic_limit: int, traffic_limit_strategy: TrafficLimitStrategy
+) -> bool:
+    # a resetting counter covers the current period, not the whole term
+    return traffic_limit > 0 and traffic_limit_strategy is TrafficLimitStrategy.NO_RESET
+
+
+def proration_uses_traffic(
+    *,
+    credit_paid: Decimal,
+    credit_days: int,
+    expire_at: datetime,
+    is_trial: bool,
+    traffic_limit: int,
+    traffic_limit_strategy: TrafficLimitStrategy,
+) -> bool:
+    """Whether calculate_proration_credit reads used_traffic_bytes: the panel is asked only then."""
+    return not _no_proration_credit(
+        credit_paid, credit_days, expire_at, is_trial
+    ) and _credit_capped_by_traffic(traffic_limit, traffic_limit_strategy)
+
+
 def calculate_proration_credit(
     *,
     credit_paid: Decimal,
@@ -253,13 +282,11 @@ def calculate_proration_credit(
 ) -> Decimal:
     """Proration credit from the old subscription's fields alone, so ChangePurchase
     knows the new expire_at before touching the panel."""
-    # an unlimited term has no remaining days to credit, whatever credit it still carries
-    if is_trial or credit_paid <= 0 or credit_days <= 0 or is_unlimited_expiry(expire_at):
+    if _no_proration_credit(credit_paid, credit_days, expire_at, is_trial):
         return Decimal("0")
     remaining_days = max(0, (expire_at - now).days)
     credit = min(credit_paid / Decimal(credit_days) * Decimal(remaining_days), credit_paid)
-    # a resetting counter covers the current period, not the whole term
-    if traffic_limit > 0 and traffic_limit_strategy is TrafficLimitStrategy.NO_RESET:
+    if _credit_capped_by_traffic(traffic_limit, traffic_limit_strategy):
         limit_bytes = traffic_limit * GB_TO_BYTES
         remaining_bytes = max(0, limit_bytes - used_traffic_bytes)
         credit = min(credit, credit_paid * Decimal(remaining_bytes) / Decimal(limit_bytes))
