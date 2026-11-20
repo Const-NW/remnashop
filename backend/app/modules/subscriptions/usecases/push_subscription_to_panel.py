@@ -3,6 +3,7 @@ from uuid import UUID
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import ErrorCode as RemnawaveErrorCode
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
@@ -61,8 +62,11 @@ class PushSubscriptionToPanelUseCase(UseCase[PushSubscriptionToPanelDto, Subscri
             )
         try:
             await push_to_panel(self._remnawave_sdk, subscription, owner)
-        except RemnawaveNotFoundError:
-            # the panel answers USER_NOT_FOUND to an update of a user it lacks
+        except RemnawaveNotFoundError as error:
+            # a missing squad or a proxy's bare 404 isn't a missing user: recreating then
+            # would leave the old panel user working with no row behind it
+            if error.code != RemnawaveErrorCode.USER_NOT_FOUND:
+                raise
             subscription = await recreate_in_panel(
                 self._remnawave_sdk,
                 self._subscription_repository,

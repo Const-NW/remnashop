@@ -100,3 +100,30 @@ async def test_a_dropped_locale_gets_its_menu_again(
     await sync.push()
 
     assert len(bot.calls) > sent
+
+
+async def test_a_half_sent_menu_is_resent_even_when_texts_go_back(
+    monkeypatch: pytest.MonkeyPatch,
+    settings_repository: SettingsRepository,
+    translation_repository: TranslationRepository,
+    uow: UnitOfWork,
+) -> None:
+    await _setup(settings_repository, translation_repository)
+    bot = use_fake_bot(
+        monkeypatch, FakeBotSession({"setMyCommands": True, "deleteMyCommands": True})
+    )
+    sync = make_bot_commands_sync(settings_repository.session, uow)
+    await sync.push()
+
+    # the new menu reaches the EN language, then the fallback one is refused
+    await translation_repository.update_value(Locale.EN, "command", "start", "Menu")
+    bot.replies["setMyCommands"] = lambda params: params.get("language_code") is not None
+    assert not await sync.push()
+
+    await translation_repository.update_value(Locale.EN, "command", "start", "Open the main menu")
+    bot.replies["setMyCommands"] = True
+    sent = len(bot.calls)
+    assert await sync.push()
+
+    assert len(bot.calls) > sent
+    assert bot.called("setMyCommands")[-1]["commands"][0]["description"] == "Open the main menu"

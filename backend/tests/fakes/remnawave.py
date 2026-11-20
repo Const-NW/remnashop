@@ -110,7 +110,9 @@ def _handle_update_user(request: httpx.Request, store: FakeUserStore) -> httpx.R
         return refused
     payload = store.get(body["id"])
     if payload is None:
-        return httpx.Response(404, json={"message": f"user {body['id']} not found"})
+        return httpx.Response(
+            404, json={"message": f"user {body['id']} not found", "errorCode": "A025"}
+        )
     for field in ("trafficLimitBytes", "hwidDeviceLimit", "tag", "telegramId", "email"):
         if field in body:
             payload[field] = body[field]

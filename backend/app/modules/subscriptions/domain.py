@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Final, Optional
+from typing import Final, Optional, TypedDict
 from uuid import UUID
 
 from remnapy.enums import TrafficLimitStrategy
@@ -238,6 +238,18 @@ class SubscriptionState:
 
 def refunded_unlimited_expiry(snapshot: PlanSnapshot, now: datetime) -> datetime:
     return snapshot.unlimited_from if snapshot.unlimited_from is not None else now
+
+
+class ProrationTerms(TypedDict):
+    """The old subscription's side of a change credit, shared by the credit and the
+    check whether it needs the panel's traffic."""
+
+    credit_paid: Decimal
+    credit_days: int
+    expire_at: datetime
+    is_trial: bool
+    traffic_limit: int
+    traffic_limit_strategy: TrafficLimitStrategy
 
 
 def _no_proration_credit(

@@ -11,6 +11,7 @@ from app.core.exceptions import ValidationError
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions.domain import (
     VALID_TRANSITIONS,
+    ProrationTerms,
     SubscriptionState,
     assert_transition,
     calculate_proration_credit,
@@ -315,17 +316,17 @@ def test_proration_reads_traffic_only_when_it_says_so(
     # the panel is skipped on a False answer, so the credit must not move with usage then
     now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     expire_at = datetime(2099, 1, 1, tzinfo=timezone.utc) if unlimited else now + timedelta(days=20)
-    terms = {
-        "credit_paid": credit_paid,
-        "credit_days": credit_days,
-        "expire_at": expire_at,
-        "is_trial": is_trial,
-        "traffic_limit": traffic_limit,
-        "traffic_limit_strategy": strategy,
-    }
+    terms = ProrationTerms(
+        credit_paid=credit_paid,
+        credit_days=credit_days,
+        expire_at=expire_at,
+        is_trial=is_trial,
+        traffic_limit=traffic_limit,
+        traffic_limit_strategy=strategy,
+    )
     credits = {
-        calculate_proration_credit(**terms, now=now, used_traffic_bytes=used)  # type: ignore[arg-type]
+        calculate_proration_credit(**terms, now=now, used_traffic_bytes=used)
         for used in (0, 95 * GB_TO_BYTES, 500 * GB_TO_BYTES)
     }
 
-    assert proration_uses_traffic(**terms) is (len(credits) > 1)  # type: ignore[arg-type]
+    assert proration_uses_traffic(**terms) is (len(credits) > 1)

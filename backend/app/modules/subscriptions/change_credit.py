@@ -8,7 +8,11 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import Currency
 from app.modules.pricing import PricingRepository
 from app.modules.settings import SettingsRepository
-from app.modules.subscriptions.domain import calculate_proration_credit, proration_uses_traffic
+from app.modules.subscriptions.domain import (
+    ProrationTerms,
+    calculate_proration_credit,
+    proration_uses_traffic,
+)
 from app.modules.subscriptions.dto import SubscriptionDto
 
 
@@ -46,27 +50,19 @@ class ChangeCreditCalculator:
         daily_rate_new = list_price / Decimal(duration_days)
         if daily_rate_new <= 0:
             return ZERO_AMOUNT, 0
-        used_traffic = 0
-        if proration_uses_traffic(
+        terms = ProrationTerms(
             credit_paid=old.plan_snapshot.effective_credit_paid,
             credit_days=old.plan_snapshot.effective_credit_days,
             expire_at=old.expire_at,
             is_trial=old.is_trial,
             traffic_limit=old.effective_traffic_limit,
             traffic_limit_strategy=old.traffic_limit_strategy,
-        ):
+        )
+        used_traffic = 0
+        if proration_uses_traffic(**terms):
             panel_user = await self._remnawave_sdk.users.get_user_by_id(old.remnawave_user_id)
             used_traffic = int(panel_user.used_traffic_bytes)
-        credit = calculate_proration_credit(
-            credit_paid=old.plan_snapshot.effective_credit_paid,
-            credit_days=old.plan_snapshot.effective_credit_days,
-            expire_at=old.expire_at,
-            is_trial=old.is_trial,
-            now=now,
-            traffic_limit=old.effective_traffic_limit,
-            traffic_limit_strategy=old.traffic_limit_strategy,
-            used_traffic_bytes=used_traffic,
-        )
+        credit = calculate_proration_credit(**terms, now=now, used_traffic_bytes=used_traffic)
         if old.plan_snapshot.currency is not currency:
             async with self._uow:
                 rates = await self._pricing_repository.get_rate_table()
