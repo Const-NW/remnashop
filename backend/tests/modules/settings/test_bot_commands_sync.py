@@ -1,7 +1,11 @@
+from typing import Optional
+
 import pytest
 
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale
+from app.modules.settings import bot_commands_sync
+from app.modules.settings.command_translations import CommandMenu, push_bot_commands_to_telegram
 from app.modules.settings.dto import UpdateBotSettingsDto
 from app.modules.settings.repository import SettingsRepository
 from app.modules.translations.repository import TranslationRepository
@@ -127,3 +131,34 @@ async def test_a_half_sent_menu_is_resent_even_when_texts_go_back(
 
     assert len(bot.calls) > sent
     assert bot.called("setMyCommands")[-1]["commands"][0]["description"] == "Open the main menu"
+
+
+async def test_an_edit_during_a_push_is_sent_by_the_running_push(
+    monkeypatch: pytest.MonkeyPatch,
+    settings_repository: SettingsRepository,
+    translation_repository: TranslationRepository,
+    uow: UnitOfWork,
+) -> None:
+    await _setup(settings_repository, translation_repository)
+    bot = use_fake_bot(
+        monkeypatch, FakeBotSession({"setMyCommands": True, "deleteMyCommands": True})
+    )
+    sync = make_bot_commands_sync(settings_repository.session, uow)
+    edited = False
+
+    async def edit_while_sending(token: str, proxy: Optional[str], menu: CommandMenu) -> bool:
+        nonlocal edited
+        if not edited:
+            edited = True
+            await translation_repository.update_value(Locale.EN, "command", "start", "Menu")
+            sent = len(bot.calls)
+            # the lock is taken: the second push hands its menu to this one
+            assert await sync.push()
+            assert len(bot.calls) == sent
+        return await push_bot_commands_to_telegram(token, proxy, menu)
+
+    monkeypatch.setattr(bot_commands_sync, "push_bot_commands_to_telegram", edit_while_sending)
+
+    assert await sync.push()
+
+    assert bot.called("setMyCommands")[-1]["commands"][0]["description"] == "Menu"

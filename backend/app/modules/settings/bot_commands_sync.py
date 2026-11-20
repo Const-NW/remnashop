@@ -25,8 +25,12 @@ from app.modules.translations import TranslationRepository
 # api and telegram push concurrently: a late push of an older menu must not
 # land after a newer one's hash is stored
 _LOCK_KEY: Final[str] = f"{REDIS_KEY_PREFIX}bot_commands_push"
+# a push that finds the lock taken leaves this for the holder to send it
+_PENDING_KEY: Final[str] = f"{REDIS_KEY_PREFIX}bot_commands_push_pending"
+_PENDING: Final[str] = "1"
+_PENDING_FORCE: Final[str] = "force"
 # outlasts a push of every locale at the Bot API timeout
-_LOCK_TTL_S: Final[int] = 180
+_LOCK_TTL_S: Final[int] = 900
 _LOCK_WAIT_S: Final[float] = 30
 
 
@@ -49,13 +53,38 @@ class BotCommandsPusher:
         self._redis = redis
 
     async def push(self, *, force: bool = False) -> bool:
-        # False when Telegram (or reading what to send) failed; True without a bot
-        # or when Telegram already has this menu
-        async with self._locked() as locked:
-            if not locked:
-                logger.warning("Bot commands were not pushed: another push is still running")
+        # False when Telegram (or reading what to send) failed; True without a bot,
+        # when Telegram already has this menu or a running push takes it over
+        try:
+            await self._redis.set(_PENDING_KEY, _PENDING_FORCE if force else _PENDING)
+        except RedisError:
+            logger.exception("Bot commands were not pushed: Redis is unavailable")
+            return False
+        pushed = True
+        # the pending mark is set before the lock is tried, so a holder that releases
+        # without seeing it leaves the lock free for this push
+        while await self._has_pending():
+            lock = self._redis.lock(_LOCK_KEY, timeout=_LOCK_TTL_S)
+            try:
+                if not await lock.acquire(blocking=False):
+                    return pushed
+            except RedisError:
+                logger.exception("Bot commands were not pushed: Redis is unavailable")
                 return False
-            return await self._push(force)
+            try:
+                pending = await self._redis.getdel(_PENDING_KEY)
+                pushed = await self._push(pending == _PENDING_FORCE)
+            finally:
+                with suppress(LockNotOwnedError, RedisError):
+                    await lock.release()
+        return pushed
+
+    async def _has_pending(self) -> bool:
+        try:
+            return bool(await self._redis.exists(_PENDING_KEY))
+        except RedisError:
+            logger.exception("Failed to check for a pending bot commands push")
+            return False
 
     async def _push(self, force: bool) -> bool:
         try:
