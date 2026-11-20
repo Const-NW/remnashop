@@ -47,7 +47,7 @@ dependencies = [
 [project.optional-dependencies]
 # Only the `telegram` process runs aiogram, renders dialogs and translations.
 telegram = [
-    "aiogram~=3.31.0",
+    "aiogram~=3.33.0",
     "aiogram-dialog~=2.5.0",
     "fluentogram~=1.2.1",
     "segno~=1.6",
