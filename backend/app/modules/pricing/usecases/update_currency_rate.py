@@ -2,6 +2,8 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
@@ -27,7 +29,12 @@ class UpdateCurrencyRateUseCase(UseCase[UpdateCurrencyRateDto, list[CurrencyRate
         async with self._uow:
             # under the same lock update_rate takes, so the audited old rate is the replaced one
             await self._pricing_repository.lock_settings()
-            old_row = (await self._pricing_repository.get_rate_table()).for_currency(data.currency)
+            rates = await self._pricing_repository.get_rate_table()
+            if data.currency == rates.anchor and data.rate != 1:
+                raise ValidationError(
+                    "The anchor currency's rate is fixed at 1.0", code=ErrorCode.ANCHOR_RATE_FIXED
+                )
+            old_row = rates.for_currency(data.currency)
             await self._pricing_repository.update_rate(data)
             await self._event_publisher.publish(
                 CurrencyRateChangedEvent(

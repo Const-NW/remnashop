@@ -139,6 +139,25 @@ async def test_price_book_lists_derived_and_pinned_cells(
     assert addon_rub_cell.is_pinned is False
 
 
+async def test_update_currency_rate_keeps_the_anchor_at_one(
+    pricing_repository: PricingRepository, uow: UnitOfWork, event_publisher: EventPublisher
+) -> None:
+    anchor = (await pricing_repository.get_rate_table()).anchor
+
+    with pytest.raises(ValidationError) as error:
+        await UpdateCurrencyRateUseCase(pricing_repository, uow, event_publisher)(
+            OWNER,
+            UpdateCurrencyRateDto(
+                currency=anchor,
+                rate=Decimal("2"),
+                rounding_mode=RoundingMode.INTEGER,
+                charm_ending=None,
+                min_amount=Decimal("0"),
+            ),
+        )
+    assert error.value.code is ErrorCode.ANCHOR_RATE_FIXED
+
+
 async def test_update_currency_rate_moves_the_book(
     plan_repository: PlanRepository,
     addon_repository: AddOnRepository,

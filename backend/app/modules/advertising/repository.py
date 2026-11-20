@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import ColumnElement, and_, func, or_, select
-from sqlalchemy.exc import IntegrityError, NoResultFound
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.errors import constraint_name
@@ -123,27 +123,20 @@ class AdLinkRepository:
         await self.session.refresh(row)
         return self._to_dto(row)
 
-    async def delete_if_no_attributions(self, ad_link_id: int) -> None:
+    async def get_by_id_for_update(self, ad_link_id: int) -> AdLinkDto:
         # a concurrent attribution INSERT takes FOR KEY SHARE on this row, so it
-        # waits for this transaction instead of racing the count-then-delete
-        locked = await self.session.execute(
+        # waits for this transaction instead of racing a count-then-delete
+        row = await self.session.scalar(
             select(AdLink).where(AdLink.id == ad_link_id).with_for_update()
         )
-        try:
-            row = locked.scalar_one()
-        except NoResultFound as error:
+        if row is None:
             raise NotFoundError(
                 f"AdLink '{ad_link_id}' not found", code=ErrorCode.AD_LINK_NOT_FOUND
-            ) from error
-
-        if await self.count_attributions(ad_link_id) > 0:
-            raise ConflictError(
-                f"AdLink '{ad_link_id}' has attributions and cannot be deleted -- "
-                "deactivate it instead",
-                code=ErrorCode.AD_LINK_HAS_ATTRIBUTIONS,
             )
+        return self._to_dto(row)
 
-        await self.session.delete(row)
+    async def delete(self, ad_link_id: int) -> None:
+        await self.session.delete(await self._get_or_raise(ad_link_id))
         await self.session.flush()
 
     async def list_user_links(self, user_ids: list[int]) -> list[tuple[int, int, str]]:

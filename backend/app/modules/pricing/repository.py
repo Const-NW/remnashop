@@ -98,12 +98,6 @@ class PricingRepository:
     async def update_rate(self, data: UpdateCurrencyRateDto) -> CurrencyRateDto:
         # an anchor switch rescales every rate under this lock; a concurrent edit must wait for it
         await self.lock_settings()
-        settings = await self._get_or_create_settings()
-        if data.currency == settings.anchor_currency and data.rate != 1:
-            raise ValidationError(
-                "The anchor currency's rate is fixed at 1.0", code=ErrorCode.ANCHOR_RATE_FIXED
-            )
-
         row = await self.session.get(CurrencyRate, data.currency)
         if row is None:
             raise ValidationError(

@@ -79,7 +79,7 @@ async def test_delete_removes_the_row(
     async with uow:
         created = await ad_link_repository.create(CreateAdLinkDto(name="Gone", code="delete-me"))
 
-    await ad_link_repository.delete_if_no_attributions(created.id)
+    await ad_link_repository.delete(created.id)
 
     with pytest.raises(NotFoundError):
         await ad_link_repository.get_by_id(created.id)
