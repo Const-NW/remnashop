@@ -78,7 +78,7 @@ class PlanRepository:
 
         duration_result = await self.session.execute(
             select(PlanDuration)
-            .where(PlanDuration.plan_id.in_(plan_ids))
+            .where(in_ids(PlanDuration.plan_id, plan_ids))
             .order_by(PlanDuration.order_index, PlanDuration.id)
         )
         duration_rows = duration_result.scalars().all()
@@ -88,7 +88,7 @@ class PlanRepository:
         if duration_ids:
             override_result = await self.session.execute(
                 select(PlanPriceOverride)
-                .where(PlanPriceOverride.plan_duration_id.in_(duration_ids))
+                .where(in_ids(PlanPriceOverride.plan_duration_id, duration_ids))
                 .order_by(PlanPriceOverride.id)
             )
             for override_row in override_result.scalars():
