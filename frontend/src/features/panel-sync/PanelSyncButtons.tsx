@@ -28,12 +28,13 @@ const POLL_INTERVAL_MS = 5_000;
 const DEFAULT_OPTIONS: PanelSyncOptions = {
   adopt_unnamed: true,
   respect_subscription_limit: true,
+  create_users: false,
   recreate_missing: true,
   delete_orphans: true,
 };
 
 const OPTIONS: Record<PanelSyncDirection, (keyof PanelSyncOptions)[]> = {
-  FROM_PANEL: ["adopt_unnamed", "respect_subscription_limit"],
+  FROM_PANEL: ["adopt_unnamed", "respect_subscription_limit", "create_users"],
   TO_PANEL: ["recreate_missing", "delete_orphans"],
 };
 

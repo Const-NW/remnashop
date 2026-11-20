@@ -264,6 +264,7 @@ class PanelSyncResultResponse(BaseModel):
     missing: int
     recreated: int
     imported: int
+    users_created: int
     deleted: int
     over_limit: int
     finished_at: datetime
@@ -272,6 +273,7 @@ class PanelSyncResultResponse(BaseModel):
 class PanelSyncPullRequest(BaseModel):
     adopt_unnamed: bool = True
     respect_subscription_limit: bool = True
+    create_users: bool = False
 
 
 class PanelSyncPushRequest(BaseModel):

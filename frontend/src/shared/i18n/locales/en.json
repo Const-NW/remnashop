@@ -3918,6 +3918,10 @@
             "label": "Respect the subscription limit",
             "hint": "A panel user is not imported when its owner already has the shop’s maximum of active subscriptions."
           },
+          "create_users": {
+            "label": "Create missing shop users",
+            "hint": "A panel user with a Telegram ID that no shop user matches gets a new shop user with that subscription. For moving from another bot on the same token: customers see their subscription without signing up again."
+          },
           "recreate_missing": {
             "label": "Recreate missing panel users",
             "hint": "If a subscription has no panel user, a new one is created and the subscription link changes."
@@ -3928,7 +3932,7 @@
           }
         },
         "started": "Sync started.",
-        "finished": "Sync finished: {{updated}} updated, {{imported}} imported, {{over_limit}} skipped over the limit, {{missing}} missing in the panel, {{failed}} failed.",
+        "finished": "Sync finished: {{updated}} updated, {{imported}} imported, {{users_created}} users created, {{over_limit}} skipped over the limit, {{missing}} missing in the panel, {{failed}} failed.",
         "finishedToPanel": "Sync finished: {{updated}} updated, {{recreated}} recreated in the panel, {{deleted}} deleted from the panel, {{failed}} failed.",
         "error": "Failed to start the sync."
       }

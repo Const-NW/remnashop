@@ -117,6 +117,7 @@ class PanelSyncCompletedEvent(SystemEvent):
     missing: int
     recreated: int = 0
     imported: int = 0
+    users_created: int = 0
     deleted: int = 0
 
 

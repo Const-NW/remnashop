@@ -92,6 +92,7 @@ async def run_panel_sync_task(
     # defaults for a message queued before the options existed
     adopt_unnamed: bool = True,
     respect_subscription_limit: bool = False,
+    create_users: bool = False,
     recreate_missing: bool = True,
     delete_orphans: bool = True,
     squad_replacements: Optional[dict[str, Optional[str]]] = None,
@@ -101,6 +102,7 @@ async def run_panel_sync_task(
             SyncFromPanelOptionsDto(
                 adopt_unnamed=adopt_unnamed,
                 respect_subscription_limit=respect_subscription_limit,
+                create_users=create_users,
             )
         )
     else:
