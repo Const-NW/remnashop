@@ -4865,6 +4865,7 @@
         },
         "plans": "Plans",
         "expires": "Expires within",
+        "expiresTrialHint": "Trial subscriptions are included too. For paid ones only, pick the “Active” subscription.",
         "expired": "Expired within",
         "paid": "Has paid",
         "language": "Language",
