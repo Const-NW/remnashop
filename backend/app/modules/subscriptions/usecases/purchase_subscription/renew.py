@@ -323,13 +323,9 @@ class RenewPurchase:
             # first attempt's write landed after the change
             if panel_user.expire_at != pinned:
                 pinned = None
-            else:
-                # moved to the successor, so a refund finds it, with the days it adds
-                # past the successor's own expiry
-                added_days = max(
-                    0, term_days(max(target.expire_at, datetime_now()), pinned, data.duration_days)
-                )
-                anchor_day = None
+            elif added_days is not None:
+                # moved to the successor so a refund finds it; the days and anchor
+                # stay the renewal's own, the successor's row may already show the pin
                 async with self._uow:
                     if not await self._idempotency.pin_renew_expire_at(
                         key,

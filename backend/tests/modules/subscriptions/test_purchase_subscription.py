@@ -4414,6 +4414,11 @@ async def test_a_stale_pin_the_panel_holds_moves_to_the_successor(
         ),
     )
     remnawave_store[replaced.remnawave_user_id]["expireAt"] = pinned.isoformat()
+    # the late write's webhook already synced the successor's row
+    async with UnitOfWork(user_repository.session):
+        await user_repository.session.execute(
+            update(Subscription).where(Subscription.id == replaced.id).values(expire_at=pinned)
+        )
 
     async def _die(*args: object, **kwargs: object) -> None:
         raise RuntimeError("worker died")
@@ -4433,8 +4438,7 @@ async def test_a_stale_pin_the_panel_holds_moves_to_the_successor(
         added_days = await idempotency_repository.find_pending_renew_added_days("move-pin")
         anchor_day = await idempotency_repository.find_pending_renew_anchor_day("move-pin")
     assert pinned_for == replaced.id
-    assert added_days == round((pinned - replaced.expire_at) / timedelta(days=1))
-    assert anchor_day is None
+    assert (added_days, anchor_day) == (90, 20)
 
 
 async def test_an_admin_grant_to_a_replaced_row_is_refused(
