@@ -1,5 +1,5 @@
 import type { ParseKeys } from "i18next";
-import { BarChart3, Clock, Hourglass, Layers, Package, RefreshCw, TrendingUp, User } from "lucide-react";
+import { BarChart3, Clock, Hourglass, Layers, Package, RefreshCw, TrendingUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -397,7 +397,7 @@ function ExpiringList({ currency }: { currency: Retention["report_currency"] }) 
                   className={EXPIRING_GRID}
                 >
                   <span className="flex size-8 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-foreground">
-                    {row.name ? initials(row.name) : <User className="size-4" />}
+                    {initials(row.name)}
                   </span>
                   <span className="min-w-0">
                     <span className="flex min-w-0 items-center gap-2">
