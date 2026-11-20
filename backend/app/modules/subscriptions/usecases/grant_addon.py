@@ -49,6 +49,10 @@ class GrantAddOnUseCase(UseCase[GrantAddOnDto, SubscriptionDto]):
                 )
                 return await self._subscription_repository.get_by_id(data.subscription_id)
 
+            # a redelivered task: the grant and its event are in already
+            repeat = data.idempotency_key is not None and (
+                await self._subscription_repository.addon_grant_exists(data.idempotency_key)
+            )
             subscription = await self._subscription_repository.grant_entitlement(
                 subscription_id=target.id,
                 addon_id=addon.id,
@@ -69,25 +73,23 @@ class GrantAddOnUseCase(UseCase[GrantAddOnDto, SubscriptionDto]):
                     hwid_device_limit=subscription.effective_device_limit,
                 )
             await self._remnawave_sdk.users.update_user(request)
+            if not repeat:
+                recipient = await self._user_repository.find_by_id(subscription.user_id)
+                await self._event_publisher.publish(
+                    SubscriptionAddOnGrantedEvent(
+                        user=actor,
+                        target=recipient,
+                        subscription_id=subscription.id,
+                        addon_id=addon.id,
+                        addon_type=addon.type,
+                        amount=addon.amount,
+                    )
+                )
 
         logger.info(
             f"Granted addon '{addon.id}' ({addon.amount} {addon.type.value}) "
             f"to subscription '{subscription.id}'"
         )
-        # retry-safe: only update_user above raises a retried exception, so a
-        # failed attempt never gets here and the event fires once
-        async with self._uow:
-            recipient = await self._user_repository.find_by_id(subscription.user_id)
-            await self._event_publisher.publish(
-                SubscriptionAddOnGrantedEvent(
-                    user=actor,
-                    target=recipient,
-                    subscription_id=subscription.id,
-                    addon_id=addon.id,
-                    addon_type=addon.type,
-                    amount=addon.amount,
-                )
-            )
         return subscription
 
     async def _lock_live_target(self, subscription_id: int) -> Optional[SubscriptionDto]:

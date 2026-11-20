@@ -420,6 +420,9 @@ class SubscriptionRepository:
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
 
+    async def addon_grant_exists(self, idempotency_key: str) -> bool:
+        return await self.session.get(AddOnGrantIdempotency, idempotency_key) is not None
+
     async def grant_entitlement(
         self,
         *,

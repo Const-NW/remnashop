@@ -46,7 +46,9 @@ async def _setup_worker_container(state: TaskiqState) -> None:
     if serves_metrics:
         # the retry gauge SCANs the whole keyspace; one process polls it for the port's reader
         state.worker_gauges_task = asyncio.create_task(
-            poll_worker_gauges(redis, broker.queue_name, RETRY_SCHEDULE_PREFIX)
+            poll_worker_gauges(
+                redis, broker.queue_name, broker.consumer_group_name, RETRY_SCHEDULE_PREFIX
+            )
         )
     state.runtime_heartbeat_task = asyncio.create_task(
         poll_runtime_heartbeat(redis, "worker", config.instance_name)

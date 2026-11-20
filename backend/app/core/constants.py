@@ -62,7 +62,7 @@ REDIS_WAIT_CONNECTION_KWARGS: Final[dict[str, Any]] = {
     "socket_keepalive": True,
     "health_check_interval": 30,
 }
-# not for a client that blocks on reads (BRPOP, pub/sub listen): those would
+# not for a client that blocks on reads (XREADGROUP, pub/sub listen): those would
 # time out while simply idle
 REDIS_CONNECTION_KWARGS: Final[dict[str, Any]] = {
     **REDIS_WAIT_CONNECTION_KWARGS,
