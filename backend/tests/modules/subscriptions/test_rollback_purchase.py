@@ -436,6 +436,40 @@ async def test_rollback_undoes_a_renewal_that_reached_only_the_panel(
     assert after.expire_at == bought.expire_at
 
 
+async def test_rollback_undoes_a_panel_only_renewal_of_a_plan_change_successor(
+    purchase: PurchaseSubscriptionUseCase,
+    service: PurchaseRollbackService,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    subscription_repository: SubscriptionRepository,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    buyer = await _buyer(user_repository, 9121)
+    plan = await _plan(plan_repository, "rb_pin_succ")
+    original = await _buy(purchase, buyer, plan, PurchaseType.NEW)
+    successor = await _buy(purchase, buyer, plan, PurchaseType.CHANGE, target=original.id)
+    # the renewal went to the successor, reached the panel, and the worker died
+    pinned = successor.expire_at + timedelta(days=30)
+    remnawave_store[successor.remnawave_user_id]["expireAt"] = pinned.isoformat()
+
+    async def _pinned(key: str) -> Optional[datetime]:
+        return pinned if key == "order-key" else None
+
+    async def _pinned_for(key: str) -> Optional[int]:
+        return successor.id if key == "order-key" else None
+
+    monkeypatch.setattr(service._idempotency, "find_pending_renew_expire_at", _pinned)
+    monkeypatch.setattr(service._idempotency, "find_pending_renew_subscription_id", _pinned_for)
+    data = replace(_data(PurchaseType.RENEW, None, target=original.id), idempotency_key="order-key")
+
+    assert (await service.preview(data)).available
+    await service.rollback(OWNER, data)
+
+    panel_expire = _panel_expire(remnawave_store, successor.remnawave_user_id)
+    assert abs(panel_expire - successor.expire_at) < timedelta(seconds=1)
+
+
 async def _renew_unlimited(
     purchase: PurchaseSubscriptionUseCase, buyer: UserDto, plan: PlanDto, target: int
 ) -> SubscriptionDto:

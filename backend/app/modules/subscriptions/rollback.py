@@ -110,7 +110,13 @@ class PurchaseRollbackService:
         if pinned is None:
             return None
         added_days = await self._idempotency.find_pending_renew_added_days(data.idempotency_key)
-        target = await self._subscription_repository.get_by_id(data.target_subscription_id)
+        # the row a plan change put in place of the paid-for one, when it went there
+        pinned_for = await self._idempotency.find_pending_renew_subscription_id(
+            data.idempotency_key
+        )
+        target = await self._subscription_repository.get_by_id(
+            pinned_for or data.target_subscription_id
+        )
         if target.status is SubscriptionStatus.DELETED:
             return None
         return target, pinned, added_days if added_days is not None else data.duration_days

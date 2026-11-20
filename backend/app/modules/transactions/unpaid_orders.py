@@ -74,12 +74,13 @@ async def clear_late_payment(
         return True
     if await user_repository.spend_purchase_discount(order.user_id, order.discount_percent):
         return True
-    await hold_paid_order(
+    if not await hold_paid_order(
         order,
         FulfillmentHold.PURCHASE_DISCOUNT_SPENT,
         transaction_repository=transaction_repository,
         event_publisher=event_publisher,
-    )
+    ):
+        logger.warning(f"Paid order '{order.id}' left unissued without a hold")
     return False
 
 
@@ -94,14 +95,7 @@ class PaidOrderHolder:
 
     async def hold_paid_order(self, idempotency_key: str, hold: FulfillmentHold) -> bool:
         order = await self._transaction_repository.find_by_idempotency_key(idempotency_key)
-        # a retry landing after the order was issued, or after an admin chose to
-        # issue it, has nothing left to hold
-        if (
-            order is None
-            or order.status is not TransactionStatus.PAID
-            or order.fulfilled_at is not None
-            or order.fulfillment_approved
-        ):
+        if order is None:
             return False
         return await hold_paid_order(
             order,

@@ -319,37 +319,56 @@ class RenewPurchase:
             added_days = await self._idempotency.find_pending_renew_added_days(key)
             anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
             pinned_for = await self._idempotency.find_pending_renew_subscription_id(key)
+        replacing = pinned
         if pinned is not None and pinned_for is not None and pinned_for != target.id:
+            panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
             # worked out from the row a plan change replaced, whose expiry the change
-            # overwrote on the panel: counted again from the successor's
-            pinned = None
-        anchor = _live_anchor(target)
+            # overwrote on the panel: counted again from the successor's, unless the
+            # first attempt's write landed after the change
+            if panel_user.expire_at != pinned:
+                pinned = None
         if pinned is None:
             base = await self._renewal_base(target)
+            anchor = _live_anchor(target)
             # ms-truncated so the pinned value compares equal to the panel's
-            pinned = truncate_to_ms(
+            fresh = truncate_to_ms(
                 expiry_after(
                     base, data.duration_days, exact_days=data.exact_days, anchor_day=anchor
                 )
             )
-            anchor_day = term_anchor(
+            fresh_anchor_day = term_anchor(
                 base, data.duration_days, exact_days=data.exact_days, anchor_day=anchor
             )
-            added_days = term_days(base, pinned, data.duration_days)
+            fresh_days = term_days(base, fresh, data.duration_days)
             async with self._uow:
-                await self._idempotency.pin_renew_expire_at(
-                    key, pinned, added_days, anchor_day, token, subscription_id=target.id
+                won = await self._idempotency.pin_renew_expire_at(
+                    key,
+                    fresh,
+                    fresh_days,
+                    fresh_anchor_day,
+                    token,
+                    subscription_id=target.id,
+                    replacing=replacing,
                 )
-            keep_key()
-        else:
-            keep_key()
-            if added_days is None:
-                # pinned before the column existed, when a term was plain days
-                added_days = data.duration_days
-            panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
-            if panel_user.expire_at >= pinned:
-                return pinned, added_days, anchor_day
-
+                if not won:
+                    # a concurrent resume re-pinned first: its pin stands
+                    pinned = await self._idempotency.find_pending_renew_expire_at(key)
+                    added_days = await self._idempotency.find_pending_renew_added_days(key)
+                    anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
+            if won:
+                keep_key()
+                await self._remnawave_sdk.users.update_user(
+                    UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=fresh)
+                )
+                return fresh, fresh_days, fresh_anchor_day
+            assert pinned is not None  # the winner's pin, on a row still unlinked
+        keep_key()
+        if added_days is None:
+            # pinned before the column existed, when a term was plain days
+            added_days = data.duration_days
+        panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
+        if panel_user.expire_at >= pinned:
+            return pinned, added_days, anchor_day
         await self._remnawave_sdk.users.update_user(
             UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=pinned)
         )

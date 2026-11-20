@@ -977,6 +977,40 @@ async def test_pinning_a_renewal_needs_the_current_claim(
     assert await idempotency_repository.find_pending_renew_expire_at("pin-1") is not None
 
 
+async def test_a_renewal_repin_loses_to_one_made_since_it_read(
+    uow: UnitOfWork, idempotency_repository: PurchaseIdempotencyRepository
+) -> None:
+    async with uow:
+        await _insert_key(idempotency_repository.session, "repin-1", age=timedelta(minutes=1))
+        token = await idempotency_repository.find_claim_token("repin-1")
+    stale = datetime_now() + timedelta(days=30)
+    async with uow:
+        assert await idempotency_repository.pin_renew_expire_at(
+            "repin-1", stale, 30, None, token, subscription_id=1
+        )
+    winner = stale + timedelta(days=10)
+    async with uow:
+        assert await idempotency_repository.pin_renew_expire_at(
+            "repin-1", winner, 30, None, token, subscription_id=2, replacing=stale
+        )
+
+    # a concurrent resume that read the same stale pin
+    async with uow:
+        won = await idempotency_repository.pin_renew_expire_at(
+            "repin-1",
+            winner + timedelta(days=5),
+            30,
+            None,
+            token,
+            subscription_id=2,
+            replacing=stale,
+        )
+        current = await idempotency_repository.find_pending_renew_expire_at("repin-1")
+
+    assert won is False
+    assert current is not None and abs(current - winner) < timedelta(milliseconds=1)
+
+
 async def test_entitlements_load_for_more_ids_than_asyncpg_takes_parameters(
     subscription_repository: SubscriptionRepository,
 ) -> None:

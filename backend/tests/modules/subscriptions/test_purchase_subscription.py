@@ -42,7 +42,7 @@ from app.core.enums import (
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.ports import EventPublisher
-from app.core.utils.time import add_term, datetime_now
+from app.core.utils.time import add_term, datetime_now, truncate_to_ms
 from app.modules.plans.addon_repository import AddOnRepository
 from app.modules.plans.dto import (
     CreateAddOnDto,
@@ -4332,6 +4332,52 @@ async def test_a_renewal_pinned_for_a_since_replaced_row_counts_again_from_its_s
     # the old row's pin would have taken the successor back in time
     assert renewed.id == replaced.id
     assert abs(renewed.expire_at - add_term(replaced.expire_at, 30)) < timedelta(seconds=1)
+
+
+async def test_a_stale_pin_the_panel_already_holds_is_not_extended_again(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    idempotency_repository: PurchaseIdempotencyRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    buyer = await _create_buyer(user_repository, 448)
+    plan = await _create_plan(plan_repository, "late-pin")
+    original = await purchase_subscription_use_case(
+        buyer, _paid_purchase(buyer, plan, "late-pin-new")
+    )
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        plan,
+        "late-pin",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=original.id,
+    )
+    pinned = truncate_to_ms(original.expire_at + timedelta(days=90))
+    async with UnitOfWork(user_repository.session):
+        token = await idempotency_repository.claim("late-pin", stale_after=timedelta(minutes=5))
+        await idempotency_repository.pin_renew_expire_at(
+            "late-pin", pinned, 90, None, token, subscription_id=original.id
+        )
+    replaced = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "late-pin-change", PurchaseType.CHANGE, target_subscription_id=original.id
+        ),
+    )
+    # the first attempt's panel write landed after the plan change
+    remnawave_store[replaced.remnawave_user_id]["expireAt"] = pinned.isoformat()
+
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _paid_purchase(
+            buyer, plan, "late-pin", PurchaseType.RENEW, target_subscription_id=original.id
+        ),
+    )
+
+    assert renewed.id == replaced.id
+    assert abs(renewed.expire_at - pinned) < timedelta(seconds=1)
 
 
 async def test_an_admin_grant_to_a_replaced_row_is_refused(
