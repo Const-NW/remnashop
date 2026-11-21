@@ -347,6 +347,7 @@ ntf-common =
 ntf-purchase =
     .stars-rejected = This order can't be paid any more. Please start the purchase again.
     .plan-unavailable = ❌ This plan is no longer available — please pick another one.
+    .renew-unavailable = ⚠️ This plan can no longer be renewed — please pick another one.
     .limit-reached = ❌ You've reached the subscription limit.
     .method-unavailable = ❌ This payment method is unavailable right now.
     .discount-used = ⚠️ The discount has already been used — check the new price.

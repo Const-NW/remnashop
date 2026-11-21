@@ -132,7 +132,11 @@ async def test_renew_of_a_plan_gone_from_the_catalog_says_it_cant_be_renewed() -
     )
 
 
-async def test_renew_without_a_plan_to_renew_into_opens_the_plan_change() -> None:
+async def test_renew_without_a_plan_to_renew_into_opens_the_plan_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    notice = AsyncMock()
+    monkeypatch.setattr(purchase_handlers, "answer_notice", notice)
     manager = _manager(start_data={"purchase_type": "RENEW", SELECTED_SUBSCRIPTION_KEY: 3})
     list_active_plans = AsyncMock(
         side_effect=[
@@ -157,6 +161,8 @@ async def test_renew_without_a_plan_to_renew_into_opens_the_plan_change() -> Non
     assert manager.dialog_data["purchase_type"] == "CHANGE"
     assert manager.dialog_data["current_plan_id"] == 0
     manager.switch_to.assert_awaited_once_with(Purchase.PLAN)
+    # says why the renewal became a plan change
+    notice.assert_awaited_once_with(manager.event, "ntf-purchase.renew-unavailable")
 
 
 async def test_renew_of_a_gone_subscription_answers_an_alert() -> None:
