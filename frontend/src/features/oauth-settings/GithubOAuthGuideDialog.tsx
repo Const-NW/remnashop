@@ -36,10 +36,6 @@ export function GithubOAuthGuideDialog() {
             value={t("settings.oauth.githubGuide.callbackUrlValue")}
           />
         </div>
-
-        <p className="mt-2 text-xs text-muted-foreground">
-          {t("settings.oauth.githubGuide.callbackNote")}
-        </p>
       </div>
 
       <div>

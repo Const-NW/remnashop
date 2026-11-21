@@ -76,7 +76,7 @@ export function TelegramOAuthGuideDialog() {
         <ol className="mt-2 flex list-decimal flex-col gap-1.5 pl-5">
           {accessSetupSteps.map((step, index) => (
             <li key={index}>
-              {index === 0 ? withLink(step, "@Get_myidrobot", "https://t.me/Get_myidrobot") : step}
+              {withLink(step, "@Get_myidrobot", "https://t.me/Get_myidrobot")}
             </li>
           ))}
         </ol>

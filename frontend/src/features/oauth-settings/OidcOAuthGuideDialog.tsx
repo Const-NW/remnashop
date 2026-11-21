@@ -26,10 +26,6 @@ export function OidcOAuthGuideDialog() {
             value={t("settings.oauth.oidcGuide.callbackUrlValue")}
           />
         </div>
-
-        <p className="mt-2 text-xs text-muted-foreground">
-          {t("settings.oauth.oidcGuide.callbackNote")}
-        </p>
       </div>
 
       <div>
