@@ -36,6 +36,7 @@ def _to_catalog_plan(
         traffic_limit=plan.traffic_limit,
         device_limit=plan.device_limit,
         is_trial=plan.is_trial,
+        allow_renewal=plan.allow_renewal,
         order_index=plan.order_index,
         icon_emoji_id=plan.icon_emoji_id,
         icon_emoji_fallback=plan.icon_emoji_fallback,

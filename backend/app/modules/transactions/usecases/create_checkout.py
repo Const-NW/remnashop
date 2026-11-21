@@ -556,6 +556,12 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                         "Renewing a different plan is a CHANGE, not a RENEW",
                         code=ErrorCode.RENEW_PLAN_MISMATCH,
                     )
+            # would renew past the plan's allow_renewal under another name
+            elif target.plan_snapshot.plan_id == data.plan_id:
+                raise ValidationError(
+                    "Changing to the same plan is a RENEW, not a CHANGE",
+                    code=ErrorCode.CHANGE_SAME_PLAN,
+                )
             elif data.duration_days < 0:
                 raise ValidationError(
                     "duration_days can't be negative", code=ErrorCode.DURATION_NOT_POSITIVE

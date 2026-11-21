@@ -594,6 +594,7 @@ class CatalogPlanDto:
     is_trial: bool
     order_index: int
     durations: list[CatalogDurationDto]
+    allow_renewal: bool = True
     # the plan's promotion running now: 0 and None while there is none
     discount_percent: int = 0
     discount_ends_at: Optional[datetime] = None

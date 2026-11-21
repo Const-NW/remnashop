@@ -1619,8 +1619,13 @@ async def test_create_checkout_keeps_the_previous_plan_on_a_change_order_only(
     subscription_repository: SubscriptionRepository,
     transaction_repository: TransactionRepository,
 ) -> None:
+    # a CHANGE comes from another plan
+    owned_plan_id = plan.id if purchase_type is PurchaseType.RENEW else plan.id + 1
     subscription_id = await _seed_subscription(
-        subscription_repository, user_id=actor.id, remnawave_user_id=820_105, plan_id=plan.id
+        subscription_repository,
+        user_id=actor.id,
+        remnawave_user_id=820_105,
+        plan_id=owned_plan_id,
     )
 
     result = await create_checkout_use_case(
@@ -1660,6 +1665,28 @@ async def test_create_checkout_refuses_to_renew_a_plan_closed_to_renewal(
         await create_checkout_use_case(actor, _renew_dto(plan, subscription_id))
 
     assert error.value.code is ErrorCode.PLAN_NOT_FOUND
+
+
+async def test_create_checkout_refuses_a_change_to_the_same_plan(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    subscription_id = await _seed_subscription(
+        subscription_repository, user_id=actor.id, remnawave_user_id=820_110, plan_id=plan.id
+    )
+    # a CHANGE onto its own plan would renew it past allow_renewal
+    await plan_repository.update(UpdatePlanDto(plan_id=plan.id, allow_renewal=False))
+
+    with pytest.raises(ValidationError) as error:
+        await create_checkout_use_case(
+            actor, replace(_renew_dto(plan, subscription_id), purchase_type=PurchaseType.CHANGE)
+        )
+
+    assert error.value.code is ErrorCode.CHANGE_SAME_PLAN
 
 
 async def test_create_checkout_renews_a_plan_taken_off_sale(

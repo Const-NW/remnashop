@@ -186,7 +186,9 @@ async def _start_by_link(
     manager.dialog_data[PLAN_CODE_KEY] = code
     manager.dialog_data["plan_id"] = plan.id
     # an unlimited one has nothing to renew
-    if any(s.plan_snapshot.plan_id == plan.id and not s.is_unlimited for s in subscriptions):
+    if plan.allow_renewal and any(
+        s.plan_snapshot.plan_id == plan.id and not s.is_unlimited for s in subscriptions
+    ):
         manager.dialog_data[LINK_CHOICE_KEY] = True
         await manager.switch_to(Purchase.LINK_CHOICE)
     else:
@@ -331,7 +333,7 @@ async def on_purchase_start(
     subscriptions = await list_own_subscriptions(user) if needs_subscriptions else []
     catalog = await list_active_plans(user, catalog_query(manager))
     if start.get("purchase_type") == PurchaseType.RENEW.value and not catalog.plans:
-        # nothing to renew into (an imported or switched-off plan): a plan change stands for it
+        # nothing to renew into (an imported plan, one closed to renewal): a plan change instead
         manager.dialog_data["purchase_type"] = PurchaseType.CHANGE.value
         catalog = await list_active_plans(user, catalog_query(manager))
     methods = await list_payment_methods(user, _IN_BOT) if retry else None

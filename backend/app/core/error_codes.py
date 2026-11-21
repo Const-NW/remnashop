@@ -79,6 +79,7 @@ class ErrorCode(UpperStrEnum):
     CANNOT_DELETE_SELF = auto()
     CAPTCHA_FAILED = auto()
     CAPTCHA_NOT_CONFIGURED = auto()
+    CHANGE_SAME_PLAN = auto()
     CHANNEL_NOT_ACCESSIBLE = auto()
     COOLDOWN_ACTIVE = auto()
     CSRF_FAILED = auto()
