@@ -36,7 +36,8 @@ export function useAdLinkEditForm(adLink: AdLink, onSaved: (adLink: AdLink) => v
         ...channels,
         // "" clears it; null would leave the old note
         note: note.trim(),
-        promocode_id: promocodeId,
+        // sent only when changed: an admin without PROMOCODES_VIEW can still edit the rest
+        ...(promocodeId !== adLink.promocode_id ? { promocode_id: promocodeId } : {}),
       });
       toast.success(t("advertising.edit.saved"));
       onSaved(updated);

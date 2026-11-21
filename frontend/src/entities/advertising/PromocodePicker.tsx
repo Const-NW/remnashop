@@ -1,12 +1,10 @@
 import { Ticket } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { listPromocodes } from "@entities/promocodes/api";
+import { listPromocodes, PICKER_PAGE_SIZE } from "@entities/promocodes/api";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
 
-// the backend's MAX_PAGE_SIZE: a shop's live promocodes fit in one page
-const PROMOCODES_PAGE_SIZE = 200;
 const NONE = "";
 
 interface PromocodePickerProps {
@@ -15,12 +13,11 @@ interface PromocodePickerProps {
   onChange: (promocodeId: number | null) => void;
 }
 
-/** The promocode an ad link applies to whoever opens it. */
+/** The promocode an ad link applies to whoever opens it; shown only with PROMOCODES_VIEW. */
 export function PromocodePicker({ id, value, onChange }: PromocodePickerProps) {
   const { t } = useTranslation();
-  // an admin without the promocodes permission keeps the link's own choice and "none"
   const [state] = useAsyncResource((signal) =>
-    listPromocodes({ status: "ACTIVE", pageSize: PROMOCODES_PAGE_SIZE }, signal),
+    listPromocodes({ status: "ACTIVE", pageSize: PICKER_PAGE_SIZE }, signal),
   );
   const promocodes = state.kind === "ready" ? state.data.items : [];
   const options = [

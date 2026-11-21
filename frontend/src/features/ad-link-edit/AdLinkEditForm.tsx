@@ -6,6 +6,7 @@ import { PromocodePicker } from "@entities/advertising/PromocodePicker";
 import { RevenueSharePercentField } from "@entities/advertising/RevenueSharePercentField";
 import { CURRENCIES } from "@entities/pricing/api";
 import { CURRENCY_ICON } from "@entities/transactions/api";
+import { usePermissions } from "@entities/user/use-current-user";
 import { AD_LINK_EDIT_FORM_ID, type AdLinkEditFormState } from "@features/ad-link-edit/use-ad-link-edit-form";
 import { blockNonDecimalKeys } from "@shared/lib/number-input";
 import { SelectDropdown } from "@shared/ui/SelectDropdown";
@@ -18,6 +19,7 @@ export function AdLinkEditForm({ form }: { form: AdLinkEditFormState }) {
   const { t } = useTranslation();
   const { name, setName, cost, setCost, currency, setCurrency, note, setNote, channels, setChannels } = form;
   const { revenueSharePercent, setRevenueSharePercent, promocodeId, setPromocodeId } = form;
+  const canPickPromocode = usePermissions().includes("PROMOCODES_VIEW");
 
   return (
     <form
@@ -83,15 +85,17 @@ export function AdLinkEditForm({ form }: { form: AdLinkEditFormState }) {
         />
       </div>
 
-      <div className={GLASS_DIALOG_CARD_CLASS}>
-        <Field
-          label={t("advertising.promocode.label")}
-          htmlFor="adlink-edit-promocode"
-          hint={t("advertising.promocode.hint")}
-        >
-          <PromocodePicker id="adlink-edit-promocode" value={promocodeId} onChange={setPromocodeId} />
-        </Field>
-      </div>
+      {canPickPromocode && (
+        <div className={GLASS_DIALOG_CARD_CLASS}>
+          <Field
+            label={t("advertising.promocode.label")}
+            htmlFor="adlink-edit-promocode"
+            hint={t("advertising.promocode.hint")}
+          >
+            <PromocodePicker id="adlink-edit-promocode" value={promocodeId} onChange={setPromocodeId} />
+          </Field>
+        </div>
+      )}
 
       <div className={GLASS_DIALOG_CARD_CLASS}>
         <Field label={t("advertising.edit.noteLabel")} htmlFor="adlink-edit-note">

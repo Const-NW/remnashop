@@ -22,7 +22,14 @@ from app.core.enums import (
     RoundingMode,
     TransactionStatus,
 )
-from app.core.exceptions import ConflictError, NotFoundError, PermissionDeniedError
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    ConflictError,
+    NotFoundError,
+    PermissionDeniedError,
+    ValidationError,
+)
+from app.core.security.permissions import Permission
 from app.core.utils.time import datetime_now
 from app.modules.advertising.dto import (
     ActivateAdLinkPromocodeDto,
@@ -913,3 +920,43 @@ async def test_an_ad_link_applies_its_promocode_as_a_promocode_link(
 
     assert result == "applied"
     by_link.assert_awaited_once_with(OWNER, ActivatePromocodeByLinkDto(code="ADPROMO3"))
+
+
+async def test_a_refused_ad_link_promocode_keeps_its_code_out_of_the_error(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    promocode_id = await _promocode_id(ad_link_repository, "SECRETAD")
+    await ad_link_repository.create(
+        CreateAdLinkDto(name="Hush", code="hush-link", promocode_id=promocode_id)
+    )
+    refusal = ValidationError(
+        "Promocode 'SECRETAD' is for new users only", code=ErrorCode.PROMOCODE_NOT_AVAILABLE
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await _activate_ad_promo(ad_link_repository, uow, AsyncMock(side_effect=refusal))(
+            OWNER, ActivateAdLinkPromocodeDto(ad_link_code="hush-link", channel=AdLinkChannel.BOT)
+        )
+
+    assert error.value.code is ErrorCode.PROMOCODE_NOT_AVAILABLE
+    assert "SECRETAD" not in str(error.value)
+
+
+async def test_linking_a_promocode_needs_the_promocodes_permission(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    promocodes = PromocodeRepository(ad_link_repository.session)
+    create = CreateAdLinkUseCase(ad_link_repository, promocodes, uow, RecordingEventPublisher())
+    promocode_id = await _promocode_id(ad_link_repository, "NOPERM")
+    # an admin with ad links but not promocodes
+    admin = UserDto(
+        id=0,
+        name="ads",
+        role=Role.ADMIN,
+        language=Locale.EN,
+        permission_revokes=[Permission.PROMOCODES_VIEW.value],
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        await create(admin, CreateAdLinkDto(name="X", code="noperm", promocode_id=promocode_id))
+    assert (await create(admin, CreateAdLinkDto(name="Y", code="noperm-2"))).promocode_id is None

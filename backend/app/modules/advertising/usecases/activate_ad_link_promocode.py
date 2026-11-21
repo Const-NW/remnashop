@@ -1,6 +1,7 @@
 from typing import Optional
 
 from app.core.db.uow import UnitOfWork
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.advertising.dto import ActivateAdLinkPromocodeDto
@@ -47,6 +48,10 @@ class ActivateAdLinkPromocodeUseCase(
             ):
                 return None
             promo = await self._promocode_repository.get_by_id(ad_link.promocode_id)
-        return await self._activate_promocode_by_link_use_case(
-            actor, ActivatePromocodeByLinkDto(code=promo.code)
-        )
+        try:
+            return await self._activate_promocode_by_link_use_case(
+                actor, ActivatePromocodeByLinkDto(code=promo.code)
+            )
+        except (NotFoundError, ValidationError) as error:
+            # the detail names the code, which the ad link keeps to itself
+            raise type(error)("The ad link's promocode can't be applied", code=error.code) from None

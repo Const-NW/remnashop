@@ -2,8 +2,9 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
+from app.core.exceptions import PermissionDeniedError
 from app.core.ports import EventPublisher
-from app.core.security.permissions import Permission
+from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
 from app.modules.advertising.dto import AdLinkDto, UpdateAdLinkDto
 from app.modules.advertising.events import AdLinkChangedEvent
@@ -27,6 +28,11 @@ class UpdateAdLinkUseCase(UseCase[UpdateAdLinkDto, AdLinkDto]):
         self._event_publisher = event_publisher
 
     async def _execute(self, actor: Actor, data: UpdateAdLinkDto) -> AdLinkDto:
+        if (
+            data.promocode_id is not None or data.clear_promocode
+        ) and not PermissionPolicy.has_permission(actor, Permission.PROMOCODES_VIEW):
+            # the link hands the promocode to anyone who opens it
+            raise PermissionDeniedError("Linking a promocode needs PROMOCODES_VIEW")
         async with self._uow:
             if data.promocode_id is not None:
                 await self._promocode_repository.get_by_id(data.promocode_id)

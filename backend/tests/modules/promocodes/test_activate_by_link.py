@@ -16,8 +16,15 @@ from app.modules.promocodes.usecases import ActivatePromocodeByLinkUseCase
 _USER = MagicMock(id=7, log="[user 7]")
 
 
-def _promo(reward_type: PromocodeRewardType) -> PromocodeDto:
-    return PromocodeDto(id=1, code="LINK", is_active=True, reward_type=reward_type, reward=5)
+def _promo(reward_type: PromocodeRewardType, *, is_reusable: bool = False) -> PromocodeDto:
+    return PromocodeDto(
+        id=1,
+        code="LINK",
+        is_active=True,
+        reward_type=reward_type,
+        reward=5,
+        is_reusable=is_reusable,
+    )
 
 
 def _use_case(
@@ -85,4 +92,16 @@ async def test_a_refused_code_is_not_activated() -> None:
 
     with pytest.raises(ValidationError):
         await use_case(_USER, ActivatePromocodeByLinkDto(code="LINK"))
+    activate.assert_not_awaited()
+
+
+async def test_a_reusable_code_waits_for_the_customer_to_confirm() -> None:
+    # opening the link again must not hand out the reward again
+    use_case, activate = _use_case(
+        _promo(PromocodeRewardType.DURATION, is_reusable=True), targets=[42]
+    )
+
+    result = await use_case(_USER, ActivatePromocodeByLinkDto(code="LINK"))
+
+    assert result.outcome is PromocodeLinkOutcome.CONFIRM
     activate.assert_not_awaited()

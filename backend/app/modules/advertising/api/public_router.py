@@ -15,12 +15,12 @@ from app.modules.advertising.dto import ActivateAdLinkPromocodeDto
 from app.modules.advertising.usecases import ActivateAdLinkPromocodeUseCase
 from app.modules.users import UserDto
 
-router = APIRouter(prefix="/ad-links", tags=["advertising"])
+router = APIRouter(prefix="/advertising", tags=["advertising"])
 
 
 # the cabinet opened by an ad link (?ad=<code>): its promocode, if it has one
 @router.post(
-    "/actions/activate-promocode",
+    "/links/actions/activate-promocode",
     response_model=AdLinkPromocodeResultResponse,
     dependencies=[
         Depends(user_rate_limit(key="promocode_activate", limit=10, window_seconds=TIME_1M))

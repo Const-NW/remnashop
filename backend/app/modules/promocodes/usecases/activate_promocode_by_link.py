@@ -39,6 +39,8 @@ class ActivatePromocodeByLinkUseCase(
         self, actor: UserDto, data: ActivatePromocodeByLinkDto
     ) -> PromocodeLinkResultDto:
         promo = await self._validate_promocode_use_case(actor, ValidatePromocodeDto(code=data.code))
+        if promo.is_reusable:
+            return PromocodeLinkResultDto(outcome=PromocodeLinkOutcome.CONFIRM, promocode=promo)
         target_id = None
         if promo.reward_type in PLAN_LIMITED_REWARDS:
             targets = await self._list_promocode_targets_use_case(

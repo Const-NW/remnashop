@@ -16,6 +16,8 @@ from app.telegram.routers.promocode import deeplink
 from app.telegram.states import MainMenu, Promocode
 
 _USER = MagicMock(id=5, log="[user 5]")
+_MENU = {"state": MainMenu.MAIN, "mode": StartMode.RESET_STACK}
+_REFUSAL = ValidationError("used", code=ErrorCode.PROMOCODE_ALREADY_ACTIVATED)
 
 
 def _result(outcome: PromocodeLinkOutcome) -> PromocodeLinkResultDto:
@@ -30,13 +32,19 @@ def notice(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
     runner = MagicMock()
     runner.get.side_effect = lambda key, **kwargs: f"{key}{kwargs or ''}"
     monkeypatch.setattr(deeplink, "get_translator", lambda hub, user: runner)
+    monkeypatch.setattr(deeplink, "hit_counter", AsyncMock(return_value=1))
     mock = AsyncMock()
     monkeypatch.setattr(deeplink, "answer_notice", mock)
     return mock
 
 
-async def _open_ad_link(activate: AsyncMock) -> AsyncMock:
+def _manager(calls: list[str]) -> AsyncMock:
     manager = AsyncMock()
+    manager.start.side_effect = lambda *args, **kwargs: calls.append("menu")
+    return manager
+
+
+async def _open_ad_link(activate: AsyncMock, manager: AsyncMock) -> None:
     await deeplink.on_ad_link(
         MagicMock(),
         MagicMock(args="ad_spring"),
@@ -45,22 +53,35 @@ async def _open_ad_link(activate: AsyncMock) -> AsyncMock:
         activate=activate,
         validate_promocode=AsyncMock(),
         list_promocode_targets=AsyncMock(),
+        redis=MagicMock(),
         i18n=MagicMock(),
     )
-    return manager
+
+
+async def _open_promocode_link(activate: AsyncMock, manager: AsyncMock) -> None:
+    await deeplink.on_promocode_link(
+        MagicMock(),
+        MagicMock(args="promo_spring10"),
+        _USER,
+        manager,
+        activate=activate,
+        validate_promocode=AsyncMock(),
+        list_promocode_targets=AsyncMock(),
+        redis=MagicMock(),
+        i18n=MagicMock(),
+    )
 
 
 async def test_an_ad_link_without_a_promocode_only_opens_the_menu(notice: AsyncMock) -> None:
     activate = AsyncMock(return_value=None)
+    manager = AsyncMock()
 
-    manager = await _open_ad_link(activate)
+    await _open_ad_link(activate, manager)
 
     activate.assert_awaited_once_with(
         _USER, ActivateAdLinkPromocodeDto(ad_link_code="spring", channel=AdLinkChannel.BOT)
     )
-    manager.start.assert_awaited_once_with(
-        state=MainMenu.MAIN, mode=StartMode.RESET_STACK, show_mode=ShowMode.DELETE_AND_SEND
-    )
+    manager.start.assert_awaited_once_with(**_MENU, show_mode=ShowMode.DELETE_AND_SEND)
     notice.assert_not_awaited()
 
 
@@ -71,73 +92,83 @@ async def test_an_ad_link_without_a_promocode_only_opens_the_menu(notice: AsyncM
         (PromocodeLinkOutcome.NO_TARGET, "ntf-promocode.link-no-target{'code': 'GIFT'}"),
     ],
 )
-async def test_an_ad_link_says_what_its_promocode_did(
+async def test_the_menu_is_drawn_after_the_promocode_is_applied(
     outcome: PromocodeLinkOutcome, text: str, notice: AsyncMock
 ) -> None:
-    await _open_ad_link(AsyncMock(return_value=_result(outcome)))
+    calls: list[str] = []
 
+    async def apply(*args: object) -> PromocodeLinkResultDto:
+        calls.append("apply")
+        return _result(outcome)
+
+    await _open_ad_link(AsyncMock(side_effect=apply), _manager(calls))
+
+    assert calls == ["apply", "menu"]
     assert notice.await_args is not None
     assert notice.await_args.args[1] == text
 
 
-async def test_a_refused_promocode_says_why(notice: AsyncMock) -> None:
-    refusal = ValidationError("used", code=ErrorCode.PROMOCODE_ALREADY_ACTIVATED)
+async def test_an_ad_link_keeps_quiet_about_a_refused_promocode(notice: AsyncMock) -> None:
+    manager = AsyncMock()
 
-    await _open_ad_link(AsyncMock(side_effect=refusal))
+    await _open_ad_link(AsyncMock(side_effect=_REFUSAL), manager)
+
+    manager.start.assert_awaited_once_with(**_MENU, show_mode=ShowMode.DELETE_AND_SEND)
+    notice.assert_not_awaited()
+
+
+async def test_a_promocode_link_says_why_it_was_refused(notice: AsyncMock) -> None:
+    await _open_promocode_link(AsyncMock(side_effect=_REFUSAL), AsyncMock())
 
     assert notice.await_args is not None
     assert notice.await_args.args[1] == "ntf-promocode.already-activated"
 
 
-async def test_several_subscriptions_open_the_promocode_dialog_on_the_choice(
-    monkeypatch: pytest.MonkeyPatch, notice: AsyncMock
+@pytest.mark.parametrize(
+    "outcome", [PromocodeLinkOutcome.CHOOSE_TARGET, PromocodeLinkOutcome.CONFIRM]
+)
+async def test_a_step_left_to_the_customer_draws_the_promocode_dialog_once(
+    outcome: PromocodeLinkOutcome, monkeypatch: pytest.MonkeyPatch, notice: AsyncMock
 ) -> None:
     proceed = AsyncMock()
     monkeypatch.setattr(deeplink, "continue_with_code", proceed)
+    manager = AsyncMock()
 
-    manager = await _open_ad_link(
-        AsyncMock(return_value=_result(PromocodeLinkOutcome.CHOOSE_TARGET))
-    )
+    await _open_ad_link(AsyncMock(return_value=_result(outcome)), manager)
 
-    assert manager.start.await_args_list[-1].args == (Promocode.INPUT,)
+    # nothing drawn until the dialog stands on the step continue_with_code chose
+    assert [call.kwargs["show_mode"] for call in manager.start.await_args_list] == [
+        ShowMode.NO_UPDATE,
+        ShowMode.NO_UPDATE,
+    ]
+    assert manager.start.await_args_list[1].args == (Promocode.INPUT,)
     assert proceed.await_args is not None
     assert proceed.await_args.args[:3] == ("GIFT", _USER, manager)
+    manager.show.assert_awaited_once_with(ShowMode.DELETE_AND_SEND)
 
 
-async def _open_promocode_link(
-    monkeypatch: pytest.MonkeyPatch, activate: AsyncMock, attempts: int
-) -> None:
-    monkeypatch.setattr(deeplink, "hit_counter", AsyncMock(return_value=attempts))
-    await deeplink.on_promocode_link(
-        MagicMock(),
-        MagicMock(args="promo_spring10"),
-        _USER,
-        AsyncMock(),
-        activate=activate,
-        validate_promocode=AsyncMock(),
-        list_promocode_targets=AsyncMock(),
-        redis=MagicMock(),
-        i18n=MagicMock(),
-    )
-
-
-async def test_a_promocode_link_activates_its_code_uppercased(
-    monkeypatch: pytest.MonkeyPatch, notice: AsyncMock
-) -> None:
+async def test_a_promocode_link_activates_its_code_uppercased(notice: AsyncMock) -> None:
     activate = AsyncMock(return_value=_result(PromocodeLinkOutcome.ACTIVATED))
 
-    await _open_promocode_link(monkeypatch, activate, attempts=1)
+    await _open_promocode_link(activate, AsyncMock())
 
     activate.assert_awaited_once_with(_USER, ActivatePromocodeByLinkDto(code="SPRING10"))
 
 
-async def test_a_promocode_link_counts_as_a_typed_guess(
+async def test_links_count_as_typed_guesses(
     monkeypatch: pytest.MonkeyPatch, notice: AsyncMock
 ) -> None:
-    activate = AsyncMock()
+    monkeypatch.setattr(
+        deeplink, "hit_counter", AsyncMock(return_value=deeplink.PROMOCODE_INPUT_LIMIT + 1)
+    )
+    promo_activate, ad_activate = AsyncMock(), AsyncMock()
+    ad_manager = AsyncMock()
 
-    await _open_promocode_link(monkeypatch, activate, attempts=deeplink.PROMOCODE_INPUT_LIMIT + 1)
+    await _open_promocode_link(promo_activate, AsyncMock())
+    await _open_ad_link(ad_activate, ad_manager)
 
-    activate.assert_not_awaited()
-    assert notice.await_args is not None
-    assert notice.await_args.args[1] == "ntf-promocode.too-many-attempts"
+    promo_activate.assert_not_awaited()
+    ad_activate.assert_not_awaited()
+    # the ad link still opens the menu: it's the shop's own link, not a guess to answer
+    ad_manager.start.assert_awaited_once_with(**_MENU, show_mode=ShowMode.DELETE_AND_SEND)
+    assert notice.await_args_list[0].args[1] == "ntf-promocode.too-many-attempts"

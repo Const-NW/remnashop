@@ -35,6 +35,8 @@ export interface Promocode {
 }
 
 export const DEFAULT_PAGE_SIZE = 50;
+// the backend's MAX_PAGE_SIZE: a picker lists a shop's live promocodes in one page
+export const PICKER_PAGE_SIZE = 200;
 
 export interface PromocodeListFilters {
   status?: string;

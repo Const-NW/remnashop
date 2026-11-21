@@ -36,10 +36,21 @@ from app.telegram.states import MainMenu, Promocode
 
 _CODE: Final[str] = "[A-Za-z0-9_-]+"
 
+# the customer has a step to take: a subscription to pick, or a reusable code to confirm
+_ASKS_CUSTOMER: Final[frozenset[PromocodeLinkOutcome]] = frozenset(
+    {PromocodeLinkOutcome.CHOOSE_TARGET, PromocodeLinkOutcome.CONFIRM}
+)
+
 router = Router(name=__name__)
 
 
-async def _open_menu_and_apply(
+async def _over_limit(redis: Redis, user: UserDto) -> bool:
+    # a link's code is a guess like a typed one: same counter as the input window
+    key = f"{REDIS_KEY_PREFIX}ratelimit:bot_promocode:user:{user.id}"
+    return await hit_counter(redis, key, PROMOCODE_INPUT_WINDOW_S) > PROMOCODE_INPUT_LIMIT
+
+
+async def _apply_and_open_menu(
     message: Message,
     dialog_manager: DialogManager,
     user: UserDto,
@@ -47,25 +58,27 @@ async def _open_menu_and_apply(
     apply: Callable[[], Awaitable[Optional[PromocodeLinkResultDto]]],
     validate_promocode: ValidatePromocodeUseCase,
     list_promocode_targets: ListPromocodeTargetsUseCase,
+    *,
+    tell_refusal: bool,
 ) -> None:
     runner = get_translator(i18n, user)
-    # what a plain /start shows; the promocode's outcome comes on top of it
-    await dialog_manager.start(
-        state=MainMenu.MAIN, mode=StartMode.RESET_STACK, show_mode=ShowMode.DELETE_AND_SEND
-    )
+    notice: Optional[str] = None
+    result: Optional[PromocodeLinkResultDto] = None
+    # applied before the menu is drawn, so the menu already shows what it gave
     try:
         result = await apply()
     except (NotFoundError, ValidationError) as error:
-        await answer_notice(message, runner.get(promocode_refusal_key(error)))
-        return
+        notice = runner.get(promocode_refusal_key(error)) if tell_refusal else None
     except Exception:
         logger.exception(f"{user.log} Promocode link activation failed unexpectedly")
-        await answer_notice(message, runner.get("ntf-promocode.activation-failed"))
-        return
-    if result is None:
-        return
-    if result.outcome is PromocodeLinkOutcome.CHOOSE_TARGET:
-        await dialog_manager.start(Promocode.INPUT)
+        notice = runner.get("ntf-promocode.activation-failed") if tell_refusal else None
+
+    if result is not None and result.outcome in _ASKS_CUSTOMER:
+        # the promocode dialog over the menu, drawn once on the step it lands on
+        await dialog_manager.start(
+            state=MainMenu.MAIN, mode=StartMode.RESET_STACK, show_mode=ShowMode.NO_UPDATE
+        )
+        await dialog_manager.start(Promocode.INPUT, show_mode=ShowMode.NO_UPDATE)
         await continue_with_code(
             result.promocode.code,
             user,
@@ -75,13 +88,20 @@ async def _open_menu_and_apply(
             reply=partial(answer_notice, message),
             runner=runner,
         )
+        await dialog_manager.show(ShowMode.DELETE_AND_SEND)
         return
-    if result.outcome is PromocodeLinkOutcome.NO_TARGET:
+
+    # what a plain /start shows, with the outcome under it
+    await dialog_manager.start(
+        state=MainMenu.MAIN, mode=StartMode.RESET_STACK, show_mode=ShowMode.DELETE_AND_SEND
+    )
+    if result is not None and result.outcome is PromocodeLinkOutcome.NO_TARGET:
         # the customer may never have seen the code: a link hid it
-        text = runner.get("ntf-promocode.link-no-target", code=result.promocode.code)
-    else:
-        text = runner.get("ntf-promocode.activated")
-    await answer_notice(message, text)
+        notice = runner.get("ntf-promocode.link-no-target", code=result.promocode.code)
+    elif result is not None:
+        notice = runner.get("ntf-promocode.activated")
+    if notice is not None:
+        await answer_notice(message, notice)
 
 
 @router.message(
@@ -98,15 +118,12 @@ async def on_promocode_link(
     redis: FromDishka[Redis],
     i18n: FromDishka[TranslatorHub],
 ) -> None:
-    code = (command.args or "").removeprefix(PROMOCODE_START_PREFIX).upper()
-    # the code is a guess like any typed one: same counter as the input window
-    key = f"{REDIS_KEY_PREFIX}ratelimit:bot_promocode:user:{user.id}"
-    if await hit_counter(redis, key, PROMOCODE_INPUT_WINDOW_S) > PROMOCODE_INPUT_LIMIT:
-        await answer_notice(
-            message, get_translator(i18n, user).get("ntf-promocode.too-many-attempts")
-        )
+    if await _over_limit(redis, user):
+        text = get_translator(i18n, user).get("ntf-promocode.too-many-attempts")
+        await answer_notice(message, text)
         return
-    await _open_menu_and_apply(
+    code = (command.args or "").removeprefix(PROMOCODE_START_PREFIX).upper()
+    await _apply_and_open_menu(
         message,
         dialog_manager,
         user,
@@ -114,6 +131,7 @@ async def on_promocode_link(
         partial(activate, user, ActivatePromocodeByLinkDto(code=code)),
         validate_promocode,
         list_promocode_targets,
+        tell_refusal=True,
     )
 
 
@@ -128,20 +146,30 @@ async def on_ad_link(
     activate: FromDishka[ActivateAdLinkPromocodeUseCase],
     validate_promocode: FromDishka[ValidatePromocodeUseCase],
     list_promocode_targets: FromDishka[ListPromocodeTargetsUseCase],
+    redis: FromDishka[Redis],
     i18n: FromDishka[TranslatorHub],
 ) -> None:
     # the attribution itself is the user middleware's, on registration
     code = (command.args or "").removeprefix(AD_LINK_START_PREFIX)
-    await _open_menu_and_apply(
+    if await _over_limit(redis, user):
+        apply: Callable[[], Awaitable[Optional[PromocodeLinkResultDto]]] = _nothing
+    else:
+        apply = partial(
+            activate, user, ActivateAdLinkPromocodeDto(ad_link_code=code, channel=AdLinkChannel.BOT)
+        )
+    await _apply_and_open_menu(
         message,
         dialog_manager,
         user,
         i18n,
-        partial(
-            activate,
-            user,
-            ActivateAdLinkPromocodeDto(ad_link_code=code, channel=AdLinkChannel.BOT),
-        ),
+        apply,
         validate_promocode,
         list_promocode_targets,
+        # an ad link opened again (a used code, one for newcomers only) isn't
+        # worth a message: the customer didn't ask for a promocode
+        tell_refusal=False,
     )
+
+
+async def _nothing() -> None:
+    return None
