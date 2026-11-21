@@ -23,14 +23,23 @@ from app.modules.transactions.usecases import (
 )
 
 _RECONCILE_LOCK_TTL_S: Final[int] = 14 * 60
+_PRUNE_LOCK_TTL_S: Final[int] = 9 * 60
 
 
 @broker.task(schedule=[{"cron": "*/10 * * * *"}])
 @inject(patch_module=True)
 async def prune_expired_transactions_task(
     use_case: FromDishka[PruneExpiredTransactionsUseCase],
+    redis: FromDishka[Redis],
 ) -> None:
-    await use_case.system()
+    # each expired order asks its gateway, so a slow provider can outlast a tick
+    async with cron_lock(
+        redis, "prune_expired_transactions", ttl_seconds=_PRUNE_LOCK_TTL_S
+    ) as acquired:
+        if not acquired:
+            logger.debug("prune_expired_transactions_task already running, skipping this tick")
+            return
+        await use_case.system()
 
 
 @broker.task(schedule=[{"cron": "*/15 * * * *"}])

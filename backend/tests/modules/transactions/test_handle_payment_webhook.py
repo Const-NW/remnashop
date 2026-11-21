@@ -2,6 +2,7 @@ import asyncio
 from datetime import timedelta
 from decimal import Decimal
 from typing import Optional
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import update
@@ -152,7 +153,7 @@ async def _paid_while_order_expires(
             .values(expires_at=datetime_now() - timedelta(minutes=1))
         )
     await PruneExpiredTransactionsUseCase(
-        transaction_repository, user_repository, uow, RecordingEventPublisher()
+        transaction_repository, user_repository, uow, RecordingEventPublisher(), AsyncMock()
     ).system()
     gate.set()
     await task

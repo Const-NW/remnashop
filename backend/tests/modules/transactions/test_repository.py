@@ -578,7 +578,9 @@ async def test_cancel_expired_pending_only_touches_expired_pending_rows(
         )
         await transaction_repository.mark_status(expired_paid.id, TransactionStatus.PAID)
 
-        marked = await transaction_repository.cancel_expired_pending(datetime_now())
+        marked = await transaction_repository.cancel_expired_pending(
+            datetime_now(), [expired_pending.id, expired_paid.id]
+        )
 
     assert [order.id for order in marked] == [expired_pending.id]
     assert (await transaction_repository.get_by_id(expired_pending.id)).status == (

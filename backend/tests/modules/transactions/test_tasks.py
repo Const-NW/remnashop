@@ -77,7 +77,7 @@ async def test_prune_expired_transactions_marks_stale_pending_rows_expired(
         )
 
     await PruneExpiredTransactionsUseCase(
-        transaction_repository, user_repository, uow, RecordingEventPublisher()
+        transaction_repository, user_repository, uow, RecordingEventPublisher(), AsyncMock()
     ).system()
 
     fetched = await transaction_repository.get_by_id(stale.id)
@@ -113,7 +113,7 @@ async def test_prune_expired_transactions_publishes_each_expired_order(
     publisher = RecordingEventPublisher()
 
     await PruneExpiredTransactionsUseCase(
-        transaction_repository, user_repository, uow, publisher
+        transaction_repository, user_repository, uow, publisher, AsyncMock()
     ).system()
 
     assert [(e.order_id, e.user_id) for e in publisher.events] == [(stale.id, user_id)]  # type: ignore[attr-defined]
@@ -150,7 +150,7 @@ async def test_prune_expired_transactions_gives_back_a_spent_purchase_discount(
         )
 
     await PruneExpiredTransactionsUseCase(
-        transaction_repository, user_repository, uow, RecordingEventPublisher()
+        transaction_repository, user_repository, uow, RecordingEventPublisher(), AsyncMock()
     ).system()
 
     assert (await user_repository.find_by_id(user_id)).purchase_discount == 20
@@ -191,7 +191,7 @@ async def _prune_discounted_order(
             )
         )
     await PruneExpiredTransactionsUseCase(
-        transaction_repository, user_repository, uow, RecordingEventPublisher()
+        transaction_repository, user_repository, uow, RecordingEventPublisher(), AsyncMock()
     ).system()
     return (await user_repository.find_by_id(user_id)).purchase_discount
 

@@ -349,7 +349,8 @@ class FulfillTransactionDto:
 @dataclass(frozen=True, kw_only=True)
 class CheckTransactionPaymentDto:
     transaction_id: int
-    client_ip: str
+    # None for the expiry sweep
+    client_ip: Optional[str]
 
 
 @dataclass(frozen=True, kw_only=True)

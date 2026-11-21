@@ -3,8 +3,10 @@ from decimal import Decimal
 from typing import Optional
 
 import pytest
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db.models.transaction import Transaction
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Currency,
@@ -17,7 +19,7 @@ from app.core.enums import (
     TransactionStatus,
 )
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, PaymentGatewayError
 from app.core.utils.time import datetime_now
 from app.modules.gateways.repository import GatewayRepository
 from app.modules.transactions.dto import (
@@ -29,7 +31,10 @@ from app.modules.transactions.events import TransactionPaymentConfirmedEvent
 from app.modules.transactions.gateways.base import ProviderPayment
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.repository import TransactionRepository
-from app.modules.transactions.usecases import CheckTransactionPaymentUseCase
+from app.modules.transactions.usecases import (
+    CheckTransactionPaymentUseCase,
+    PruneExpiredTransactionsUseCase,
+)
 from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
@@ -38,11 +43,22 @@ from tests.modules.subscriptions.factories import make_plan_snapshot
 
 
 class _StubGateway:
-    def __init__(self, payment: Optional[ProviderPayment], *, supported: bool = True) -> None:
+    def __init__(
+        self,
+        payment: Optional[ProviderPayment],
+        *,
+        supported: bool = True,
+        error: Optional[Exception] = None,
+    ) -> None:
         self.supports_status_check = supported
         self._payment = payment
+        self._error = error
+        self.calls = 0
 
     async def check_payment(self, order: TransactionDto) -> Optional[ProviderPayment]:
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
         return self._payment
 
 
@@ -264,3 +280,78 @@ async def test_a_late_payment_whose_discount_was_spent_again_is_held(
     assert result.paid
     assert result.transaction.order.fulfillment_hold is FulfillmentHold.PURCHASE_DISCOUNT_SPENT
     assert dispatch.messages == []
+
+
+async def _expire(
+    transaction_repository: TransactionRepository, uow: UnitOfWork, order_id: int, ago: timedelta
+) -> None:
+    async with uow:
+        await transaction_repository.session.execute(
+            update(Transaction)
+            .where(Transaction.id == order_id)
+            .values(expires_at=datetime_now() - ago)
+        )
+
+
+async def _prune(
+    gateway: _StubGateway,
+    session: AsyncSession,
+    transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+) -> RecordingDispatch:
+    events, dispatch = RecordingEventPublisher(), RecordingDispatch()
+    check = _use_case(
+        gateway, session, transaction_repository, user_repository, uow, events, dispatch
+    )
+    await PruneExpiredTransactionsUseCase(
+        transaction_repository, user_repository, uow, events, check
+    ).system()
+    return dispatch
+
+
+@pytest.mark.parametrize(
+    ("gateway", "status"),
+    [
+        (_StubGateway(_PAID), TransactionStatus.PAID),
+        (_StubGateway(None), TransactionStatus.CANCELED),
+        (_StubGateway(_PAID, supported=False), TransactionStatus.CANCELED),
+        (_StubGateway(None, error=PaymentGatewayError("down")), TransactionStatus.PENDING),
+    ],
+    ids=["paid", "not-paid", "no-status-api", "gateway-down"],
+)
+async def test_the_expiry_sweep_asks_the_gateway_before_canceling(
+    gateway: _StubGateway,
+    status: TransactionStatus,
+    session: AsyncSession,
+    transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    order = await _order(transaction_repository, uow, user_id=user_id, plan_id=plan_id)
+    await _expire(transaction_repository, uow, order.id, timedelta(minutes=1))
+
+    dispatch = await _prune(gateway, session, transaction_repository, user_repository, uow)
+
+    assert (await transaction_repository.get_by_id(order.id)).status is status
+    assert len(dispatch.messages) == (1 if status is TransactionStatus.PAID else 0)
+
+
+async def test_the_expiry_sweep_stops_waiting_for_a_gateway_down_for_a_day(
+    session: AsyncSession,
+    transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    order = await _order(transaction_repository, uow, user_id=user_id, plan_id=plan_id)
+    await _expire(transaction_repository, uow, order.id, timedelta(days=1, minutes=1))
+    gateway = _StubGateway(None, error=PaymentGatewayError("down"))
+
+    await _prune(gateway, session, transaction_repository, user_repository, uow)
+
+    assert gateway.calls == 0
+    assert (await transaction_repository.get_by_id(order.id)).status is TransactionStatus.CANCELED
