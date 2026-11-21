@@ -332,10 +332,22 @@ class TransactionRepository:
         )
         return self._to_dto(row) if row is not None else None
 
-    async def cancel_expired_pending(self, cutoff: datetime) -> list[TransactionDto]:
+    async def list_expired_pending(self, cutoff: datetime) -> list[TransactionDto]:
+        rows = await self.session.scalars(
+            select(Transaction).where(
+                Transaction.status == TransactionStatus.PENDING,
+                Transaction.expires_at <= cutoff,
+            )
+        )
+        return [self._to_dto(row) for row in rows.all()]
+
+    async def cancel_expired_pending(
+        self, cutoff: datetime, ids: list[int]
+    ) -> list[TransactionDto]:
         rows = await self.session.scalars(
             update(Transaction)
             .where(
+                in_ids(Transaction.id, ids),
                 Transaction.status == TransactionStatus.PENDING,
                 Transaction.expires_at <= cutoff,
             )
