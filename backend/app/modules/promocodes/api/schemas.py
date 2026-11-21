@@ -4,7 +4,12 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.enums import Currency, PromocodeAvailability, PromocodeRewardType
+from app.core.enums import (
+    Currency,
+    PromocodeAvailability,
+    PromocodeLinkOutcome,
+    PromocodeRewardType,
+)
 from app.core.utils.time import range_start_utc
 
 
@@ -81,6 +86,16 @@ class UpdatePromocodeRequest(BaseModel):
 class ActivatePromocodeRequest(BaseModel):
     code: str = Field(min_length=1, max_length=64)
     target_subscription_id: Optional[int] = None
+
+
+class ActivatePromocodeByLinkRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
+class PromocodeLinkResponse(BaseModel):
+    # CHOOSE_TARGET: the cabinet asks which subscription, then activates as usual
+    outcome: PromocodeLinkOutcome
+    promocode: PublicPromocodeResponse
 
 
 class PromocodeTargetsResponse(BaseModel):

@@ -2,6 +2,7 @@ from dishka import Provider, Scope, provide, provide_all
 
 from app.modules.advertising.repository import AdLinkRepository
 from app.modules.advertising.usecases import (
+    ActivateAdLinkPromocodeUseCase,
     CreateAdLinkUseCase,
     DeleteAdLinkUseCase,
     GenerateAdLinkCodeUseCase,
@@ -36,6 +37,7 @@ class AdvertisingProvider(Provider):
         ListAdLinkAttributedUsersUseCase,
         GetUserAdAttributionUseCase,
         RecordAdLinkAttributionUseCase,
+        ActivateAdLinkPromocodeUseCase,
     )
 
 

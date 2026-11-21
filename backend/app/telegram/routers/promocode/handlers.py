@@ -44,7 +44,7 @@ _TARGET_REQUIRED_REWARDS: Final[frozenset[PromocodeRewardType]] = frozenset(
 )
 
 
-def _refusal_key(error: AppError) -> str:
+def promocode_refusal_key(error: AppError) -> str:
     return _NOTIFICATION_BY_CODE.get(error.code, "ntf-promocode.not-available")
 
 
@@ -60,7 +60,7 @@ async def continue_with_code(
     try:
         promo = await validate_promocode(user, ValidatePromocodeDto(code=code))
     except (NotFoundError, ValidationError) as error:
-        await reply(runner.get(_refusal_key(error)))
+        await reply(runner.get(promocode_refusal_key(error)))
         return
 
     dialog_manager.dialog_data["promo_code"] = promo.code
@@ -155,7 +155,7 @@ async def on_promocode_confirm(
             user, ActivatePromocodeDto(code=code, target_subscription_id=target_id)
         )
     except (NotFoundError, ValidationError) as error:
-        await answer_notice(callback, runner.get(_refusal_key(error)))
+        await answer_notice(callback, runner.get(promocode_refusal_key(error)))
         return
     except Exception:
         logger.exception(f"{user.log} Promocode activation failed unexpectedly")

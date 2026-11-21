@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import update
@@ -14,15 +15,24 @@ from app.core.enums import (
     DiscountSource,
     Locale,
     PaymentGatewayType,
+    PromocodeRewardType,
     PurchaseChannel,
     PurchaseType,
     Role,
     RoundingMode,
     TransactionStatus,
 )
-from app.core.exceptions import ConflictError, NotFoundError, PermissionDeniedError
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import (
+    ConflictError,
+    NotFoundError,
+    PermissionDeniedError,
+    ValidationError,
+)
+from app.core.security.permissions import Permission
 from app.core.utils.time import datetime_now
 from app.modules.advertising.dto import (
+    ActivateAdLinkPromocodeDto,
     CreateAdLinkDto,
     GetAdLinkPayoutDto,
     GetAdLinkStatsDto,
@@ -33,6 +43,7 @@ from app.modules.advertising.dto import (
 )
 from app.modules.advertising.repository import AdLinkRepository
 from app.modules.advertising.usecases import (
+    ActivateAdLinkPromocodeUseCase,
     CreateAdLinkUseCase,
     DeleteAdLinkUseCase,
     GenerateAdLinkCodeUseCase,
@@ -45,6 +56,8 @@ from app.modules.advertising.usecases import (
 )
 from app.modules.pricing.dto import UpdateCurrencyRateDto
 from app.modules.pricing.repository import PricingRepository
+from app.modules.promocodes.dto import ActivatePromocodeByLinkDto, CreatePromocodeDto
+from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.transactions.dto import CreateTransactionDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -60,7 +73,12 @@ REGULAR_USER = UserDto(id=2, name="Bob", role=Role.USER, language=Locale.EN)
 async def test_owner_can_create_ad_link(
     ad_link_repository: AdLinkRepository, uow: UnitOfWork
 ) -> None:
-    use_case = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    use_case = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
 
     ad_link = await use_case(OWNER, CreateAdLinkDto(name="YouTube", code="yt-1"))
 
@@ -71,7 +89,12 @@ async def test_owner_can_create_ad_link(
 async def test_regular_user_cannot_create_ad_link(
     ad_link_repository: AdLinkRepository, uow: UnitOfWork
 ) -> None:
-    use_case = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    use_case = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
 
     with pytest.raises(PermissionDeniedError):
         await use_case(REGULAR_USER, CreateAdLinkDto(name="YouTube", code="yt-2"))
@@ -80,7 +103,12 @@ async def test_regular_user_cannot_create_ad_link(
 async def test_create_ad_link_duplicate_code_raises_conflict(
     ad_link_repository: AdLinkRepository, uow: UnitOfWork
 ) -> None:
-    use_case = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    use_case = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     await use_case(OWNER, CreateAdLinkDto(name="A", code="dup-uc"))
 
     with pytest.raises(ConflictError):
@@ -88,8 +116,18 @@ async def test_create_ad_link_duplicate_code_raises_conflict(
 
 
 async def test_update_ad_link(ad_link_repository: AdLinkRepository, uow: UnitOfWork) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
-    update = UpdateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
+    update = UpdateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="Before", code="upd-1"))
 
     updated = await update(
@@ -103,7 +141,12 @@ async def test_update_ad_link(ad_link_repository: AdLinkRepository, uow: UnitOfW
 async def test_delete_ad_link_without_attributions_succeeds(
     ad_link_repository: AdLinkRepository, uow: UnitOfWork
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     delete = DeleteAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
     ad_link = await create(OWNER, CreateAdLinkDto(name="Del", code="del-1"))
 
@@ -116,7 +159,12 @@ async def test_delete_ad_link_without_attributions_succeeds(
 async def test_delete_ad_link_with_attributions_raises_conflict(
     ad_link_repository: AdLinkRepository, uow: UnitOfWork, user_repository: UserRepository
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     delete = DeleteAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
     ad_link = await create(OWNER, CreateAdLinkDto(name="Keep", code="del-2"))
     user = await user_repository.create(CreateUserDto(name="Attr", telegram_id=930_001))
@@ -131,8 +179,18 @@ async def test_delete_ad_link_with_attributions_raises_conflict(
 async def test_list_ad_links_filters_by_is_active(
     ad_link_repository: AdLinkRepository, uow: UnitOfWork
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
-    update = UpdateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
+    update = UpdateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     list_use_case = ListAdLinksUseCase(ad_link_repository, uow)
     active = await create(OWNER, CreateAdLinkDto(name="Active", code="list-active"))
     inactive = await create(OWNER, CreateAdLinkDto(name="Inactive", code="list-inactive"))
@@ -189,7 +247,12 @@ async def test_get_ad_link_stats_zero_attributions_has_no_division_by_zero(
     transaction_repository: TransactionRepository,
     pricing_repository: PricingRepository,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="Empty", code="stats-empty"))
     use_case = GetAdLinkStatsUseCase(
         ad_link_repository, transaction_repository, pricing_repository, uow
@@ -209,7 +272,12 @@ async def test_get_ad_link_stats_zero_cost_has_no_roi(
     pricing_repository: PricingRepository,
     user_repository: UserRepository,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="Free", code="stats-free-cost"))
     user = await user_repository.create(CreateUserDto(name="Free User", telegram_id=940_001))
     await ad_link_repository.create_attribution(
@@ -236,7 +304,12 @@ async def test_get_ad_link_stats_computes_conversion_and_revenue(
     user_repository: UserRepository,
     plan_id: int,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(
         OWNER, CreateAdLinkDto(name="Paid Campaign", code="stats-paid", cost=Decimal("100"))
     )
@@ -276,9 +349,12 @@ async def test_get_ad_link_stats_counts_a_paid_trial_apart_from_purchases(
     user_repository: UserRepository,
     plan_id: int,
 ) -> None:
-    ad_link = await CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())(
-        OWNER, CreateAdLinkDto(name="Trial Campaign", code="stats-trial", cost=Decimal("0"))
-    )
+    ad_link = await CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )(OWNER, CreateAdLinkDto(name="Trial Campaign", code="stats-trial", cost=Decimal("0")))
     trialist = await user_repository.create(CreateUserDto(name="Trialist", telegram_id=940_102))
     buyer = await user_repository.create(CreateUserDto(name="Buyer", telegram_id=940_103))
     for user in (trialist, buyer):
@@ -328,7 +404,12 @@ async def test_get_ad_link_stats_converts_revenue_with_a_non_unit_rate(
         )
     )
 
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="FX Campaign", code="stats-fx"))
     rub_payer = await user_repository.create(CreateUserDto(name="RubPayer", telegram_id=941_001))
     usd_payer = await user_repository.create(CreateUserDto(name="UsdPayer", telegram_id=941_002))
@@ -401,7 +482,12 @@ async def test_list_ad_link_attributed_users_reports_paid_flag(
     user_repository: UserRepository,
     plan_id: int,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="List", code="list-users"))
     payer = await user_repository.create(CreateUserDto(name="Payer2", telegram_id=940_004))
     non_payer = await user_repository.create(CreateUserDto(name="NonPayer2", telegram_id=940_005))
@@ -450,7 +536,12 @@ async def test_get_ad_link_stats_created_from_excludes_older_attributions(
     pricing_repository: PricingRepository,
     user_repository: UserRepository,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="Period", code="stats-period"))
     user = await user_repository.create(CreateUserDto(name="Period User", telegram_id=942_001))
     await ad_link_repository.create_attribution(
@@ -482,7 +573,12 @@ async def test_get_advertising_summary_aggregates_links(
     user_repository: UserRepository,
     plan_id: int,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     paid_link = await create(
         OWNER, CreateAdLinkDto(name="Paid", code="summary-paid", cost=Decimal("100"))
     )
@@ -554,7 +650,12 @@ async def test_get_advertising_summary_created_to_is_a_snapshot(
     user_repository: UserRepository,
     plan_id: int,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="Snapshot", code="summary-snapshot"))
     old = await user_repository.create(CreateUserDto(name="Old", telegram_id=944_001))
     new = await user_repository.create(CreateUserDto(name="New", telegram_id=944_002))
@@ -596,7 +697,12 @@ async def test_list_ad_link_attributed_users_hides_staff_without_admins_manage(
     transaction_repository: TransactionRepository,
     user_repository: UserRepository,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(OWNER, CreateAdLinkDto(name="Hide", code="hide-staff"))
     customer = await user_repository.create(CreateUserDto(name="Cust", telegram_id=940_101))
     staff = await user_repository.create(
@@ -627,7 +733,12 @@ async def test_revenue_share_is_added_to_the_cost(
     user_repository: UserRepository,
     plan_id: int,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(
         OWNER,
         CreateAdLinkDto(
@@ -671,7 +782,12 @@ async def test_get_ad_link_payout_counts_payments_inside_the_window(
     session: AsyncSession,
     plan_id: int,
 ) -> None:
-    create = CreateAdLinkUseCase(ad_link_repository, uow, RecordingEventPublisher())
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
     ad_link = await create(
         OWNER,
         CreateAdLinkDto(name="Payout", code="payout", revenue_share_percent=Decimal("12.5")),
@@ -709,3 +825,138 @@ async def test_get_ad_link_payout_counts_payments_inside_the_window(
     assert payout.revenue == Decimal("1000")
     assert payout.revenue_share_percent == Decimal("12.5")
     assert payout.payout == Decimal("125")
+
+
+async def _promocode_id(ad_link_repository: AdLinkRepository, code: str) -> int:
+    promo = await PromocodeRepository(ad_link_repository.session).create(
+        CreatePromocodeDto(code=code, reward_type=PromocodeRewardType.PURCHASE_DISCOUNT, reward=20)
+    )
+    return promo.id
+
+
+async def test_an_ad_link_carries_a_promocode_until_it_is_unlinked(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    promocodes = PromocodeRepository(ad_link_repository.session)
+    create = CreateAdLinkUseCase(ad_link_repository, promocodes, uow, RecordingEventPublisher())
+    update = UpdateAdLinkUseCase(ad_link_repository, promocodes, uow, RecordingEventPublisher())
+    promocode_id = await _promocode_id(ad_link_repository, "ADPROMO1")
+
+    ad_link = await create(
+        OWNER, CreateAdLinkDto(name="Promo", code="promo-link", promocode_id=promocode_id)
+    )
+    kept = await update(OWNER, UpdateAdLinkDto(ad_link_id=ad_link.id, name="Renamed"))
+    cleared = await update(OWNER, UpdateAdLinkDto(ad_link_id=ad_link.id, clear_promocode=True))
+
+    assert ad_link.promocode_id == promocode_id
+    assert kept.promocode_id == promocode_id
+    assert cleared.promocode_id is None
+
+
+async def test_an_ad_link_refuses_a_missing_promocode(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    create = CreateAdLinkUseCase(
+        ad_link_repository,
+        PromocodeRepository(ad_link_repository.session),
+        uow,
+        RecordingEventPublisher(),
+    )
+
+    with pytest.raises(NotFoundError):
+        await create(OWNER, CreateAdLinkDto(name="Ghost", code="ghost-promo", promocode_id=999_999))
+
+
+def _activate_ad_promo(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork, by_link: AsyncMock
+) -> ActivateAdLinkPromocodeUseCase:
+    return ActivateAdLinkPromocodeUseCase(
+        ad_link_repository, PromocodeRepository(ad_link_repository.session), uow, by_link
+    )
+
+
+@pytest.mark.parametrize(
+    ("is_active", "allow_bot", "with_promocode"),
+    [(False, True, True), (True, False, True), (True, True, False)],
+    ids=["inactive", "channel-off", "no-promocode"],
+)
+async def test_an_ad_link_gives_no_promocode_it_may_not(
+    is_active: bool,
+    allow_bot: bool,
+    with_promocode: bool,
+    ad_link_repository: AdLinkRepository,
+    uow: UnitOfWork,
+) -> None:
+    promocode_id = await _promocode_id(ad_link_repository, "ADPROMO2") if with_promocode else None
+    ad_link = await ad_link_repository.create(
+        CreateAdLinkDto(
+            name="Gate", code="gate-link", allow_bot=allow_bot, promocode_id=promocode_id
+        )
+    )
+    if not is_active:
+        await ad_link_repository.update(UpdateAdLinkDto(ad_link_id=ad_link.id, is_active=False))
+    by_link = AsyncMock()
+
+    result = await _activate_ad_promo(ad_link_repository, uow, by_link)(
+        OWNER, ActivateAdLinkPromocodeDto(ad_link_code="gate-link", channel=AdLinkChannel.BOT)
+    )
+
+    assert result is None
+    by_link.assert_not_awaited()
+
+
+async def test_an_ad_link_applies_its_promocode_as_a_promocode_link(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    promocode_id = await _promocode_id(ad_link_repository, "ADPROMO3")
+    await ad_link_repository.create(
+        CreateAdLinkDto(name="Give", code="give-link", promocode_id=promocode_id)
+    )
+    by_link = AsyncMock(return_value="applied")
+
+    result = await _activate_ad_promo(ad_link_repository, uow, by_link)(
+        OWNER, ActivateAdLinkPromocodeDto(ad_link_code="give-link", channel=AdLinkChannel.BOT)
+    )
+
+    assert result == "applied"
+    by_link.assert_awaited_once_with(OWNER, ActivatePromocodeByLinkDto(code="ADPROMO3"))
+
+
+async def test_a_refused_ad_link_promocode_keeps_its_code_out_of_the_error(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    promocode_id = await _promocode_id(ad_link_repository, "SECRETAD")
+    await ad_link_repository.create(
+        CreateAdLinkDto(name="Hush", code="hush-link", promocode_id=promocode_id)
+    )
+    refusal = ValidationError(
+        "Promocode 'SECRETAD' is for new users only", code=ErrorCode.PROMOCODE_NOT_AVAILABLE
+    )
+
+    with pytest.raises(ValidationError) as error:
+        await _activate_ad_promo(ad_link_repository, uow, AsyncMock(side_effect=refusal))(
+            OWNER, ActivateAdLinkPromocodeDto(ad_link_code="hush-link", channel=AdLinkChannel.BOT)
+        )
+
+    assert error.value.code is ErrorCode.PROMOCODE_NOT_AVAILABLE
+    assert "SECRETAD" not in str(error.value)
+
+
+async def test_linking_a_promocode_needs_the_promocodes_permission(
+    ad_link_repository: AdLinkRepository, uow: UnitOfWork
+) -> None:
+    promocodes = PromocodeRepository(ad_link_repository.session)
+    create = CreateAdLinkUseCase(ad_link_repository, promocodes, uow, RecordingEventPublisher())
+    promocode_id = await _promocode_id(ad_link_repository, "NOPERM")
+    # an admin with ad links but not promocodes
+    admin = UserDto(
+        id=0,
+        name="ads",
+        role=Role.ADMIN,
+        language=Locale.EN,
+        permission_revokes=[Permission.PROMOCODES_VIEW.value],
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        await create(admin, CreateAdLinkDto(name="X", code="noperm", promocode_id=promocode_id))
+    assert (await create(admin, CreateAdLinkDto(name="Y", code="noperm-2"))).promocode_id is None

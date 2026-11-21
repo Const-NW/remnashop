@@ -17,9 +17,9 @@ from app.telegram.routers.promocode.getters import promocode_confirm_getter
 from app.telegram.routers.promocode.handlers import (
     _NOTIFICATION_BY_CODE,
     PROMOCODE_INPUT_LIMIT,
-    _refusal_key,
     on_promocode,
     on_promocode_input,
+    promocode_refusal_key,
 )
 from app.telegram.states import Promocode
 
@@ -31,9 +31,9 @@ def test_refusal_names_the_specific_reason() -> None:
     limit = ValidationError("limit", code=ErrorCode.PROMOCODE_LIMIT_REACHED)
     missing = NotFoundError("missing", code=ErrorCode.PROMOCODE_NOT_FOUND)
 
-    assert _refusal_key(expired) == "ntf-promocode.expired"
-    assert _refusal_key(missing) == "ntf-promocode.not-found"
-    assert _refusal_key(limit) == "ntf-promocode.not-available"
+    assert promocode_refusal_key(expired) == "ntf-promocode.expired"
+    assert promocode_refusal_key(missing) == "ntf-promocode.not-found"
+    assert promocode_refusal_key(limit) == "ntf-promocode.not-available"
 
 
 def test_every_refusal_key_exists_in_each_locale() -> None:

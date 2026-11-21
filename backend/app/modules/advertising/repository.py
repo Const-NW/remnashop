@@ -94,6 +94,7 @@ class AdLinkRepository:
             allow_webcabinet=data.allow_webcabinet,
             note=data.note,
             created_by=data.created_by,
+            promocode_id=data.promocode_id,
         )
         self.session.add(row)
         try:
@@ -110,10 +111,12 @@ class AdLinkRepository:
 
     async def update(self, data: UpdateAdLinkDto) -> AdLinkDto:
         row = await self._get_or_raise(data.ad_link_id)
-        apply_partial_update(row, data, skip=frozenset({"ad_link_id", "note"}))
+        apply_partial_update(row, data, skip=frozenset({"ad_link_id", "note", "clear_promocode"}))
         if data.note is not None:
             # "" clears it: None already means "leave unchanged"
             row.note = data.note or None
+        if data.clear_promocode:
+            row.promocode_id = None
         try:
             await self.session.flush()
         except IntegrityError as error:

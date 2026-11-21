@@ -76,7 +76,7 @@ async def list_ad_links(
     "/links",
     response_model=AdLinkResponse,
     status_code=status.HTTP_201_CREATED,
-    responses=error_responses(400, 409),
+    responses=error_responses(400, 404, 409),
 )
 @inject
 async def create_ad_link(
@@ -95,6 +95,7 @@ async def create_ad_link(
             allow_bot=payload.allow_bot,
             allow_webcabinet=payload.allow_webcabinet,
             note=payload.note,
+            promocode_id=payload.promocode_id,
         ),
     )
     return AdLinkResponse.model_validate(ad_link, from_attributes=True)
@@ -122,6 +123,9 @@ async def update_ad_link(
             allow_bot=payload.allow_bot,
             allow_webcabinet=payload.allow_webcabinet,
             note=payload.note,
+            promocode_id=payload.promocode_id,
+            clear_promocode="promocode_id" in payload.model_fields_set
+            and payload.promocode_id is None,
         ),
     )
     return AdLinkResponse.model_validate(ad_link, from_attributes=True)

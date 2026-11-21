@@ -19,6 +19,7 @@ export function useAdLinkEditForm(adLink: AdLink, onSaved: (adLink: AdLink) => v
   const [currency, setCurrency] = useState(adLink.cost_currency);
   const [revenueSharePercent, setRevenueSharePercent] = useState(adLink.revenue_share_percent);
   const [note, setNote] = useState(adLink.note ?? "");
+  const [promocodeId, setPromocodeId] = useState(adLink.promocode_id);
   const [channels, setChannels] = useState<AdLinkChannels>({
     allow_bot: adLink.allow_bot,
     allow_webcabinet: adLink.allow_webcabinet,
@@ -35,6 +36,8 @@ export function useAdLinkEditForm(adLink: AdLink, onSaved: (adLink: AdLink) => v
         ...channels,
         // "" clears it; null would leave the old note
         note: note.trim(),
+        // sent only when changed: an admin without PROMOCODES_VIEW can still edit the rest
+        ...(promocodeId !== adLink.promocode_id ? { promocode_id: promocodeId } : {}),
       });
       toast.success(t("advertising.edit.saved"));
       onSaved(updated);
@@ -56,6 +59,8 @@ export function useAdLinkEditForm(adLink: AdLink, onSaved: (adLink: AdLink) => v
     setRevenueSharePercent,
     note,
     setNote,
+    promocodeId,
+    setPromocodeId,
     channels,
     setChannels,
     isSubmitting,

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import AppConfig
 from app.core.constants import API_V1
 from app.core.db.uow import UnitOfWork
-from app.core.enums import AdLinkChannel, Locale, Role, SessionAudience
+from app.core.enums import AdLinkChannel, Locale, PromocodeRewardType, Role, SessionAudience
 from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.core.security.permissions import Permission
 from app.modules.advertising.dto import CreateAdLinkDto
@@ -32,6 +32,8 @@ from app.modules.api_tokens.repository import ApiTokenRepository
 from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
 from app.modules.pricing.repository import PricingRepository
+from app.modules.promocodes.dto import CreatePromocodeDto
+from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
@@ -273,3 +275,26 @@ async def test_user_ad_attribution_is_always_an_object(
 
     assert none.json() == {"attribution": None}
     assert some.json()["attribution"]["code"] == "router-attr"
+
+
+async def test_a_patch_unlinks_the_promocode_only_when_it_sends_null(
+    client: httpx.AsyncClient, admin_auth_headers: dict[str, str], session: AsyncSession
+) -> None:
+    promo = await PromocodeRepository(session).create(
+        CreatePromocodeDto(
+            code="ROUTERAD", reward_type=PromocodeRewardType.PURCHASE_DISCOUNT, reward=10
+        )
+    )
+    created = await client.post(
+        f"{API_V1}/advertising/links",
+        json={"name": "Promo", "code": "router-promo", "promocode_id": promo.id},
+        headers=admin_auth_headers,
+    )
+    url = f"{API_V1}/advertising/links/{created.json()['id']}"
+
+    kept = await client.patch(url, json={"name": "Renamed"}, headers=admin_auth_headers)
+    cleared = await client.patch(url, json={"promocode_id": None}, headers=admin_auth_headers)
+
+    assert created.json()["promocode_id"] == promo.id
+    assert kept.json()["promocode_id"] == promo.id
+    assert cleared.json()["promocode_id"] is None

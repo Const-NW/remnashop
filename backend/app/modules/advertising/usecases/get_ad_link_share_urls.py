@@ -10,7 +10,7 @@ from app.modules.advertising.dto import AdLinkShareUrlsDto
 from app.modules.advertising.repository import AdLinkRepository
 from app.modules.settings import SettingsRepository, bot_username
 
-# matches telegram/middlewares/_codes.py's _AD_LINK_PREFIX
+# core.constants.AD_LINK_START_PREFIX
 _BOT_START_QUERY: Final[str] = "?start=ad_{code}"
 _WEBCABINET_QUERY: Final[str] = "?ad={code}"
 

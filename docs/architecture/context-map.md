@@ -62,7 +62,7 @@ loyalty       -> account_merge, plans, pricing, subscriptions, transactions
 broadcasts    -> email, promocodes, settings, subscriptions, translations
 promocodes    -> plans, pricing, subscriptions, transactions
 subscriptions -> plans, pricing, settings
-advertising   -> pricing, settings, transactions
+advertising   -> pricing, promocodes, settings, transactions
 access        -> advertising, settings
 oauth         -> auth, blacklist, settings
 passkeys      -> auth, settings

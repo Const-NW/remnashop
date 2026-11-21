@@ -156,6 +156,15 @@ class PromocodeStatus(UpperStrEnum):
     EXHAUSTED = auto()
 
 
+# what opening a promocode by link did: applied it, or needs the customer to act
+class PromocodeLinkOutcome(UpperStrEnum):
+    ACTIVATED = auto()
+    CHOOSE_TARGET = auto()
+    NO_TARGET = auto()
+    # a reusable code: applied by the customer's own press, never by opening a link again
+    CONFIRM = auto()
+
+
 class PromocodeAvailability(UpperStrEnum):
     ALL = auto()
     NEW = auto()
