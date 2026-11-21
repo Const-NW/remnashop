@@ -14,7 +14,7 @@ from app.core.enums import Currency, PlanType, PurchaseType
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
-from app.core.utils.time import datetime_now
+from app.core.utils.time import add_term, datetime_now
 from app.modules.plans.dto import (
     CreatePlanDto,
     PlanDto,
@@ -502,7 +502,8 @@ async def test_renewing_an_unlimited_turned_finite_does_not_unlock_its_payment(
     )
 
     assert renewed.plan_snapshot.credit_paid == Decimal("500")
-    assert renewed.plan_snapshot.credit_days == 30
+    # 30 days is a calendar month: 31 when the term crosses a long month
+    assert renewed.plan_snapshot.credit_days == (add_term(finite, 30) - finite).days
 
 
 async def test_a_trial_plan_is_issued_unlimited(
