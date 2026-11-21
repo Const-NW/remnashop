@@ -72,25 +72,45 @@ async def test_buy_at_the_cap_opens_the_subscriptions_instead(
     assert notice.await_args.args[1] == "ntf-purchase.limit-reached"
 
 
-async def test_sub_and_devices_open_what_the_menu_buttons_open(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    opened_subscriptions, opened_devices = AsyncMock(), AsyncMock()
-    monkeypatch.setattr(section_links, "open_subscriptions", opened_subscriptions)
-    monkeypatch.setattr(section_links, "open_devices", opened_devices)
-    owned, active = [MagicMock()], [MagicMock()]
+async def test_sub_opens_what_my_subscriptions_opens(monkeypatch: pytest.MonkeyPatch) -> None:
+    opened = AsyncMock()
+    monkeypatch.setattr(section_links, "open_subscriptions", opened)
+    owned = [MagicMock()]
     manager = AsyncMock()
 
     await section_links.on_subscription_link(
         MagicMock(), _USER, manager, list_own_subscriptions=AsyncMock(return_value=owned)
     )
+
+    opened.assert_awaited_once_with(manager, owned)
+    assert manager.show_mode is ShowMode.DELETE_AND_SEND
+
+
+@pytest.mark.parametrize(
+    ("max_active", "device_limit", "opens_devices"),
+    [(1, 3, True), (1, 0, False), (3, 3, False)],
+    ids=["menu-has-devices", "unlimited-devices", "several-subscriptions"],
+)
+async def test_devices_open_only_where_the_menu_shows_them(
+    max_active: int, device_limit: int, opens_devices: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opened_subscriptions, opened_devices = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(section_links, "open_subscriptions", opened_subscriptions)
+    monkeypatch.setattr(section_links, "open_devices", opened_devices)
+    active = [MagicMock(effective_device_limit=device_limit)]
+    shop, _ = _settings(max_active)
+
     await section_links.on_devices_link(
-        MagicMock(), _USER, manager, list_own_active_subscriptions=AsyncMock(return_value=active)
+        MagicMock(),
+        _USER,
+        AsyncMock(),
+        list_own_active_subscriptions=AsyncMock(return_value=active),
+        list_own_subscriptions=AsyncMock(return_value=active),
+        get_shop_settings=shop,
     )
 
-    opened_subscriptions.assert_awaited_once_with(manager, owned)
-    opened_devices.assert_awaited_once_with(manager, active)
-    assert manager.show_mode is ShowMode.DELETE_AND_SEND
+    assert opened_devices.await_count == int(opens_devices)
+    assert opened_subscriptions.await_count == int(not opens_devices)
 
 
 @pytest.mark.parametrize(

@@ -75,6 +75,15 @@ async def on_devices_link(
     user: UserDto,
     dialog_manager: DialogManager,
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
+    list_own_subscriptions: FromDishka[ListOwnSubscriptionsUseCase],
+    get_shop_settings: FromDishka[GetShopSettingsUseCase],
 ) -> None:
     dialog_manager.show_mode = ShowMode.DELETE_AND_SEND
-    await open_devices(dialog_manager, await list_own_active_subscriptions(user))
+    active = await list_own_active_subscriptions(user)
+    single = (await get_shop_settings.system()).max_active_subscriptions == 1
+    # where the menu has a "Devices" button: one subscription per customer, with a device limit;
+    # otherwise each subscription's devices sit on its card
+    if single and active and active[0].effective_device_limit != 0:
+        await open_devices(dialog_manager, active)
+    else:
+        await open_subscriptions(dialog_manager, await list_own_subscriptions(user))
