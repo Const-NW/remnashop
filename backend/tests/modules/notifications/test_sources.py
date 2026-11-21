@@ -21,3 +21,17 @@ async def test_the_renderer_is_reused_until_the_translations_change(
 
     assert changed is not first
     assert changed.render_message(Locale.EN, "ntf-test-cache", {}) == "Second"
+
+
+async def test_the_renderer_is_rebuilt_when_the_default_locale_changes(
+    translation_repository: TranslationRepository, uow: UnitOfWork
+) -> None:
+    for locale in (Locale.EN, Locale.RU):
+        await translation_repository.add_active_locale(locale)
+    await translation_repository.set_default_locale(Locale.EN)
+    factory = NotificationRendererFactory(translation_repository, uow)
+    first = await factory.build()
+
+    await translation_repository.set_default_locale(Locale.RU)
+
+    assert await factory.build() is not first
