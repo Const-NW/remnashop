@@ -200,6 +200,7 @@ function PlanEditDialogBody({
   const [isTrial, setIsTrial] = useState(plan?.is_trial ?? false);
   const [allowBonusDays, setAllowBonusDays] = useState(plan?.allow_bonus_days ?? true);
   const [allowPromocodes, setAllowPromocodes] = useState(plan?.allow_promocodes ?? true);
+  const [allowRenewal, setAllowRenewal] = useState(plan?.allow_renewal ?? true);
   const [initialDurations] = useState<DurationRow[]>(() =>
     (plan?.durations ?? [])
       .slice()
@@ -215,7 +216,7 @@ function PlanEditDialogBody({
   const squadsChanged = JSON.stringify(squads) !== JSON.stringify(initialSquads);
   const fieldsKey = JSON.stringify([
     name, icon, description, tag, badge, type, strategy, trafficLimit, deviceLimit, isTrial, allowBonusDays,
-    allowPromocodes, translationsPayload(translations),
+    allowPromocodes, allowRenewal, translationsPayload(translations),
   ]);
   const [initialFieldsKey] = useState(fieldsKey);
   // set here only while creating; an existing plan has its own access dialog
@@ -301,6 +302,7 @@ function PlanEditDialogBody({
           is_trial: isTrial,
           allow_bonus_days: allowBonusDays,
           allow_promocodes: allowPromocodes,
+          allow_renewal: allowRenewal,
           translations: translationsPayload(translations),
         };
         let created = await createPlan(payload);
@@ -342,6 +344,7 @@ function PlanEditDialogBody({
             is_trial: isTrial,
             allow_bonus_days: allowBonusDays,
             allow_promocodes: allowPromocodes,
+            allow_renewal: allowRenewal,
             translations: translationsPayload(translations),
           });
         }
@@ -654,6 +657,12 @@ function PlanEditDialogBody({
               hint={t("plans.edit.allowPromocodesHint")}
               checked={allowPromocodes}
               onChange={setAllowPromocodes}
+            />
+            <ToggleRow
+              label={t("plans.edit.allowRenewalLabel")}
+              hint={t("plans.edit.allowRenewalHint")}
+              checked={allowRenewal}
+              onChange={setAllowRenewal}
             />
           </div>
           </fieldset>

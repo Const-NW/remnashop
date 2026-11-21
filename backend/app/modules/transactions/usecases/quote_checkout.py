@@ -1,6 +1,8 @@
 from dataclasses import replace
 
 from app.core.db.uow import UnitOfWork
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import ValidationError
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
@@ -37,6 +39,19 @@ class QuoteCheckoutUseCase(UseCase[QuoteCheckoutDto, PriceQuote, UserDto]):
             plan, user = await self._pricer.load_purchasable_plan(
                 actor.id, data.plan_id, data.plan_code, data.renew_subscription_id
             )
+            target = (
+                await get_owned_target(
+                    self._subscription_repository, data.change_subscription_id, actor.id
+                )
+                if data.change_subscription_id is not None
+                else None
+            )
+        # the order would be refused the same way
+        if target is not None and target.plan_snapshot.plan_id == plan.id:
+            raise ValidationError(
+                "Changing to the same plan is a RENEW, not a CHANGE",
+                code=ErrorCode.CHANGE_SAME_PLAN,
+            )
         user = await self._pricer.drop_dead_promocode_discounts(user)
         change_credit = await self._pricer.change_credit(
             actor.id, data.change_subscription_id, data.duration_days, data.currency
@@ -44,12 +59,8 @@ class QuoteCheckoutUseCase(UseCase[QuoteCheckoutDto, PriceQuote, UserDto]):
         quote = await self._pricer.quote(
             plan, data.duration_days, data.currency, user, change_credit=change_credit
         )
-        if data.change_subscription_id is None or data.duration_days == 0:
+        if target is None or data.duration_days == 0:
             return quote
-        async with self._uow:
-            target = await get_owned_target(
-                self._subscription_repository, data.change_subscription_id, actor.id
-            )
         _, days = await self._change_credit_calculator.credit(
             target,
             currency=data.currency,

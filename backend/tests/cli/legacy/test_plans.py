@@ -1,6 +1,8 @@
 from decimal import Decimal
 from typing import Any
 
+import pytest
+
 from app.cli.legacy.plans import transform_plans
 from app.cli.legacy.report import MigrationReport
 from app.core.enums import Currency
@@ -169,3 +171,16 @@ def test_trial_with_unlimited_duration_is_kept_unlimited() -> None:
 
     assert [row["days"] for row in rows.durations if row["plan_id"] == 4] == [0]
     assert not any("unlimited" in note for note in report.notes)
+
+
+@pytest.mark.parametrize("is_active", [True, False])
+def test_a_plan_renews_only_while_it_was_active(is_active: bool) -> None:
+    rows = transform_plans(
+        [{**PLAN, "is_active": is_active}],
+        DURATIONS,
+        [_price(1, "RUB", "900")],
+        anchor_currency=Currency.RUB,
+        used_currencies=ALL,
+        report=MigrationReport(),
+    )
+    assert rows.plans[0]["allow_renewal"] is is_active

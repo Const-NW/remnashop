@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -88,6 +89,19 @@ async def test_link_with_only_an_unlimited_subscription_on_the_plan_opens_the_du
     await start_purchase_steps(
         manager, _catalog(10), [_subscription(3, plan_id=10, unlimited=True)]
     )
+
+    assert LINK_CHOICE_KEY not in manager.dialog_data
+    manager.switch_to.assert_awaited_once_with(Purchase.DURATION)
+
+
+async def test_link_to_a_plan_closed_to_renewal_opens_the_durations() -> None:
+    # a renewal it would refuse is not offered
+    manager = _manager(start_data=_LINK_START)
+    catalog = PlanCatalogDto(
+        plans=[replace(_plan(id=10), allow_renewal=False)], anchor_currency=Currency.RUB
+    )
+
+    await start_purchase_steps(manager, catalog, [_subscription(3, plan_id=10)])
 
     assert LINK_CHOICE_KEY not in manager.dialog_data
     manager.switch_to.assert_awaited_once_with(Purchase.DURATION)

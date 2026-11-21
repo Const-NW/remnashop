@@ -55,6 +55,7 @@ export interface Plan extends PlanIconValue {
   is_trial: boolean;
   allow_bonus_days: boolean;
   allow_promocodes: boolean;
+  allow_renewal: boolean;
   discount_percent: number;
   discount_starts_at: string | null;
   discount_ends_at: string | null;
@@ -84,6 +85,7 @@ export interface CreatePlanRequest {
   is_trial: boolean;
   allow_bonus_days: boolean;
   allow_promocodes: boolean;
+  allow_renewal: boolean;
   translations: PlanTranslation[];
 }
 
@@ -106,6 +108,7 @@ export interface UpdatePlanRequest {
   is_trial?: boolean;
   allow_bonus_days?: boolean;
   allow_promocodes?: boolean;
+  allow_renewal?: boolean;
   translations?: PlanTranslation[];
 }
 

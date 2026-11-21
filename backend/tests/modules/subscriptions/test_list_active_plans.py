@@ -2,6 +2,8 @@ from datetime import timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
+
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Currency, Locale, PlanAvailability, PlanType, Role, SubscriptionStatus
 from app.core.utils.time import datetime_now
@@ -468,6 +470,46 @@ async def test_renewal_catalog_offers_the_owned_plan_its_availability_no_longer_
     assert (await use_case(owner)).plans == []
     assert [plan.id for plan in (await use_case(owner, renew)).plans] == [newbie_id]
     assert (await use_case(stranger, renew)).plans == []
+
+
+@pytest.mark.parametrize(
+    ("is_active", "allow_renewal", "renewable"),
+    [(True, True, True), (False, True, True), (True, False, False), (False, False, False)],
+    ids=["on-sale", "off-sale-still-renews", "on-sale-not-renewed", "closed"],
+)
+async def test_renewal_follows_allow_renewal_not_is_active(
+    is_active: bool,
+    allow_renewal: bool,
+    renewable: bool,
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+) -> None:
+    plan_id = await _plan_with_access(plan_repository, "flagRenew", PlanAvailability.ALL)
+    await plan_repository.update(
+        UpdatePlanDto(plan_id=plan_id, is_active=is_active, allow_renewal=allow_renewal)
+    )
+    owner = await user_repository.create(CreateUserDto(name="Flag", telegram_id=924))
+    subscription = await subscription_repository.create(
+        CreateSubscriptionDto(
+            user_id=owner.id,
+            remnawave_user_id=924_001,
+            status=SubscriptionStatus.ACTIVE,
+            traffic_limit=100,
+            device_limit=3,
+            expire_at=datetime_now(),
+            url="https://example.com/sub/924",
+            plan_snapshot=make_plan_snapshot(plan_id=plan_id),
+        )
+    )
+    use_case = _use_case(plan_repository, uow)
+
+    renewal = await use_case(owner, ListActivePlansDto(renew_subscription_id=subscription.id))
+
+    assert [plan.id for plan in renewal.plans] == ([plan_id] if renewable else [])
+    # the sale catalog still follows is_active alone
+    assert [plan.id for plan in (await use_case(owner)).plans] == ([plan_id] if is_active else [])
 
 
 async def test_renewal_catalog_leaves_out_a_free_duration(

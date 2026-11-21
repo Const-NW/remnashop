@@ -36,6 +36,7 @@ def _to_catalog_plan(
         traffic_limit=plan.traffic_limit,
         device_limit=plan.device_limit,
         is_trial=plan.is_trial,
+        allow_renewal=plan.allow_renewal,
         order_index=plan.order_index,
         icon_emoji_id=plan.icon_emoji_id,
         icon_emoji_fallback=plan.icon_emoji_fallback,
@@ -92,7 +93,12 @@ class ListActivePlansUseCase(UseCase[ListActivePlansDto, PlanCatalogDto, UserDto
         code = data.plan_code if data is not None else None
         renew_id = data.renew_subscription_id if data is not None else None
         async with self._uow:
-            plans = await self._plan_repository.list_active()
+            # a plan off sale may still renew
+            plans = await (
+                self._plan_repository.list_all()
+                if renew_id is not None
+                else self._plan_repository.list_active()
+            )
             if renew_id is not None:
                 try:
                     purchasable = await self._eligibility.renewable(plans, actor.id, renew_id)

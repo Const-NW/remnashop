@@ -46,6 +46,8 @@ class Plan(BaseSql, TimestampMixin):
     is_trial: Mapped[bool] = mapped_column(default=False, server_default="false")
     allow_bonus_days: Mapped[bool] = mapped_column(default=True, server_default="true")
     allow_promocodes: Mapped[bool] = mapped_column(default=True, server_default="true")
+    # independent of is_active: a plan off sale may still renew, a sold one may not
+    allow_renewal: Mapped[bool] = mapped_column(default=True, server_default="true")
 
     # applied before the user's own discount; NULL bounds leave that side open
     discount_percent: Mapped[int] = mapped_column(default=0, server_default="0")

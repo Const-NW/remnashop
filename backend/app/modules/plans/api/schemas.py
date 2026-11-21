@@ -104,6 +104,7 @@ class PlanResponse(BaseModel):
     is_trial: bool
     allow_bonus_days: bool
     allow_promocodes: bool
+    allow_renewal: bool
     discount_percent: int
     discount_starts_at: Optional[datetime] = None
     discount_ends_at: Optional[datetime] = None
@@ -153,6 +154,7 @@ class CreatePlanRequest(PlanIconRequest):
     is_trial: bool = False
     allow_bonus_days: bool = True
     allow_promocodes: bool = True
+    allow_renewal: bool = True
     translations: list[PlanTranslationRequest] = []
 
     _unique_translations = field_validator("translations")(_one_per_locale)
@@ -174,6 +176,7 @@ class UpdatePlanRequest(PlanIconRequest):
     is_trial: Optional[bool] = None
     allow_bonus_days: Optional[bool] = None
     allow_promocodes: Optional[bool] = None
+    allow_renewal: Optional[bool] = None
     translations: Optional[list[PlanTranslationRequest]] = None
 
     _unique_translations = field_validator("translations")(_one_per_locale)

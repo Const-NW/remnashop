@@ -72,6 +72,7 @@ class PlanDto(BaseDto, TimestampMixin):
     is_trial: bool = False
     allow_bonus_days: bool = True
     allow_promocodes: bool = True
+    allow_renewal: bool = True
     discount_percent: int = 0
     discount_starts_at: Optional[datetime] = None
     discount_ends_at: Optional[datetime] = None
@@ -134,6 +135,7 @@ class CreatePlanDto:
     is_trial: bool = False
     allow_bonus_days: bool = True
     allow_promocodes: bool = True
+    allow_renewal: bool = True
     translations: list[PlanTranslationDto] = field(default_factory=list)
     # left unset by the API: CreatePlanUseCase generates it
     public_code: Optional[str] = None
@@ -156,6 +158,7 @@ class UpdatePlanDto:
     is_trial: Optional[bool] = None
     allow_bonus_days: Optional[bool] = None
     allow_promocodes: Optional[bool] = None
+    allow_renewal: Optional[bool] = None
     # replaces every translation when set
     translations: Optional[list[PlanTranslationDto]] = None
     # fields sent as null: None above means "leave as is", these are emptied

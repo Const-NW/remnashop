@@ -3523,7 +3523,9 @@
       "allowBonusDaysLabel": "Bonus days",
       "allowBonusDaysHint": "Customers can spend bonus days on this plan’s subscriptions",
       "allowPromocodesLabel": "Promocodes",
-      "allowPromocodesHint": "Customers can apply days, traffic and device promocodes to this plan’s subscriptions"
+      "allowPromocodesHint": "Customers can apply days, traffic and device promocodes to this plan’s subscriptions",
+      "allowRenewalLabel": "Renewal",
+      "allowRenewalHint": "Customers can renew this plan’s subscriptions, even after it’s taken off sale"
     },
     "access": {
       "button": "Access",
@@ -4427,6 +4429,7 @@
     "CANNOT_DELETE_SELF": "You can’t delete your own account.",
     "CAPTCHA_FAILED": "The captcha check failed. Try again.",
     "CAPTCHA_NOT_CONFIGURED": "Set the captcha site key and secret key first.",
+    "CHANGE_SAME_PLAN": "Changing to the plan you already have is a renewal.",
     "CHANNEL_NOT_ACCESSIBLE": "The bot can’t see this channel — add it as an admin and check the ID.",
     "COOLDOWN_ACTIVE": "Too soon — try again later.",
     "CSRF_FAILED": "Security check failed — reload the page.",

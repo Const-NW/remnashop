@@ -163,6 +163,7 @@ class PlanRepository:
             is_trial=row.is_trial,
             allow_bonus_days=row.allow_bonus_days,
             allow_promocodes=row.allow_promocodes,
+            allow_renewal=row.allow_renewal,
             discount_percent=row.discount_percent,
             discount_starts_at=row.discount_starts_at,
             discount_ends_at=row.discount_ends_at,
@@ -234,6 +235,7 @@ class PlanRepository:
             is_trial=data.is_trial,
             allow_bonus_days=data.allow_bonus_days,
             allow_promocodes=data.allow_promocodes,
+            allow_renewal=data.allow_renewal,
         )
         self.session.add(row)
 
