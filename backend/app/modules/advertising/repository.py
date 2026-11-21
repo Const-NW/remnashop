@@ -259,7 +259,6 @@ class AdLinkRepository:
     ) -> tuple[list[AdLinkAttributionDto], int]:
         condition: ColumnElement[bool] = AdLinkAttribution.ad_link_id == ad_link_id
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own is not
             condition = and_(
                 condition,
                 visible_rows(AdLinkAttribution.user_id, hide_staff_from),

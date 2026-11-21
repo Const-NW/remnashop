@@ -100,7 +100,6 @@ class TransactionStatsRepository:
     ) -> list[PaidTransactionDto]:
         stmt = self._paid_select()
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own are not
             stmt = stmt.where(visible_rows(Transaction.user_id, hide_staff_from))
         stmt = stmt.order_by(Transaction.paid_at.desc(), Transaction.id.desc()).limit(limit)
         return [self._to_paid(row) for row in (await self.session.execute(stmt)).all()]

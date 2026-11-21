@@ -342,7 +342,6 @@ class PromocodeRepository:
     ) -> tuple[list[PromocodeActivationDto], int]:
         condition = PromocodeActivation.promocode_id == promocode_id
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own is not
             condition = and_(
                 condition,
                 visible_rows(PromocodeActivation.user_id, hide_staff_from),

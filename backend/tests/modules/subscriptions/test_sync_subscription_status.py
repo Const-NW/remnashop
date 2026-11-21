@@ -1,5 +1,7 @@
 import asyncio
 from datetime import timedelta
+from functools import partial
+from typing import Any
 
 import pytest
 from sqlalchemy import func, select, text, update
@@ -506,3 +508,39 @@ async def test_synced_event_carries_the_owner(
     )
     assert row is not None
     assert row.payload["user_id"] == subscription.user_id
+
+
+async def test_a_repeated_event_writes_no_first_connection_or_creation_date(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _create_subscription(
+        subscription_repository, user_repository, 71903, SubscriptionStatus.ACTIVE
+    )
+    use_case = SyncSubscriptionStatusUseCase(
+        subscription_repository,
+        uow,
+        event_publisher,
+        SubscriptionLifecycleService(subscription_repository),
+    )
+    event = SyncSubscriptionStatusDto(
+        remnawave_user_id=71903,
+        status=SubscriptionStatus.ACTIVE,
+        source="webhook",
+        first_connected_at=datetime_now() - timedelta(days=2),
+        panel_created_at=datetime_now() - timedelta(days=9),
+    )
+    await use_case.system(event)
+    writes: list[str] = []
+
+    async def record(name: str, *args: Any) -> None:
+        writes.append(name)
+
+    monkeypatch.setattr(subscription_repository, "set_first_connected_at", partial(record, "first"))
+    monkeypatch.setattr(subscription_repository, "set_panel_created_at", partial(record, "created"))
+    await use_case.system(event)
+
+    assert writes == []

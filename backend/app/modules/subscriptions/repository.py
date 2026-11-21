@@ -168,7 +168,6 @@ class SubscriptionRepository:
         if user_id is not None:
             filters.append(Subscription.user_id == user_id)
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own are not
             filters.append(visible_rows(Subscription.user_id, hide_staff_from))
         if search:
             search_filters: list[ColumnElement[bool]] = [

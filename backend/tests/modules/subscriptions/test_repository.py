@@ -1040,3 +1040,28 @@ async def test_entitlements_load_for_more_ids_than_asyncpg_takes_parameters(
     loaded = await subscription_repository._load_entitlements(list(range(1, 40_001)))
 
     assert loaded == {}
+
+
+async def test_list_live_keeps_only_the_expiry_window_when_given(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    subscription_stats_repository: SubscriptionStatsRepository,
+) -> None:
+    now = datetime_now()
+    for offset, days in enumerate((-1, 1, 40)):
+        await create_subscription(
+            subscription_repository,
+            user_repository,
+            telegram_id=823_000 + offset,
+            remnawave_user_id=823_000 + offset,
+            expire_at=now + timedelta(days=days),
+        )
+
+    window = await subscription_stats_repository.list_live(
+        expiring_from=now, expiring_before=now + timedelta(days=30)
+    )
+    everything = await subscription_stats_repository.list_live()
+
+    ours = {now + timedelta(days=d) for d in (-1, 1, 40)}
+    assert [row.expire_at for row in window if row.expire_at in ours] == [now + timedelta(days=1)]
+    assert len([row for row in everything if row.expire_at in ours]) == 3

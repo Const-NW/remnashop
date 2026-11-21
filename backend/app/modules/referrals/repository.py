@@ -64,11 +64,6 @@ def _search_users(search: str, search_staff: bool) -> Select[tuple[int]]:
     return query if search_staff else query.where(User.role == Role.USER)
 
 
-def _visible_downline(column: ColumnElement[int], viewer_id: int) -> ColumnElement[bool]:
-    # same rule as visible_user: staff rows are hidden, the viewer's own row is not
-    return visible_rows(column, viewer_id)
-
-
 class ReferralRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -170,7 +165,7 @@ class ReferralRepository:
         downline = self._downline(referrer_id)
         stmt = select(downline.c.depth, func.count()).group_by(downline.c.depth)
         if hide_staff_from is not None:
-            stmt = stmt.where(_visible_downline(downline.c.referred_id, hide_staff_from))
+            stmt = stmt.where(visible_rows(downline.c.referred_id, hide_staff_from))
         rows = await self.session.execute(stmt)
         return {int(depth): int(count) for depth, count in rows.all()}
 
@@ -188,7 +183,7 @@ class ReferralRepository:
         downline = self._downline(referrer_id)
         filters: list[ColumnElement[bool]] = []
         if hide_staff_from is not None:
-            filters.append(_visible_downline(downline.c.referred_id, hide_staff_from))
+            filters.append(visible_rows(downline.c.referred_id, hide_staff_from))
         if depth is not None:
             filters.append(downline.c.depth == depth)
         if search:
@@ -222,7 +217,7 @@ class ReferralRepository:
         downline = self._downline(referrer_id)
         stmt = select(downline.c.referred_id)
         if hide_staff_from is not None:
-            stmt = stmt.where(_visible_downline(downline.c.referred_id, hide_staff_from))
+            stmt = stmt.where(visible_rows(downline.c.referred_id, hide_staff_from))
         return list((await self.session.scalars(stmt)).all())
 
     async def downline_depths(self, referrer_id: int, user_ids: list[int]) -> dict[int, int]:
@@ -477,7 +472,7 @@ class ReferralRepository:
             filters.append(
                 or_(
                     Subscription.user_id.is_(None),
-                    _visible_downline(Subscription.user_id.expression, hide_staff_from),
+                    visible_rows(Subscription.user_id, hide_staff_from),
                 )
             )
         return filters
