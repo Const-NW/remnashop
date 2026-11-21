@@ -1,4 +1,4 @@
-from typing import Sequence, Union
+from typing import Final, Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
@@ -9,9 +9,25 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+_TRGM_TO_PUBLIC: Final[str] = """
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+        WHERE e.extname = 'pg_trgm' AND n.nspname <> 'public'
+    ) THEN
+        ALTER EXTENSION pg_trgm SET SCHEMA public;
+    END IF;
+END $$
+"""
+
+
 def upgrade() -> None:
-    # trusted extension (PG 13+): the database owner can create it without superuser
+    # trusted extension (PG 13+): needs CREATE on the database, not superuser
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    # a migrated old database may have had it already: renaming its `public` to
+    # `legacy` took the extension along, out of reach of an unqualified gin_trgm_ops
+    op.execute(_TRGM_TO_PUBLIC)
     op.drop_index(op.f("ix_broadcast_recipients_status"), table_name="broadcast_recipients")
     op.create_index(
         "ix_broadcast_recipients_status_channel_id",
@@ -186,4 +202,3 @@ def downgrade() -> None:
         ["broadcast_id", "status"],
         unique=False,
     )
-    # ### end Alembic commands ###
