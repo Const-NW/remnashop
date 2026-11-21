@@ -722,6 +722,10 @@ async def test_list_paginated_search_matches_id_and_user_id(
     huge, _ = await subscription_repository.list_paginated(search="9" * 30)
     assert huge == []
 
+    # a wildcard typed into the search is matched literally
+    wildcard, _ = await subscription_repository.list_paginated(search="%")
+    assert sub.id not in [item.id for item in wildcard]
+
 
 async def test_delete_stale_idempotency_keys_removes_only_old_rows(
     subscription_repository: SubscriptionRepository,

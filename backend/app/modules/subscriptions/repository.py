@@ -171,10 +171,9 @@ class SubscriptionRepository:
             # same rule as visible_user: staff rows are hidden, the viewer's own are not
             filters.append(visible_rows(Subscription.user_id, hide_staff_from))
         if search:
-            pattern = f"%{search}%"
             search_filters: list[ColumnElement[bool]] = [
-                Subscription.tag.ilike(pattern),
-                Subscription.plan_snapshot["name"].astext.ilike(pattern),
+                Subscription.tag.icontains(search, autoescape=True),
+                Subscription.plan_snapshot["name"].astext.icontains(search, autoescape=True),
             ]
             # id/user_id are Integer; a longer digit string would overflow asyncpg
             if search.isascii() and search.isdigit() and int(search) <= INT32_MAX:
