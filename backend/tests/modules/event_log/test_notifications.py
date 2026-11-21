@@ -7,7 +7,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, Role
 from app.core.events import EventCategory
 from app.core.exceptions import PermissionDeniedError
-from app.modules.event_log.dto import EventLogEntryDto
+from app.modules.event_log.dto import UNREAD_COUNT_LIMIT, EventLogEntryDto
 from app.modules.event_log.repository import EventLogRepository
 from app.modules.event_log.usecases import (
     ClearNotificationsUseCase,
@@ -73,6 +73,17 @@ async def test_unread_count_only_counts_events_after_seen_at(
 
     assert len(result.items) == 2
     assert result.unread_count == 1
+
+
+async def test_unread_count_stops_at_its_cap(
+    event_log_repository: EventLogRepository, uow: UnitOfWork, owner: UserDto
+) -> None:
+    for minutes_ago in range(UNREAD_COUNT_LIMIT + 5):
+        await _log(event_log_repository, "LoginFailedEvent", minutes_ago=minutes_ago)
+
+    result = await GetNotificationsUseCase(event_log_repository, uow)(owner)
+
+    assert result.unread_count == UNREAD_COUNT_LIMIT
 
 
 async def test_admin_without_grant_cannot_get_notifications(

@@ -188,10 +188,17 @@ class EventLogRepository:
         return [self._to_dto(row) for row in (await self.session.scalars(stmt))]
 
     async def count_notifications_since(
-        self, *, event_types: frozenset[str], exclude_actor_id: int, since: Optional[datetime]
+        self,
+        *,
+        event_types: frozenset[str],
+        exclude_actor_id: int,
+        since: Optional[datetime],
+        limit: int,
     ) -> int:
+        # capped: an admin who hasn't opened the bell in months would count
+        # millions of rows on every poll, and the badge shows "9+" anyway
         filters = _notification_filters(event_types, exclude_actor_id)
         if since is not None:
             filters.append(EventLogEntry.occurred_at > since)
-        stmt = select(func.count()).select_from(EventLogEntry).where(*filters)
-        return await self.session.scalar(stmt) or 0
+        capped = select(EventLogEntry.id).where(*filters).limit(limit).subquery()
+        return await self.session.scalar(select(func.count()).select_from(capped)) or 0
