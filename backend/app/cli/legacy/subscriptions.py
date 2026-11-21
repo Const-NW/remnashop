@@ -5,7 +5,8 @@ from typing import Any, Final
 from app.cli.legacy.panel import PanelIndex, resolve_panel_id
 from app.cli.legacy.plans import strip_leading_emoji
 from app.cli.legacy.report import MigrationReport
-from app.core.enums import Currency, SubscriptionStatus
+from app.core.constants import TIME_1D
+from app.core.enums import CreditSegmentKind, Currency, SubscriptionStatus
 
 _TABLE: Final[str] = "subscriptions"
 _COPIED: Final[tuple[str, ...]] = (
@@ -48,9 +49,27 @@ def convert_plan_snapshot(
         "internal_squads": [str(squad) for squad in old.get("internal_squads") or []],
         "external_squad": str(old["external_squad"]) if old.get("external_squad") else None,
         "tag": old.get("tag"),
-        "credit_paid": None,
-        "credit_days": None,
     }
+
+
+def credit_segments(subscriptions: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """One segment per subscription: the last payment for its plan over the plan's
+    term, ending at its expiry; an unlimited plan has no end."""
+    result: list[dict[str, Any]] = []
+    for sub in subscriptions:
+        snapshot = sub["plan_snapshot"]
+        days = int(snapshot["duration_days"])
+        result.append(
+            {
+                "subscription_id": sub["id"],
+                "kind": CreditSegmentKind.LEGACY,
+                "paid": Decimal(snapshot["price_paid"]),
+                "currency": Currency(snapshot["currency"]),
+                "seconds": days * TIME_1D,
+                "ends_at": sub["expire_at"] if days > 0 else None,
+            }
+        )
+    return result
 
 
 def migrated_subscription_ids(result: Sequence[Mapping[str, Any]]) -> set[int]:

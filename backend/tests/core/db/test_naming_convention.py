@@ -11,6 +11,8 @@ _CHECK_NAMES: Final[frozenset[str]] = frozenset(
     {
         "ck_ad_links_revenue_share_percent_range",
         "ck_ad_links_some_channel",
+        "ck_credit_segments_paid_non_negative",
+        "ck_credit_segments_seconds_non_negative",
         "ck_addons_base_price_positive",
         "ck_currency_rates_charm_ending_range",
         "ck_currency_rates_min_amount_nonneg",

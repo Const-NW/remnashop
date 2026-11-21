@@ -6,10 +6,11 @@ from app.cli.legacy.panel import PanelIndex
 from app.cli.legacy.report import MigrationReport
 from app.cli.legacy.subscriptions import (
     convert_plan_snapshot,
+    credit_segments,
     migrated_subscription_ids,
     transform_subscriptions,
 )
-from app.core.enums import Currency, SubscriptionStatus
+from app.core.enums import CreditSegmentKind, Currency, SubscriptionStatus
 from app.modules.subscriptions.dto import PlanSnapshot
 
 NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -160,7 +161,7 @@ def test_convert_plan_snapshot_shape() -> None:
     out = convert_plan_snapshot(
         SNAPSHOT, public_code="pro", price_paid=Decimal("1"), currency=Currency.USD
     )
-    assert out["credit_paid"] is None and out["credit_days"] is None
+    assert "credit_paid" not in out
 
 
 def test_convert_plan_snapshot_drops_the_leading_emoji_like_the_plan() -> None:
@@ -210,3 +211,35 @@ def test_subscription_takes_panel_link() -> None:
         report=MigrationReport(),
     )
     assert result[0]["url"] == "https://sub.example.com/new"
+
+
+def test_each_migrated_subscription_gets_its_plan_price_as_one_segment() -> None:
+    expire_at = datetime(2027, 1, 1, tzinfo=timezone.utc)
+    term = {"price_paid": "300", "currency": "RUB", "duration_days": 30}
+    forever = {"price_paid": "5000", "currency": "USD", "duration_days": 0}
+
+    segments = credit_segments(
+        [
+            {"id": 1, "expire_at": expire_at, "plan_snapshot": term},
+            {"id": 2, "expire_at": expire_at, "plan_snapshot": forever},
+        ]
+    )
+
+    assert segments == [
+        {
+            "subscription_id": 1,
+            "kind": CreditSegmentKind.LEGACY,
+            "paid": Decimal("300"),
+            "currency": Currency.RUB,
+            "seconds": 30 * 86400,
+            "ends_at": expire_at,
+        },
+        {
+            "subscription_id": 2,
+            "kind": CreditSegmentKind.LEGACY,
+            "paid": Decimal("5000"),
+            "currency": Currency.USD,
+            "seconds": 0,
+            "ends_at": None,
+        },
+    ]

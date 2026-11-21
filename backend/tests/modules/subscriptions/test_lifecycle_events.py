@@ -14,6 +14,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
 from app.core.exceptions import RetryableTaskError
 from app.core.ports import EventPublisher
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import ProcessRemnawaveWebhookDto, PublishPanelEventDto
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -45,7 +46,9 @@ def _use_case(
         subscription_repository,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
     publish = PublishPanelEventUseCase(
         subscription_repository, user_repository, uow, event_publisher

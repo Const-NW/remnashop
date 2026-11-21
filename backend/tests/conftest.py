@@ -64,6 +64,7 @@ from app.modules.pricing.repository import PricingRepository
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -268,7 +269,9 @@ def purchase_subscription_use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         pricing_repository,
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),

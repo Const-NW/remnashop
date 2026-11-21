@@ -4,18 +4,14 @@ from decimal import Decimal
 import pytest
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import GB_TO_BYTES
 from app.core.enums import Currency, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions.domain import (
     VALID_TRANSITIONS,
-    ProrationTerms,
     SubscriptionState,
     assert_transition,
-    calculate_proration_credit,
-    proration_uses_traffic,
 )
 from app.modules.subscriptions.dto import PlanSnapshot
 
@@ -167,108 +163,40 @@ def test_sync_expire_at_is_a_noop_when_already_deleted() -> None:
     assert state.sync_expire_at(datetime(2026, 2, 1)) is state  # noqa: DTZ001
 
 
-def _credit(
-    *,
-    used_gb: int,
-    traffic_limit: int = 100,
-    strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET,
-) -> Decimal:
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    return calculate_proration_credit(
-        credit_paid=Decimal("300"),
-        credit_days=30,
-        expire_at=now + timedelta(days=20),
-        is_trial=False,
-        now=now,
-        traffic_limit=traffic_limit,
-        traffic_limit_strategy=strategy,
-        used_traffic_bytes=used_gb * GB_TO_BYTES,
-    )
-
-
-@pytest.mark.parametrize(
-    ("used_gb", "expected"),
-    [(10, Decimal("200")), (50, Decimal("150")), (95, Decimal("15")), (120, Decimal("0"))],
-)
-def test_proration_credit_takes_the_smaller_of_days_and_traffic_left(
-    used_gb: int, expected: Decimal
-) -> None:
-    assert _credit(used_gb=used_gb) == expected
-
-
-def test_proration_credit_ignores_traffic_on_an_unlimited_plan() -> None:
-    assert _credit(used_gb=95, traffic_limit=0) == Decimal("200")
-
-
-def test_proration_credit_ignores_a_counter_that_resets_every_period() -> None:
-    assert _credit(used_gb=95, strategy=TrafficLimitStrategy.MONTH) == Decimal("200")
-
-
-@pytest.mark.parametrize(
-    ("credit_paid", "credit_days", "remaining", "expected"),
-    [
-        (Decimal("700"), 395, 395, Decimal("700")),
-        (Decimal("100"), 30, 400, Decimal("100")),
-        (Decimal("700"), 395, 100, Decimal("700") / 395 * 100),
-    ],
-)
-def test_proration_credit_is_capped_at_what_was_paid(
-    credit_paid: Decimal, credit_days: int, remaining: int, expected: Decimal
-) -> None:
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    credit = calculate_proration_credit(
-        credit_paid=credit_paid,
-        credit_days=credit_days,
-        expire_at=now + timedelta(days=remaining),
-        is_trial=False,
-        now=now,
-        traffic_limit=0,
-        traffic_limit_strategy=TrafficLimitStrategy.NO_RESET,
-        used_traffic_bytes=0,
-    )
-
-    assert credit == expected
-
-
-def test_renewal_credit_restarts_after_a_lapsed_term() -> None:
-    state = _state(plan_snapshot=_snapshot(credit_paid=Decimal("500"), credit_days=60))
-
-    restarted = state.add_renewal_credit(Decimal("100"), 30, restart=True)
-    accumulated = state.add_renewal_credit(Decimal("100"), 30)
-
-    assert restarted.plan_snapshot.credit_paid == Decimal("100")
-    assert restarted.plan_snapshot.credit_days == 30
-    assert accumulated.plan_snapshot.credit_paid == Decimal("600")
-    assert accumulated.plan_snapshot.credit_days == 90
-
-
-def test_shorten_after_refund_moves_expiry_back_and_drops_credit() -> None:
+def test_shorten_after_refund_moves_expiry_back() -> None:
     now = datetime_now()
-    state = _state(
-        status=SubscriptionStatus.ACTIVE,
-        expire_at=now + timedelta(days=40),
-        plan_snapshot=_snapshot(credit_paid=Decimal("200"), credit_days=40),
-    )
-    shortened = state.shorten_after_refund(30, Decimal("150"), now)
+    state = _state(status=SubscriptionStatus.ACTIVE, expire_at=now + timedelta(days=40))
+    shortened = state.shorten_after_refund(30, now)
     assert shortened.expire_at == now + timedelta(days=10)
     assert shortened.status is SubscriptionStatus.ACTIVE
-    assert shortened.plan_snapshot.credit_paid == Decimal("50")
-    assert shortened.plan_snapshot.credit_days == 10
 
 
 def test_shorten_after_refund_into_the_past_expires() -> None:
     now = datetime_now()
     state = _state(status=SubscriptionStatus.ACTIVE, expire_at=now + timedelta(days=5))
-    shortened = state.shorten_after_refund(30, Decimal("0"), now)
-    assert shortened.status is SubscriptionStatus.EXPIRED
-    # credit never goes negative
-    assert shortened.plan_snapshot.credit_days == 0
+    assert state.shorten_after_refund(30, now).status is SubscriptionStatus.EXPIRED
+
+
+def test_shorten_after_refund_keeps_an_unlimited_term() -> None:
+    now = datetime_now()
+    unlimited = datetime(2099, 1, 1, tzinfo=timezone.utc)
+    state = _state(status=SubscriptionStatus.ACTIVE, expire_at=unlimited)
+    assert state.shorten_after_refund(30, now).expire_at == unlimited
+
+
+def test_end_unlimited_goes_back_to_the_replaced_term() -> None:
+    now = datetime_now()
+    state = _state(
+        status=SubscriptionStatus.ACTIVE, expire_at=datetime(2099, 1, 1, tzinfo=timezone.utc)
+    )
+    assert state.end_unlimited(now + timedelta(days=3), now).expire_at == now + timedelta(days=3)
+    assert state.end_unlimited(now - timedelta(days=3), now).status is SubscriptionStatus.EXPIRED
 
 
 def test_shorten_after_refund_expires_a_limited_subscription() -> None:
     now = datetime_now()
     state = _state(status=SubscriptionStatus.LIMITED, expire_at=now + timedelta(days=5))
-    shortened = state.shorten_after_refund(30, Decimal("0"), now)
+    shortened = state.shorten_after_refund(30, now)
     assert shortened.status is SubscriptionStatus.EXPIRED
 
 
@@ -276,7 +204,7 @@ def test_shorten_after_refund_refuses_a_deleted_subscription() -> None:
     now = datetime_now()
     state = _state(status=SubscriptionStatus.DELETED, expire_at=now + timedelta(days=40))
     with pytest.raises(ValidationError):
-        state.shorten_after_refund(30, Decimal("0"), now)
+        state.shorten_after_refund(30, now)
 
 
 def test_restore_after_refund_reactivates_a_deleted_row() -> None:
@@ -297,36 +225,3 @@ def test_restore_after_refund_refuses_a_live_row() -> None:
     with pytest.raises(ValidationError) as exc:
         state.restore_after_refund(now)
     assert exc.value.code is ErrorCode.SUBSCRIPTION_STATUS_TRANSITION_INVALID
-
-
-@pytest.mark.parametrize("is_trial", [False, True])
-@pytest.mark.parametrize("credit_paid", [Decimal("0"), Decimal("300")])
-@pytest.mark.parametrize("credit_days", [0, 30])
-@pytest.mark.parametrize("unlimited", [False, True])
-@pytest.mark.parametrize("traffic_limit", [0, 100])
-@pytest.mark.parametrize("strategy", list(TrafficLimitStrategy))
-def test_proration_reads_traffic_only_when_it_says_so(
-    is_trial: bool,
-    credit_paid: Decimal,
-    credit_days: int,
-    unlimited: bool,
-    traffic_limit: int,
-    strategy: TrafficLimitStrategy,
-) -> None:
-    # the panel is skipped on a False answer, so the credit must not move with usage then
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    expire_at = datetime(2099, 1, 1, tzinfo=timezone.utc) if unlimited else now + timedelta(days=20)
-    terms = ProrationTerms(
-        credit_paid=credit_paid,
-        credit_days=credit_days,
-        expire_at=expire_at,
-        is_trial=is_trial,
-        traffic_limit=traffic_limit,
-        traffic_limit_strategy=strategy,
-    )
-    credits = {
-        calculate_proration_credit(**terms, now=now, used_traffic_bytes=used)
-        for used in (0, 95 * GB_TO_BYTES, 500 * GB_TO_BYTES)
-    }
-
-    assert proration_uses_traffic(**terms) is (len(credits) > 1)

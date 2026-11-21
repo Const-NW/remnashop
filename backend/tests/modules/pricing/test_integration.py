@@ -2,6 +2,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from remnapy import RemnawaveSDK
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
@@ -54,7 +55,7 @@ from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
-from tests.modules.subscriptions.factories import make_eligibility
+from tests.modules.subscriptions.factories import make_change_credit_calculator, make_eligibility
 
 OWNER = UserDto(name="owner", role=Role.OWNER)
 
@@ -133,6 +134,7 @@ async def test_rate_change_moves_catalog_but_not_existing_order(
     uow: UnitOfWork,
     event_publisher: EventPublisher,
     config: AppConfig,
+    remnawave_sdk: RemnawaveSDK,
 ) -> None:
     async with uow:
         await gateway_repository.update_settings(
@@ -166,6 +168,7 @@ async def test_rate_change_moves_catalog_but_not_existing_order(
             PromocodeRepository(plan_repository.session),
             SubscriptionRepository(plan_repository.session),
             SettingsRepository(plan_repository.session),
+            make_change_credit_calculator(plan_repository.session, remnawave_sdk),
         ),
         user_repository,
         gateway_repository,

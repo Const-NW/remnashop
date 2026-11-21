@@ -136,8 +136,6 @@ def imported_row(
             internal_squads=config.internal_squads,
             external_squad=config.external_squad,
             tag=config.tag,
-            credit_paid=ZERO_AMOUNT,
-            credit_days=0,
         )
     return CreateSubscriptionDto(
         user_id=owner.id,

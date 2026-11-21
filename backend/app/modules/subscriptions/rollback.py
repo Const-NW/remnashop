@@ -13,7 +13,6 @@ from app.core.exceptions import ConflictError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
 from app.modules.pricing import PricingRepository
-from app.modules.subscriptions.domain import refunded_unlimited_expiry
 from app.modules.subscriptions.dto import (
     PurchaseRollbackDto,
     RollbackPreviewDto,
@@ -189,7 +188,10 @@ class PurchaseRollbackService:
     ) -> None:
         now = datetime_now()
         if data.duration_days == 0:
-            before = refunded_unlimited_expiry(renewed.plan_snapshot, now)
+            async with self._uow:
+                before = await self._lifecycle_service.refunded_unlimited_expiry(
+                    renewed.id, data.idempotency_key, now
+                )
         elif renewed.is_unlimited:
             # a later unlimited renewal replaced the refunded term: 2099 stays
             before = renewed.expire_at
@@ -211,7 +213,12 @@ class PurchaseRollbackService:
                     current.plan_snapshot.currency,
                 )
                 await self._lifecycle_service.shorten_after_refund(
-                    current.id, days=data.days_to_take_back, paid=paid, now=now
+                    current.id,
+                    days=data.days_to_take_back,
+                    payment_key=data.idempotency_key,
+                    paid=paid,
+                    unlimited=data.duration_days == 0,
+                    now=now,
                 )
                 await self._publish(actor, current)
         except Exception:

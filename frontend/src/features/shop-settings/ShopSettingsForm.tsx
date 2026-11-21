@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Layers, Link2, MonitorSmartphone, Share2, ShoppingBag, Smartphone } from "lucide-react";
+import { ArrowLeftRight, Gauge, Layers, Link2, MonitorSmartphone, Share2, ShoppingBag, Smartphone } from "lucide-react";
 import { useEffect, useState, type ComponentType, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -37,6 +37,7 @@ export function ShopSettingsForm() {
   const [referralResetEnabled, setReferralResetEnabled] = useState(true);
   const [referralResetCooldownHours, setReferralResetCooldownHours] = useState("0");
   const [planChangeCreditEnabled, setPlanChangeCreditEnabled] = useState(true);
+  const [planChangeTrafficCapEnabled, setPlanChangeTrafficCapEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export function ShopSettingsForm() {
     setReferralResetEnabled(state.data.referral_reset_enabled);
     setReferralResetCooldownHours(String(state.data.referral_reset_cooldown_hours));
     setPlanChangeCreditEnabled(state.data.plan_change_credit_enabled);
+    setPlanChangeTrafficCapEnabled(state.data.plan_change_traffic_cap_enabled);
   }, [state]);
 
   const validation = useFieldValidation<FieldName>();
@@ -116,6 +118,7 @@ export function ShopSettingsForm() {
         referral_reset_enabled: referralResetEnabled,
         referral_reset_cooldown_hours: parsedReferralCooldown,
         plan_change_credit_enabled: planChangeCreditEnabled,
+        plan_change_traffic_cap_enabled: planChangeTrafficCapEnabled,
       });
       setData(settings);
       validation.reset();
@@ -139,7 +142,8 @@ export function ShopSettingsForm() {
       linkResetCooldownHours !== String(saved.link_reset_cooldown_hours) ||
       referralResetEnabled !== saved.referral_reset_enabled ||
       referralResetCooldownHours !== String(saved.referral_reset_cooldown_hours) ||
-      planChangeCreditEnabled !== saved.plan_change_credit_enabled);
+      planChangeCreditEnabled !== saved.plan_change_credit_enabled ||
+      planChangeTrafficCapEnabled !== saved.plan_change_traffic_cap_enabled);
 
   const unlimited = t("settings.shop.unlimitedPlaceholder");
   return (
@@ -232,6 +236,17 @@ export function ShopSettingsForm() {
                 hint={t("settings.shop.planChangeCreditHint")}
               >
                 <Switch checked={planChangeCreditEnabled} onChange={setPlanChangeCreditEnabled} />
+              </Row>
+              <Row
+                icon={Gauge}
+                label={t("settings.shop.planChangeTrafficCapLabel")}
+                hint={t("settings.shop.planChangeTrafficCapHint")}
+              >
+                <Switch
+                  checked={planChangeTrafficCapEnabled}
+                  onChange={setPlanChangeTrafficCapEnabled}
+                  disabled={!planChangeCreditEnabled}
+                />
               </Row>
             </SectionRows>
           </fieldset>

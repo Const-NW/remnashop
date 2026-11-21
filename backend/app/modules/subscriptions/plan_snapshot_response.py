@@ -23,6 +23,3 @@ class PlanSnapshotResponse(BaseModel):
     internal_squads: list[UUID]
     external_squad: Optional[UUID] = None
     tag: Optional[str] = None
-    # None on a snapshot written before they existed
-    credit_paid: Optional[Decimal] = None
-    credit_days: Optional[int] = None

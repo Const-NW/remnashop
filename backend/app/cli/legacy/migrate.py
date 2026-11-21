@@ -29,7 +29,11 @@ from app.cli.legacy.schema import (
     upgrade_legacy,
 )
 from app.cli.legacy.settings import transform_settings
-from app.cli.legacy.subscriptions import migrated_subscription_ids, transform_subscriptions
+from app.cli.legacy.subscriptions import (
+    credit_segments,
+    migrated_subscription_ids,
+    transform_subscriptions,
+)
 from app.cli.legacy.transactions import transform_transactions
 from app.cli.legacy.users import transform_users
 from app.core.db.base import BaseSql
@@ -38,6 +42,7 @@ from app.core.db.models import (
     AdLink,
     AdLinkAttribution,
     BotRequirements,
+    CreditSegment,
     OAuthIdentity,
     OAuthSettings,
     PaymentGateway,
@@ -403,6 +408,7 @@ async def _transfer(
         (AdLinkAttribution, attributions),
         (OAuthIdentity, oauth),
         (Subscription, subscriptions),
+        (CreditSegment, credit_segments(subscriptions)),
         (Transaction, transactions),
         (Promocode, promocodes),
         (PromocodeActivation, activations),

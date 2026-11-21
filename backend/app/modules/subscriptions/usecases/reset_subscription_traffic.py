@@ -9,6 +9,7 @@ from app.core.usecase import UseCase
 from app.modules.subscriptions.dto import SubscriptionDto
 from app.modules.subscriptions.eligibility import get_manageable_subscription, subscription_owner
 from app.modules.subscriptions.events import SubscriptionEditedEvent
+from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import sync_status_after_reset
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
@@ -24,12 +25,14 @@ class ResetSubscriptionTrafficUseCase(UseCase[int, SubscriptionDto]):
         remnawave_sdk: RemnawaveSDK,
         event_publisher: EventPublisher,
         uow: UnitOfWork,
+        lifecycle_service: SubscriptionLifecycleService,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
         self._remnawave_sdk = remnawave_sdk
         self._event_publisher = event_publisher
         self._uow = uow
+        self._lifecycle_service = lifecycle_service
 
     async def _execute(self, actor: Actor, data: int) -> SubscriptionDto:
         async with self._uow:
@@ -41,7 +44,7 @@ class ResetSubscriptionTrafficUseCase(UseCase[int, SubscriptionDto]):
             subscription.remnawave_user_id
         )
         subscription = await sync_status_after_reset(
-            self._subscription_repository, self._uow, subscription, panel_user
+            self._lifecycle_service, self._uow, subscription, panel_user
         )
 
         async with self._uow:

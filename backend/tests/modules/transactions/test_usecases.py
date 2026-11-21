@@ -7,7 +7,9 @@ from decimal import Decimal
 from typing import Final, Optional
 from uuid import uuid4
 
+import httpx
 import pytest
+from remnapy import RemnawaveSDK
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
@@ -95,7 +97,12 @@ from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.telegram_bot import FakeBotSession, use_fake_bot
 from tests.modules.settings.factories import SHOP_SETTINGS_FIELDS
-from tests.modules.subscriptions.factories import make_eligibility, make_plan_snapshot
+from tests.modules.subscriptions.factories import (
+    add_paid_term,
+    make_change_credit_calculator,
+    make_eligibility,
+    make_plan_snapshot,
+)
 
 _SHOP_FIELDS: Final[set[str]] = {field.name for field in dataclasses.fields(UpdateShopSettingsDto)}
 
@@ -163,6 +170,7 @@ def create_checkout_use_case(
     event_publisher: EventPublisher,
     legal_repository: LegalRepository,
     translation_repository: TranslationRepository,
+    remnawave_sdk: RemnawaveSDK,
 ) -> CreateCheckoutUseCase:
     return CreateCheckoutUseCase(
         CheckoutPricer(
@@ -174,6 +182,7 @@ def create_checkout_use_case(
             promocode_repository,
             subscription_repository,
             SettingsRepository(plan_repository.session),
+            make_change_credit_calculator(plan_repository.session, remnawave_sdk),
         ),
         user_repository,
         gateway_repository,
@@ -357,6 +366,7 @@ async def _seed_subscription(
             ),
         )
     )
+    await add_paid_term(subscription_repository.session, subscription)
     return subscription.id
 
 
@@ -418,6 +428,10 @@ async def test_concurrent_free_checkouts_stop_at_the_cap(
                 PromocodeRepository(session),
                 SubscriptionRepository(session),
                 SettingsRepository(session),
+                # a fixed-term checkout never reads the panel for its credit
+                make_change_credit_calculator(
+                    session, RemnawaveSDK(client=httpx.AsyncClient(base_url="http://unused"))
+                ),
             ),
             UserRepository(session),
             GatewayRepository(session),

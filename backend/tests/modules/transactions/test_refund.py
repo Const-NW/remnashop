@@ -36,6 +36,7 @@ from app.modules.pricing.repository import PricingRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import BotSettingsDto, UpdateBotSettingsDto
 from app.modules.subscriptions import PurchaseRollbackDto, RollbackPreviewDto
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import PurchaseSubscriptionDto
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
@@ -691,7 +692,9 @@ async def race(
                     remnawave_sdk,
                     UnitOfWork(purchase_session),
                     RecordingEventPublisher(),
-                    SubscriptionLifecycleService(subscriptions),
+                    SubscriptionLifecycleService(
+                        subscriptions, CreditSegmentRepository(subscriptions.session)
+                    ),
                     PricingRepository(purchase_session),
                     PurchaseIdempotencyRepository(purchase_session),
                     UserRepository(subscriptions.session),

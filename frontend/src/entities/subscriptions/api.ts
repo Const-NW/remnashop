@@ -20,9 +20,23 @@ export interface PlanSnapshot {
   internal_squads: string[];
   external_squad: string | null;
   tag?: string | null;
-  /** money and days behind the current credit, in the snapshot's currency; absent on an old snapshot */
-  credit_paid?: string | null;
-  credit_days?: number | null;
+}
+
+export type CreditSegmentKind = "PURCHASE" | "CARRIED" | "BONUS" | "LEGACY";
+
+/** a stretch of the term and what was paid for it; a plan change credits what's left of each */
+export interface CreditSegment {
+  id: number;
+  kind: CreditSegmentKind;
+  paid: string;
+  currency: string;
+  seconds: number;
+  /** null: an unlimited term */
+  ends_at: string | null;
+  replaced_expire_at: string | null;
+  /** replaced by an unlimited term: credits nothing until that term is refunded */
+  superseded_by_id: number | null;
+  created_at: string;
 }
 
 export interface AddOnEntitlement {
@@ -74,6 +88,7 @@ export interface SubscriptionDetail extends SubscriptionListItem {
   online_at: string | null;
   sub_last_opened_at: string | null;
   sub_last_user_agent: string | null;
+  credit_segments: CreditSegment[];
 }
 
 export const SUBSCRIPTION_STATUS_BADGE_TONE: Record<SubscriptionStatus, BadgeTone> = {

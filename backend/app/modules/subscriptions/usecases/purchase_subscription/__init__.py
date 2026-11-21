@@ -61,6 +61,7 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
             event_publisher,
             user_repository,
             config,
+            lifecycle_service,
         )
         self._renew = RenewPurchase(
             subscription_repository,
@@ -69,7 +70,7 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
             uow,
             event_publisher,
             lifecycle_service,
-            pricing_repository,
+            settings_repository,
         )
         self._change = ChangePurchase(
             subscription_repository,
@@ -77,8 +78,10 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
             remnawave_sdk,
             uow,
             event_publisher,
-            pricing_repository,
-            ChangeCreditCalculator(remnawave_sdk, uow, pricing_repository, settings_repository),
+            ChangeCreditCalculator(
+                remnawave_sdk, uow, pricing_repository, settings_repository, lifecycle_service
+            ),
+            lifecycle_service,
         )
 
     async def _assert_squads_in_panel(self, data: PurchaseSubscriptionDto) -> None:

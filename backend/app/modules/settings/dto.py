@@ -72,6 +72,7 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
     plan_change_credit_enabled: bool = True
+    plan_change_traffic_cap_enabled: bool = True
 
     @property
     def support_link(self) -> Optional[str]:
@@ -116,6 +117,7 @@ class UpdateShopSettingsDto:
     support_url: Optional[str] = None
     payment_email: Optional[str] = None
     plan_change_credit_enabled: Optional[bool] = None
+    plan_change_traffic_cap_enabled: Optional[bool] = None
     fields_set: frozenset[str] = frozenset()
 
 

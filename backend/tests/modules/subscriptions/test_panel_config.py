@@ -12,6 +12,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.enums import AddOnType, SubscriptionStatus
 from app.core.ports import EventPublisher
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import PanelConfigDto, SyncSubscriptionStatusDto
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel_config import _base_limit, panel_config
@@ -78,7 +79,9 @@ def _use_case(
         subscription_repository,
         uow,
         publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
 
 

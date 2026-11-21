@@ -164,6 +164,18 @@ class PromocodeAvailability(UpperStrEnum):
     ALLOWED = auto()
 
 
+class CreditSegmentKind(UpperStrEnum):
+    """Where a stretch of a subscription's term came from, for the plan change credit."""
+
+    PURCHASE = auto()
+    # what a plan change credited from the replaced subscription
+    CARRIED = auto()
+    # free days: referral bonus, an admin's grant
+    BONUS = auto()
+    # the term as it stood before segments existed
+    LEGACY = auto()
+
+
 class PurchaseType(UpperStrEnum):
     NEW = auto()
     RENEW = auto()

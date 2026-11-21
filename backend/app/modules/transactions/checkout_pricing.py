@@ -12,10 +12,15 @@ from app.core.exceptions import NotFoundError
 from app.modules.plans import PlanDto, PlanRepository
 from app.modules.pricing import PricingRepository
 from app.modules.settings import SettingsRepository
-from app.modules.subscriptions import PurchaseEligibility, SubscriptionRepository, get_owned_target
+from app.modules.subscriptions import (
+    ChangeCreditCalculator,
+    PurchaseEligibility,
+    SubscriptionRepository,
+    get_owned_target,
+)
 from app.modules.transactions.dto import PriceQuote
 from app.modules.transactions.ports import PromocodeLiveness
-from app.modules.transactions.pricing import change_credit_for, quote_price
+from app.modules.transactions.pricing import quote_price
 from app.modules.users import UserDto, UserRepository
 
 
@@ -41,6 +46,7 @@ class CheckoutPricer:
         promocode_liveness: PromocodeLiveness,
         subscription_repository: SubscriptionRepository,
         settings_repository: SettingsRepository,
+        change_credit_calculator: ChangeCreditCalculator,
     ) -> None:
         self._plan_repository = plan_repository
         self._user_repository = user_repository
@@ -50,6 +56,7 @@ class CheckoutPricer:
         self._promocode_liveness = promocode_liveness
         self._subscription_repository = subscription_repository
         self._settings_repository = settings_repository
+        self._change_credit_calculator = change_credit_calculator
 
     async def load_purchasable_plan(
         self,
@@ -113,8 +120,7 @@ class CheckoutPricer:
             )
             if not (await self._settings_repository.get_shop_settings()).plan_change_credit_enabled:
                 return ZERO_AMOUNT
-            rates = await self._pricing_repository.get_rate_table()
-        return change_credit_for(target, duration_days, currency, rates)
+        return await self._change_credit_calculator.unlimited_credit(target, currency)
 
     async def anchor_currency(self) -> Currency:
         async with self._uow:

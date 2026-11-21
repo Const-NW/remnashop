@@ -84,16 +84,12 @@ def test_to_json_serializes_price_and_currency_as_strings() -> None:
     assert data["currency"] == "USD"
 
 
-def test_credit_fields_round_trip_and_old_json_reads_as_none() -> None:
-    snapshot = make_plan_snapshot(credit_paid=Decimal("700"), credit_days=395)
-    data = snapshot.to_json()
+def test_a_snapshot_with_the_old_credit_keys_still_reads() -> None:
+    # orders keep the keys from before credit segments
+    snapshot = make_plan_snapshot()
+    data = {**snapshot.to_json(), "credit_paid": "700", "credit_days": 395}
 
     assert PlanSnapshot.from_json(data) == snapshot
-
-    del data["credit_paid"], data["credit_days"]
-    old = PlanSnapshot.from_json(data)
-    assert old.credit_paid is None
-    assert old.credit_days is None
 
 
 def test_shows_the_name_translated_at_checkout() -> None:

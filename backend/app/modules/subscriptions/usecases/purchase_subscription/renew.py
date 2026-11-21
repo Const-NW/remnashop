@@ -13,14 +13,13 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now, truncate_to_ms
-from app.modules.pricing import PricingRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.domain import OrderNotPaidError
 from app.modules.subscriptions.dto import PurchaseSubscriptionDto, SubscriptionDto
 from app.modules.subscriptions.eligibility import get_owned_target
 from app.modules.subscriptions.events import SubscriptionRenewedEvent
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
-from app.modules.subscriptions.paid_amount import paid_in_currency
 from app.modules.subscriptions.panel import (
     configure_for_renewal,
     panel_update,
@@ -45,7 +44,7 @@ class RenewPurchase:
         uow: UnitOfWork,
         event_publisher: EventPublisher,
         lifecycle_service: SubscriptionLifecycleService,
-        pricing_repository: PricingRepository,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._idempotency = idempotency_repository
@@ -53,7 +52,7 @@ class RenewPurchase:
         self._uow = uow
         self._event_publisher = event_publisher
         self._lifecycle_service = lifecycle_service
-        self._pricing_repository = pricing_repository
+        self._settings_repository = settings_repository
 
     async def run(self, actor: Actor, data: PurchaseSubscriptionDto) -> SubscriptionDto:
         async with self._uow:
@@ -116,8 +115,20 @@ class RenewPurchase:
             return subscription
         # a paid renewal is the way back from an exhausted NO_RESET limit
         return await reset_traffic_if_paid(
-            self._remnawave_sdk, self._subscription_repository, self._uow, data, subscription
+            self._remnawave_sdk,
+            self._lifecycle_service,
+            self._uow,
+            data,
+            subscription,
+            pace_of=target if data.reset_traffic and await self._counts_traffic() else None,
         )
+
+    async def _counts_traffic(self) -> bool:
+        """Whether a plan change credit is cut by traffic used: only then is the traffic
+        read before a reset."""
+        async with self._uow:
+            shop = await self._settings_repository.get_shop_settings()
+        return shop.plan_change_credit_enabled and shop.plan_change_traffic_cap_enabled
 
     async def _extend_panel(
         self,
@@ -208,18 +219,13 @@ class RenewPurchase:
                     "Subscription was deleted while this renewal was in flight",
                     code=ErrorCode.SUBSCRIPTION_DELETED,
                 )
-            paid = await paid_in_currency(
-                self._pricing_repository,
-                data.price_paid,
-                data.currency,
-                locked.plan_snapshot.currency,
-            )
             subscription = await self._lifecycle_service.renew(
                 locked.id,
                 expire_at,
-                paid=paid,
-                days=added_days,
+                paid=data.price_paid,
+                currency=data.currency,
                 previous_expire_at=target.expire_at,
+                payment_key=data.idempotency_key,
             )
             # plain days and day terms clear it: their end sits off any anchor
             if anchor_day != subscription.term_anchor_day:

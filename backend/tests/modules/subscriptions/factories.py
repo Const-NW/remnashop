@@ -1,18 +1,30 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID
 
+from remnapy import RemnawaveSDK
 from remnapy.enums import TrafficLimitStrategy
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import Currency, SubscriptionStatus
+from app.core.db.uow import UnitOfWork
+from app.core.enums import CreditSegmentKind, Currency, SubscriptionStatus
 from app.core.utils.time import datetime_now
 from app.modules.plans.dto import PlanDto
+from app.modules.pricing.repository import PricingRepository
 from app.modules.referrals.repository import ReferralRepository
 from app.modules.settings.repository import SettingsRepository
-from app.modules.subscriptions.dto import CreateSubscriptionDto, PlanSnapshot, SubscriptionDto
+from app.modules.subscriptions.change_credit import ChangeCreditCalculator
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
+from app.modules.subscriptions.dto import (
+    CreateCreditSegmentDto,
+    CreateSubscriptionDto,
+    PlanSnapshot,
+    SubscriptionDto,
+)
 from app.modules.subscriptions.eligibility import PurchaseEligibility
+from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.users.dto import CreateUserDto
@@ -30,6 +42,45 @@ def make_eligibility(
         TransactionRepository(session),
         UserRepository(session),
         FixedPanelSquads(panel_squads),
+    )
+
+
+def make_change_credit_calculator(
+    session: AsyncSession, remnawave_sdk: RemnawaveSDK
+) -> ChangeCreditCalculator:
+    subscriptions = SubscriptionRepository(session)
+    return ChangeCreditCalculator(
+        remnawave_sdk,
+        UnitOfWork(session),
+        PricingRepository(session),
+        SettingsRepository(session),
+        SubscriptionLifecycleService(subscriptions, CreditSegmentRepository(session)),
+    )
+
+
+@dataclass(frozen=True, kw_only=True)
+class CreditSummary:
+    """A subscription's credit segments in sum: what's live, what an unlimited
+    term replaced, and where its refund would take the expiry."""
+
+    live_paid: Decimal
+    live_days: int
+    superseded_paid: Decimal
+    superseded_days: int
+    replaced_expire_at: Optional[datetime]
+
+
+async def credit_summary(session: AsyncSession, subscription_id: int) -> CreditSummary:
+    segments = await CreditSegmentRepository(session).list_for(subscription_id)
+    live = [segment for segment in segments if segment.is_live]
+    superseded = [segment for segment in segments if not segment.is_live]
+    unlimited = [segment for segment in live if segment.ends_at is None]
+    return CreditSummary(
+        live_paid=sum((segment.paid for segment in live), Decimal(0)),
+        live_days=round(sum(segment.seconds for segment in live) / 86400),
+        superseded_paid=sum((segment.paid for segment in superseded), Decimal(0)),
+        superseded_days=round(sum(segment.seconds for segment in superseded) / 86400),
+        replaced_expire_at=unlimited[-1].replaced_expire_at if unlimited else None,
     )
 
 
@@ -110,7 +161,7 @@ async def create_subscription(
     and `remnawave_user_id` must be unique per test (both columns are
     unique)."""
     user = await user_repository.create(CreateUserDto(name="buyer", telegram_id=telegram_id))
-    return await subscription_repository.create(
+    subscription = await subscription_repository.create(
         CreateSubscriptionDto(
             user_id=user.id,
             remnawave_user_id=remnawave_user_id,
@@ -121,5 +172,22 @@ async def create_subscription(
             expire_at=expire_at or (datetime_now() + timedelta(days=30)),
             url=f"https://example.com/sub/{remnawave_user_id}",
             plan_snapshot=make_plan_snapshot(**snapshot_overrides),
+        )
+    )
+    await add_paid_term(subscription_repository.session, subscription)
+    return subscription
+
+
+async def add_paid_term(session: AsyncSession, subscription: SubscriptionDto) -> None:
+    """The plan's price over its term up to the expiry, as a migrated subscription has it."""
+    snapshot = subscription.plan_snapshot
+    await CreditSegmentRepository(session).create(
+        CreateCreditSegmentDto(
+            subscription_id=subscription.id,
+            kind=CreditSegmentKind.LEGACY,
+            paid=snapshot.price_paid,
+            currency=snapshot.currency,
+            seconds=max(snapshot.duration_days, 0) * 86400,
+            ends_at=subscription.expire_at if snapshot.duration_days > 0 else None,
         )
     )
