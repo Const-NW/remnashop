@@ -120,13 +120,13 @@ class PurchaseEligibility:
     async def renewable(
         self, plans: Sequence[PlanDto], user_id: int, subscription_id: int
     ) -> list[PlanDto]:
-        # availability decides who may buy a plan, not who may keep it:
-        # switching the plan off is what stops its renewals
+        # neither availability nor is_active decides who may keep a plan:
+        # allow_renewal does, so a plan off sale can still renew and the reverse
         target = await get_owned_target(self._subscription_repository, subscription_id, user_id)
         if target.is_unlimited:
             return []
         return [
-            plan for plan in plans if plan.is_active and plan.id == target.plan_snapshot.plan_id
+            plan for plan in plans if plan.allow_renewal and plan.id == target.plan_snapshot.plan_id
         ]
 
 

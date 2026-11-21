@@ -125,6 +125,8 @@ def transform_plans(
         row["name"] = name
         row["icon_emoji_id"] = DEFAULT_PLAN_ICON_EMOJI_ID
         row["icon_emoji_fallback"] = DEFAULT_PLAN_ICON_EMOJI_FALLBACK
+        # the old bot renewed only an active plan
+        row["allow_renewal"] = row["is_active"]
     report.count("plans", len(plans), len(plan_rows))
     report.count("plan_durations", len(durations), len(duration_rows))
     report.count("plan_prices", len(prices), len(prices) - sum(dropped.values()))

@@ -146,6 +146,7 @@ async def create_plan(
             is_trial=payload.is_trial,
             allow_bonus_days=payload.allow_bonus_days,
             allow_promocodes=payload.allow_promocodes,
+            allow_renewal=payload.allow_renewal,
             translations=_translations(payload.translations),
         ),
     )
@@ -192,6 +193,7 @@ async def update_plan(
             is_trial=payload.is_trial,
             allow_bonus_days=payload.allow_bonus_days,
             allow_promocodes=payload.allow_promocodes,
+            allow_renewal=payload.allow_renewal,
             translations=(
                 _translations(payload.translations) if payload.translations is not None else None
             ),

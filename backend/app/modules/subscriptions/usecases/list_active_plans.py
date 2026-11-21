@@ -92,7 +92,12 @@ class ListActivePlansUseCase(UseCase[ListActivePlansDto, PlanCatalogDto, UserDto
         code = data.plan_code if data is not None else None
         renew_id = data.renew_subscription_id if data is not None else None
         async with self._uow:
-            plans = await self._plan_repository.list_active()
+            # a plan off sale may still renew
+            plans = await (
+                self._plan_repository.list_all()
+                if renew_id is not None
+                else self._plan_repository.list_active()
+            )
             if renew_id is not None:
                 try:
                     purchasable = await self._eligibility.renewable(plans, actor.id, renew_id)
