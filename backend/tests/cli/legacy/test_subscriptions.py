@@ -243,3 +243,14 @@ def test_each_migrated_subscription_gets_its_plan_price_as_one_segment() -> None
             "ends_at": None,
         },
     ]
+
+
+def test_an_old_unlimited_plan_gets_an_endless_segment() -> None:
+    # the old version stored an unlimited term as -1 days
+    expire_at = datetime(2099, 1, 1, tzinfo=timezone.utc)
+    forever = {"price_paid": "0", "currency": "RUB", "duration_days": -1}
+
+    [segment] = credit_segments([{"id": 1, "expire_at": expire_at, "plan_snapshot": forever}])
+
+    assert segment["seconds"] == 0
+    assert segment["ends_at"] is None

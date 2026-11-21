@@ -65,7 +65,7 @@ def credit_segments(subscriptions: Sequence[Mapping[str, Any]]) -> list[dict[str
                 "kind": CreditSegmentKind.LEGACY,
                 "paid": Decimal(snapshot["price_paid"]),
                 "currency": Currency(snapshot["currency"]),
-                "seconds": days * TIME_1D,
+                "seconds": max(days, 0) * TIME_1D,
                 "ends_at": sub["expire_at"] if days > 0 else None,
             }
         )
