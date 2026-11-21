@@ -1,10 +1,10 @@
 import asyncio
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager, suppress
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from functools import partial
-from typing import Final, Optional, Union
+from typing import Final, Generic, Optional, TypeVar, Union
 
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -19,7 +19,7 @@ from app.core.enums import Currency, PanelSyncDirection, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, ValidationError
 from app.core.ports import EventPublisher
-from app.core.utils.time import truncate_to_ms
+from app.core.utils.time import datetime_now, truncate_to_ms
 from app.modules.plans import PlanDto
 from app.modules.subscriptions.dispatch import PanelSyncDispatch
 from app.modules.subscriptions.dto import (
@@ -64,6 +64,8 @@ _IMPORTED_PLAN_ID: Final[int] = 0
 _IMPORTED_PLAN_CODE: Final[str] = "imported"
 _IMPORTED_PLAN_NAME: Final[str] = "Imported"
 
+T = TypeVar("T")
+
 
 async def panel_users(sdk: RemnawaveSDK) -> AsyncIterator[UserResponseDto]:
     """Every panel user, a page at a time."""
@@ -80,6 +82,32 @@ async def panel_users(sdk: RemnawaveSDK) -> AsyncIterator[UserResponseDto]:
 def is_orphan(user: UserResponseDto, linked_ids: set[int], now: datetime) -> bool:
     """A panel user no subscription stands for, old enough not to be mid-purchase."""
     return user.id not in linked_ids and user.created_at < now - _ORPHAN_MIN_AGE
+
+
+@dataclass(frozen=True, kw_only=True)
+class PanelListing(Generic[T]):
+    # whole users only for the orphans: a panel of 100k users held whole is ~550 MB
+    tracked: dict[int, T]
+    orphans: list[UserResponseDto]
+
+
+async def scan_panel(
+    sdk: RemnawaveSDK,
+    linked_ids: set[int],
+    summarize: Callable[[UserResponseDto], Optional[T]],
+) -> PanelListing[T]:
+    """Every panel user, kept as `summarize`'s answer (None: not tracked) or,
+    for an orphan, whole."""
+    now = datetime_now()
+    tracked: dict[int, T] = {}
+    orphans: list[UserResponseDto] = []
+    async for user in panel_users(sdk):
+        summary = summarize(user)
+        if summary is not None:
+            tracked[user.id] = summary
+        elif is_orphan(user, linked_ids, now):
+            orphans.append(user)
+    return PanelListing(tracked=tracked, orphans=orphans)
 
 
 async def named_shop_user(
