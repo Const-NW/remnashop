@@ -23,7 +23,7 @@ from sqlalchemy.orm import aliased
 
 from app.core.constants import DEFAULT_PAGE_SIZE
 from app.core.db.errors import constraint_name
-from app.core.db.filters import in_ids
+from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.referral import Referral
 from app.core.db.models.referral_reward import ReferralReward
 from app.core.db.models.referral_settings import ReferralSettings
@@ -66,7 +66,7 @@ def _search_users(search: str, search_staff: bool) -> Select[tuple[int]]:
 
 def _visible_downline(column: ColumnElement[int], viewer_id: int) -> ColumnElement[bool]:
     # same rule as visible_user: staff rows are hidden, the viewer's own row is not
-    return or_(column.in_(select(User.id).where(User.role == Role.USER)), column == viewer_id)
+    return visible_rows(column, viewer_id)
 
 
 class ReferralRepository:

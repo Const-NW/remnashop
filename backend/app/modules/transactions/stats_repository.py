@@ -16,7 +16,6 @@ from sqlalchemy import (
     exists,
     func,
     literal,
-    or_,
     select,
     tuple_,
 )
@@ -25,10 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.constants import TIME_1D, UNLIMITED_COVERAGE_DAYS
-from app.core.db.filters import in_ids
+from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.transaction import Transaction
-from app.core.db.models.user import User
-from app.core.enums import Currency, PaymentGatewayType, PurchaseType, Role, TransactionStatus
+from app.core.enums import Currency, PaymentGatewayType, PurchaseType, TransactionStatus
 from app.modules.transactions.dto import (
     PaidTotalsDto,
     PaidTransactionDto,
@@ -103,12 +101,7 @@ class TransactionStatsRepository:
         stmt = self._paid_select()
         if hide_staff_from is not None:
             # same rule as visible_user: staff rows are hidden, the viewer's own are not
-            stmt = stmt.where(
-                or_(
-                    Transaction.user_id.in_(select(User.id).where(User.role == Role.USER)),
-                    Transaction.user_id == hide_staff_from,
-                )
-            )
+            stmt = stmt.where(visible_rows(Transaction.user_id, hide_staff_from))
         stmt = stmt.order_by(Transaction.paid_at.desc(), Transaction.id.desc()).limit(limit)
         return [self._to_paid(row) for row in (await self.session.execute(stmt)).all()]
 
