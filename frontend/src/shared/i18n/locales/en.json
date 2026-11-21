@@ -2791,7 +2791,7 @@
   "advertising": {
     "promocode": {
       "label": "Promocode",
-      "hint": "Applied on its own when a customer opens the link: new or already registered",
+      "hint": "Applied on its own when a customer opens the link: new or already registered. A reusable promocode waits for the customer to confirm it",
       "none": "No promocode",
       "unavailable": "Promocode #{{id}} (inactive)"
     },

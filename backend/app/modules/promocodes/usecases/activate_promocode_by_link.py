@@ -39,21 +39,23 @@ class ActivatePromocodeByLinkUseCase(
         self, actor: UserDto, data: ActivatePromocodeByLinkDto
     ) -> PromocodeLinkResultDto:
         promo = await self._validate_promocode_use_case(actor, ValidatePromocodeDto(code=data.code))
-        if promo.is_reusable:
-            return PromocodeLinkResultDto(outcome=PromocodeLinkOutcome.CONFIRM, promocode=promo)
         target_id = None
         if promo.reward_type in PLAN_LIMITED_REWARDS:
             targets = await self._list_promocode_targets_use_case(
                 actor, ListPromocodeTargetsDto(code=promo.code)
             )
-            if len(targets) != 1:
-                outcome = (
-                    PromocodeLinkOutcome.CHOOSE_TARGET
-                    if targets
-                    else PromocodeLinkOutcome.NO_TARGET
+            if not targets:
+                return PromocodeLinkResultDto(
+                    outcome=PromocodeLinkOutcome.NO_TARGET, promocode=promo
                 )
-                return PromocodeLinkResultDto(outcome=outcome, promocode=promo)
+            if len(targets) > 1:
+                return PromocodeLinkResultDto(
+                    outcome=PromocodeLinkOutcome.CHOOSE_TARGET, promocode=promo
+                )
             target_id = targets[0].id
+        if promo.is_reusable:
+            # opening the link again must never repeat the reward on its own
+            return PromocodeLinkResultDto(outcome=PromocodeLinkOutcome.CONFIRM, promocode=promo)
 
         activated = await self._activate_promocode_use_case(
             actor, ActivatePromocodeDto(code=promo.code, target_subscription_id=target_id)

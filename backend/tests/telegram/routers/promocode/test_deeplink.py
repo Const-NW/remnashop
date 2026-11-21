@@ -1,3 +1,4 @@
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,7 +45,15 @@ def _manager(calls: list[str]) -> AsyncMock:
     return manager
 
 
-async def _open_ad_link(activate: AsyncMock, manager: AsyncMock) -> None:
+def _redis(attempts: int = 0) -> MagicMock:
+    redis = MagicMock()
+    redis.get = AsyncMock(return_value=str(attempts).encode() if attempts else None)
+    return redis
+
+
+async def _open_ad_link(
+    activate: AsyncMock, manager: AsyncMock, redis: Optional[MagicMock] = None
+) -> None:
     await deeplink.on_ad_link(
         MagicMock(),
         MagicMock(args="ad_spring"),
@@ -53,7 +62,7 @@ async def _open_ad_link(activate: AsyncMock, manager: AsyncMock) -> None:
         activate=activate,
         validate_promocode=AsyncMock(),
         list_promocode_targets=AsyncMock(),
-        redis=MagicMock(),
+        redis=redis or _redis(),
         i18n=MagicMock(),
     )
 
@@ -133,6 +142,9 @@ async def test_a_step_left_to_the_customer_draws_the_promocode_dialog_once(
     proceed = AsyncMock()
     monkeypatch.setattr(deeplink, "continue_with_code", proceed)
     manager = AsyncMock()
+    shown_with: list[object] = []
+    # show() draws by the manager's own mode, not by an argument
+    manager.show.side_effect = lambda *args: shown_with.append(manager.show_mode)
 
     await _open_ad_link(AsyncMock(return_value=_result(outcome)), manager)
 
@@ -144,7 +156,8 @@ async def test_a_step_left_to_the_customer_draws_the_promocode_dialog_once(
     assert manager.start.await_args_list[1].args == (Promocode.INPUT,)
     assert proceed.await_args is not None
     assert proceed.await_args.args[:3] == ("GIFT", _USER, manager)
-    manager.show.assert_awaited_once_with(ShowMode.DELETE_AND_SEND)
+    manager.show.assert_awaited_once_with()
+    assert shown_with == [ShowMode.DELETE_AND_SEND]
 
 
 async def test_a_promocode_link_activates_its_code_uppercased(notice: AsyncMock) -> None:
@@ -155,20 +168,41 @@ async def test_a_promocode_link_activates_its_code_uppercased(notice: AsyncMock)
     activate.assert_awaited_once_with(_USER, ActivatePromocodeByLinkDto(code="SPRING10"))
 
 
-async def test_links_count_as_typed_guesses(
+async def test_a_promocode_link_over_the_limit_is_refused(
     monkeypatch: pytest.MonkeyPatch, notice: AsyncMock
 ) -> None:
     monkeypatch.setattr(
         deeplink, "hit_counter", AsyncMock(return_value=deeplink.PROMOCODE_INPUT_LIMIT + 1)
     )
-    promo_activate, ad_activate = AsyncMock(), AsyncMock()
-    ad_manager = AsyncMock()
+    activate = AsyncMock()
 
-    await _open_promocode_link(promo_activate, AsyncMock())
-    await _open_ad_link(ad_activate, ad_manager)
+    await _open_promocode_link(activate, AsyncMock())
 
-    promo_activate.assert_not_awaited()
-    ad_activate.assert_not_awaited()
-    # the ad link still opens the menu: it's the shop's own link, not a guess to answer
-    ad_manager.start.assert_awaited_once_with(**_MENU, show_mode=ShowMode.DELETE_AND_SEND)
-    assert notice.await_args_list[0].args[1] == "ntf-promocode.too-many-attempts"
+    activate.assert_not_awaited()
+    assert notice.await_args is not None
+    assert notice.await_args.args[1] == "ntf-promocode.too-many-attempts"
+
+
+async def test_an_ad_link_counts_an_attempt_only_when_it_carries_a_promocode(
+    monkeypatch: pytest.MonkeyPatch, notice: AsyncMock
+) -> None:
+    counter = AsyncMock(return_value=1)
+    monkeypatch.setattr(deeplink, "hit_counter", counter)
+
+    await _open_ad_link(AsyncMock(return_value=None), AsyncMock())
+    assert counter.await_count == 0
+
+    await _open_ad_link(
+        AsyncMock(return_value=_result(PromocodeLinkOutcome.ACTIVATED)), AsyncMock()
+    )
+    assert counter.await_count == 1
+
+
+async def test_an_ad_link_over_the_limit_only_opens_the_menu(notice: AsyncMock) -> None:
+    activate, manager = AsyncMock(), AsyncMock()
+
+    await _open_ad_link(activate, manager, _redis(attempts=deeplink.PROMOCODE_INPUT_LIMIT))
+
+    activate.assert_not_awaited()
+    manager.start.assert_awaited_once_with(**_MENU, show_mode=ShowMode.DELETE_AND_SEND)
+    notice.assert_not_awaited()

@@ -105,3 +105,14 @@ async def test_a_reusable_code_waits_for_the_customer_to_confirm() -> None:
 
     assert result.outcome is PromocodeLinkOutcome.CONFIRM
     activate.assert_not_awaited()
+
+
+async def test_a_reusable_code_with_nothing_to_apply_to_says_so() -> None:
+    use_case, activate = _use_case(
+        _promo(PromocodeRewardType.DEVICES, is_reusable=True), targets=[]
+    )
+
+    result = await use_case(_USER, ActivatePromocodeByLinkDto(code="LINK"))
+
+    assert result.outcome is PromocodeLinkOutcome.NO_TARGET
+    activate.assert_not_awaited()

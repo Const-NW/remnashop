@@ -44,10 +44,16 @@ _ASKS_CUSTOMER: Final[frozenset[PromocodeLinkOutcome]] = frozenset(
 router = Router(name=__name__)
 
 
-async def _over_limit(redis: Redis, user: UserDto) -> bool:
+def _attempts_key(user: UserDto) -> str:
     # a link's code is a guess like a typed one: same counter as the input window
-    key = f"{REDIS_KEY_PREFIX}ratelimit:bot_promocode:user:{user.id}"
-    return await hit_counter(redis, key, PROMOCODE_INPUT_WINDOW_S) > PROMOCODE_INPUT_LIMIT
+    return f"{REDIS_KEY_PREFIX}ratelimit:bot_promocode:user:{user.id}"
+
+
+async def _over_limit(redis: Redis, user: UserDto) -> bool:
+    return (
+        await hit_counter(redis, _attempts_key(user), PROMOCODE_INPUT_WINDOW_S)
+        > PROMOCODE_INPUT_LIMIT
+    )
 
 
 async def _apply_and_open_menu(
@@ -88,7 +94,9 @@ async def _apply_and_open_menu(
             reply=partial(answer_notice, message),
             runner=runner,
         )
-        await dialog_manager.show(ShowMode.DELETE_AND_SEND)
+        # show() reads the manager's own mode, which the starts above left at NO_UPDATE
+        dialog_manager.show_mode = ShowMode.DELETE_AND_SEND
+        await dialog_manager.show()
         return
 
     # what a plain /start shows, with the outcome under it
@@ -151,12 +159,22 @@ async def on_ad_link(
 ) -> None:
     # the attribution itself is the user middleware's, on registration
     code = (command.args or "").removeprefix(AD_LINK_START_PREFIX)
-    if await _over_limit(redis, user):
-        apply: Callable[[], Awaitable[Optional[PromocodeLinkResultDto]]] = _nothing
-    else:
-        apply = partial(
-            activate, user, ActivateAdLinkPromocodeDto(ad_link_code=code, channel=AdLinkChannel.BOT)
-        )
+
+    async def apply() -> Optional[PromocodeLinkResultDto]:
+        # only a link that carries a promocode counts as an attempt: opening the
+        # shop's plain ad links never locks the customer out of typing a code
+        if int(await redis.get(_attempts_key(user)) or 0) >= PROMOCODE_INPUT_LIMIT:
+            return None
+        dto = ActivateAdLinkPromocodeDto(ad_link_code=code, channel=AdLinkChannel.BOT)
+        try:
+            result = await activate(user, dto)
+        except Exception:
+            await hit_counter(redis, _attempts_key(user), PROMOCODE_INPUT_WINDOW_S)
+            raise
+        if result is not None:
+            await hit_counter(redis, _attempts_key(user), PROMOCODE_INPUT_WINDOW_S)
+        return result
+
     await _apply_and_open_menu(
         message,
         dialog_manager,
@@ -169,7 +187,3 @@ async def on_ad_link(
         # worth a message: the customer didn't ask for a promocode
         tell_refusal=False,
     )
-
-
-async def _nothing() -> None:
-    return None

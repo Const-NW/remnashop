@@ -24,9 +24,12 @@ export function PromocodePicker({ id, value, onChange }: PromocodePickerProps) {
     { value: NONE, label: t("advertising.promocode.none") },
     ...promocodes.map((promo) => ({ value: String(promo.id), label: promo.code })),
   ];
-  // a linked code that has since expired is still shown as the current choice
+  // a linked code that has since expired is still shown as the current choice; while the list loads it's just "#id"
   if (value !== null && !promocodes.some((promo) => promo.id === value)) {
-    options.push({ value: String(value), label: t("advertising.promocode.unavailable", { id: value }) });
+    options.push({
+      value: String(value),
+      label: state.kind === "ready" ? t("advertising.promocode.unavailable", { id: value }) : `#${value}`,
+    });
   }
 
   return (
