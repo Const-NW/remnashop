@@ -77,7 +77,7 @@
     "signIn": "Sign in",
     "passwordChange": {
       "title": "Set a new password",
-      "description": "You signed in with a temporary password. Choose your own to continue",
+      "description": "You signed in with a temporary password. Choose your own to continue.",
       "currentPasswordLabel": "Temporary password",
       "submit": "Change password",
       "done": "Password changed. Sign in with the new one."
@@ -271,7 +271,7 @@
         "error": "Telegram: {{error}}",
         "what": "Telegram reports an error delivering updates to the bot, or the webhook is not set.",
         "why": "The bot does not receive messages or button presses, and customers cannot use it.",
-        "fix": "Check the webhook URL in the bot settings and that the server is reachable from the internet over HTTPS. Restarting the bot usually helps."
+        "fix": "Check that the server is reachable from the internet over HTTPS on the APP_DOMAIN domain: the webhook URL is built from it. Restarting the bot usually helps."
       },
       "panelUsersMissing": {
         "title": "Subscriptions without a panel user",
@@ -1094,7 +1094,7 @@
       "button": "Demote to user",
       "title": "Demote admin?",
       "confirm": "The admin will become a regular user, and their login, password and permissions will be removed.",
-      "noSignIn": "They have no Telegram, email, or Google or Yandex sign-in, so they won't be able to sign in afterwards. If the account is no longer needed, delete it instead.",
+      "noSignIn": "They have no Telegram, email, or Google or Yandex sign-in, so they won’t be able to sign in afterwards. If the account is no longer needed, delete it instead.",
       "error": "Failed to demote admin."
     },
     "delete": {
@@ -1447,7 +1447,7 @@
       "errorInvalidToken": "Invalid bot token format.",
       "dropPendingUpdatesLabel": "Drop pending updates when setting the webhook",
       "dropPendingUpdatesHint": "Discards any updates Telegram queued up before the webhook was set, instead of delivering that backlog once it goes live.",
-      "applyChangesDescription": "Restarts the telegram process so it picks up the saved token and proxy. Has no effect if the process isn’t currently running.",
+      "applyChangesDescription": "Restarts the bot process so it picks up the saved token and proxy. Has no effect if the process isn’t currently running.",
       "restartBot": "Restart",
       "restartRequested": "Restart requested. The bot process will come back up with the saved settings shortly.",
       "showLogs": "View logs",
@@ -1540,17 +1540,18 @@
           "Select your bot and open Login Widget",
           "If a domain is already set in the URL field, remove it",
           "Press Switch to OpenID Connect Login. If that button isn’t there, go back a menu after removing the domain and repeat step 3",
-          "Press Add a Redirect URI and Add a Trusted Origin and enter the values below:"
+          "Press Add a Redirect URI and Add a Trusted Origin and enter the values below, replacing YOUR_REMNASHOP_DOMAIN with the dashboard’s domain:"
         ],
         "trustedOriginsLabel": "Trusted Origins",
-        "trustedOriginsValue": "https://remnashop.domain.com",
+        "trustedOriginsValue": "https://YOUR_REMNASHOP_DOMAIN",
         "redirectUrisLabel": "Redirect URIs",
-        "redirectUrisValue": "https://remnashop.domain.com/oauth2/callback/telegram",
+        "redirectUrisValue": "https://YOUR_REMNASHOP_DOMAIN/oauth2/callback/telegram",
         "accessSetupTitle": "Setting up access",
-        "accessSetupIntro": "After filling in the Client ID and Client secret, you need to list the admin IDs allowed to sign in.",
+        "accessSetupIntro": "Only a staff member whose account has Telegram linked can sign in with Telegram.",
         "accessSetupSteps": [
-          "From the account you want to grant access, message @Get_myidrobot",
-          "The bot replies with your ID — enter it into the corresponding field"
+          "A staff member links their Telegram in the profile: “Sign-in methods” → Telegram → “Connect”",
+          "An admin promoted from a bot customer already has Telegram linked",
+          "The owner can enter their own Telegram ID by hand: “Admins” → their own card → “Bind Telegram”. @Get_myidrobot replies with the ID"
         ],
         "knownIssuesTitle": "Troubleshooting known issues",
         "knownIssuesIntro": "Protections layered in front of the dashboard (cookie policies and similar) can misbehave with Telegram OAuth2.",
@@ -1563,11 +1564,10 @@
       "githubGuide": {
         "title": "OAuth2: GitHub",
         "createAppTitle": "Creating an OAuth app",
-        "createAppIntro": "First, create an OAuth app. Follow this link to create one:",
-        "callbackIntro": "Under Authorization callback URL, enter your dashboard’s address.",
+        "createAppIntro": "Create an OAuth app via this link:",
+        "callbackIntro": "Under Authorization callback URL, enter the address below.",
         "callbackCommentLabel": "Replace YOUR_REMNASHOP_DOMAIN with your dashboard’s address",
         "callbackUrlValue": "https://YOUR_REMNASHOP_DOMAIN/oauth2/callback/github",
-        "callbackNote": "Don’t forget to replace YOUR_REMNASHOP_DOMAIN with your dashboard’s actual address.",
         "settingsTitle": "OAuth2 settings in Remnashop",
         "settingsBody": "Once the OAuth app is created, copy the Client ID and Client secret. Paste them into the corresponding fields."
       },
@@ -1578,7 +1578,6 @@
         "callbackIntro": "When creating the app with your OIDC provider, set the Redirect URI below.",
         "callbackCommentLabel": "Replace YOUR_REMNASHOP_DOMAIN with your dashboard’s domain",
         "callbackUrlValue": "https://YOUR_REMNASHOP_DOMAIN/oauth2/callback/oidc",
-        "callbackNote": "Don’t forget to replace YOUR_REMNASHOP_DOMAIN with your actual dashboard domain.",
         "settingsTitle": "OIDC settings in Remnashop",
         "settingsBody": "Enter your provider’s Issuer URL along with the Client ID and Client secret you received. The display name is used as the label on the login button."
       },
@@ -3083,7 +3082,7 @@
       "buttonsDiscard": "Discard changes",
       "buttonsDiscardTitle": "Discard changes?",
       "buttonLabelPending": "Save the button grid first to unlock editing this label.",
-      "buttonPremiumHint": "A premium emoji shows on a button only at the very start of the text, in place of the button icon, and only if the bot's owner has Telegram Premium. Anywhere else it shows as a regular emoji.",
+      "buttonPremiumHint": "A premium emoji shows on a button only at the very start of the text, in place of the button icon, and only if the bot’s owner has Telegram Premium. Anywhere else it shows as a regular emoji.",
       "discardSwitchConfirm": "Discard unsaved button changes and switch windows?",
       "discardSwitchConfirmButton": "Discard and switch",
       "buttonUrlEmpty": "A URL button needs a link.",
@@ -3119,10 +3118,10 @@
         "flags": "Flags"
       },
       "dirtyTitle": "Unsaved changes",
-      "disabledNote": "The window is off: the bot doesn't show it.",
-      "unlinkedNote": "No button leads to this window, so users can't reach it.",
+      "disabledNote": "The window is off: the bot doesn’t show it.",
+      "unlinkedNote": "No button leads to this window, so users can’t reach it.",
       "bannerHintShared": "The shared banner is one for every window; the file is for “{{locale}}”.",
-      "bannerHintOwn": "This window's own banner; the file is for “{{locale}}”.",
+      "bannerHintOwn": "This window’s own banner; the file is for “{{locale}}”.",
       "buttonStyles": {
         "primary": "Accent",
         "success": "Green",
@@ -3228,8 +3227,8 @@
       },
       "levelGets": "gets",
       "exampleLabel": "Example",
-      "levelsUnusedNote_one": "Only the direct inviter is rewarded. Pick more levels to reward further up the chain",
-      "levelsUnusedNote_other": "Only the first {{count}} levels are rewarded. Pick more levels to reward further up the chain",
+      "levelsUnusedNote_one": "Only the direct inviter is rewarded. Pick more levels to reward further up the chain.",
+      "levelsUnusedNote_other": "Only the first {{count}} levels are rewarded. Pick more levels to reward further up the chain.",
       "enabledHint": "A disabled program attaches no new referrals and grants no rewards. Existing referrals and rewards already granted stay.",
       "resetConfirmTitle": "Reset the program settings?",
       "resetConfirmText": "All settings return to their defaults and the program turns off. Existing referrals and rewards already granted stay.",
@@ -4128,7 +4127,7 @@
         "cardPill": "Limits on a plan card and in the subscription dialog: traffic, devices.",
         "chartTooltip": "Chart tooltip in analytics and the overview: a dot for a single series, a row per value.",
         "glassStatus": "A section header’s status, button height: the state’s colour as a tinted capsule with a dot.",
-        "dateTime": "A date and time on the app's calendar: a broadcast's send time.",
+        "dateTime": "A date and time on the app’s calendar: a broadcast’s send time.",
         "fullScreen": "Standalone screens without the dashboard: app crash, 404, server error and server unreachable, the OAuth sign-in wait. Open over the window, the cross at the top left closes.",
         "pageRouteError": "One dashboard page crashed: the sidebar and header stay.",
         "editorFields": "The dialog editor’s own field, kept in its editor styling.",
@@ -5049,7 +5048,7 @@
           "message": "The delivered Telegram messages are deleted from customers’ chats and the channel post is removed. Emails can’t be recalled. This can’t be undone.",
           "confirm": "Recall",
           "done": "Recall started.",
-          "hint": "Deletes the delivered Telegram messages and the channel post. Emails can’t be recalled"
+          "hint": "Deletes the delivered Telegram messages and the channel post. Emails can’t be recalled."
         },
         "delete": {
           "title": "Delete the broadcast?",
@@ -5129,12 +5128,12 @@
       "copy_link": "Copy link"
     },
     "buttonLabel": "Label",
-    "templateHint": "{{token}} becomes the customer's subscription link",
-    "saved": "Guide saved",
-    "error": "Couldn't save the guide",
+    "templateHint": "{{token}} becomes the customer’s subscription link",
+    "saved": "Guide saved.",
+    "error": "Failed to save the guide.",
     "resetConfirmTitle": "Reset the guide?",
     "resetConfirmText": "Your catalog is deleted and the cabinet goes back to the default one",
-    "resetSuccess": "Guide reset",
-    "resetError": "Couldn't reset the guide"
+    "resetSuccess": "Guide reset.",
+    "resetError": "Failed to reset the guide."
   }
 }
