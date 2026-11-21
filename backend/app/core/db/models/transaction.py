@@ -37,6 +37,33 @@ class Transaction(BaseSql, TimestampMixin):
         ),
         # the admin list's newest-first pages
         Index("ix_transactions_created_at_id", text("created_at DESC"), text("id DESC")),
+        # the admin search's substring matches (pg_trgm)
+        Index(
+            "ix_transactions_customer_email_trgm",
+            "customer_email",
+            postgresql_using="gin",
+            postgresql_ops={"customer_email": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_transactions_external_payment_id_trgm",
+            "external_payment_id",
+            postgresql_using="gin",
+            postgresql_ops={"external_payment_id": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_transactions_plan_name_trgm",
+            text("(plan_snapshot ->> 'name') gin_trgm_ops"),
+            postgresql_using="gin",
+        ),
+        # the overview's attention checks: failed payments per gateway (not partial:
+        # a generic plan's `status = $1` can't prove a `status = 'FAILED'` predicate)
+        # and unrated anchors (the queries' own `IS true`, which it can)
+        Index("ix_transactions_status_updated_at", "status", "updated_at"),
+        Index(
+            "ix_transactions_anchor_unrated",
+            "currency",
+            postgresql_where=text("anchor_unrated IS TRUE"),
+        ),
         # per gateway: two providers may hand out the same id, and a collision
         # would fail a checkout whose payment the customer can still complete
         UniqueConstraint(

@@ -66,7 +66,11 @@ class BroadcastRecipient(BaseSql):
         UniqueConstraint(
             "broadcast_id", "user_id", "channel", name="uq_broadcast_recipients_user_channel"
         ),
-        Index("ix_broadcast_recipients_status", "broadcast_id", "status"),
+        # every column of the batch claim: ORDER BY id under it walks only the
+        # pending rows (a partial index is skipped by a generic plan's `status = $1`)
+        Index(
+            "ix_broadcast_recipients_status_channel_id", "broadcast_id", "status", "channel", "id"
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

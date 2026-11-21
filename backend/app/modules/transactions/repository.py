@@ -12,6 +12,7 @@ from sqlalchemy import (
     false,
     func,
     literal,
+    literal_column,
     or_,
     select,
     type_coerce,
@@ -59,7 +60,11 @@ def _search_filter(search: str, *, search_staff: bool) -> ColumnElement[bool]:
     search_filters: list[ColumnElement[bool]] = [
         Transaction.external_payment_id.icontains(search, autoescape=True),
         email_match,
-        Transaction.plan_snapshot["name"].astext.icontains(search, autoescape=True),
+        # the key inlined, not bound: ix_transactions_plan_name_trgm is on
+        # `plan_snapshot ->> 'name'`, which a generic plan's `->> $1` doesn't match
+        Transaction.plan_snapshot.op("->>")(literal_column("'name'")).icontains(
+            search, autoescape=True
+        ),
     ]
     # id/user_id are Integer; a longer digit string would overflow asyncpg
     if search.isascii() and search.isdigit() and int(search) <= INT32_MAX:

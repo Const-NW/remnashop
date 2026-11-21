@@ -16,7 +16,8 @@ class CustomerNotification(BaseSql, TimestampMixin):
     __table_args__ = (UniqueConstraint("user_id", "outbox_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # UNIQUE(user_id, outbox_id) serves the per-user reads
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     # the outbox event it came from: a redelivered task must not add it twice
     outbox_id: Mapped[int]
     event_type: Mapped[str] = mapped_column(String(128))
