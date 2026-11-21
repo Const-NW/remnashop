@@ -7,7 +7,13 @@ from pydantic import Field
 
 from app.core.constants import DEFAULT_PAGE_SIZE
 from app.core.dto import BaseDto, TimestampMixin
-from app.core.enums import Currency, PromocodeAvailability, PromocodeRewardType, PromocodeStatus
+from app.core.enums import (
+    Currency,
+    PromocodeAvailability,
+    PromocodeLinkOutcome,
+    PromocodeRewardType,
+    PromocodeStatus,
+)
 
 
 class PromocodeDto(BaseDto, TimestampMixin):
@@ -86,6 +92,17 @@ class ActivatePromocodeDto:
 @dataclass(frozen=True, kw_only=True)
 class ListPromocodeTargetsDto:
     code: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ActivatePromocodeByLinkDto:
+    code: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class PromocodeLinkResultDto:
+    outcome: PromocodeLinkOutcome
+    promocode: PromocodeDto
 
 
 @dataclass(frozen=True, kw_only=True)

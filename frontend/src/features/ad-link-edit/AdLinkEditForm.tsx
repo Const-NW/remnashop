@@ -2,6 +2,7 @@ import { Coins } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { ChannelsPicker } from "@entities/advertising/ChannelsPicker";
+import { PromocodePicker } from "@entities/advertising/PromocodePicker";
 import { RevenueSharePercentField } from "@entities/advertising/RevenueSharePercentField";
 import { CURRENCIES } from "@entities/pricing/api";
 import { CURRENCY_ICON } from "@entities/transactions/api";
@@ -16,7 +17,7 @@ import { Input, TextArea } from "@shared/ui/glass/Input";
 export function AdLinkEditForm({ form }: { form: AdLinkEditFormState }) {
   const { t } = useTranslation();
   const { name, setName, cost, setCost, currency, setCurrency, note, setNote, channels, setChannels } = form;
-  const { revenueSharePercent, setRevenueSharePercent } = form;
+  const { revenueSharePercent, setRevenueSharePercent, promocodeId, setPromocodeId } = form;
 
   return (
     <form
@@ -80,6 +81,16 @@ export function AdLinkEditForm({ form }: { form: AdLinkEditFormState }) {
           value={revenueSharePercent}
           onChange={setRevenueSharePercent}
         />
+      </div>
+
+      <div className={GLASS_DIALOG_CARD_CLASS}>
+        <Field
+          label={t("advertising.promocode.label")}
+          htmlFor="adlink-edit-promocode"
+          hint={t("advertising.promocode.hint")}
+        >
+          <PromocodePicker id="adlink-edit-promocode" value={promocodeId} onChange={setPromocodeId} />
+        </Field>
       </div>
 
       <div className={GLASS_DIALOG_CARD_CLASS}>

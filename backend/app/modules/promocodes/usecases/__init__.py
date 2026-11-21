@@ -1,4 +1,7 @@
 from app.modules.promocodes.usecases.activate_promocode import ActivatePromocodeUseCase
+from app.modules.promocodes.usecases.activate_promocode_by_link import (
+    ActivatePromocodeByLinkUseCase,
+)
 from app.modules.promocodes.usecases.create_promocode import CreatePromocodeUseCase
 from app.modules.promocodes.usecases.delete_promocode import DeletePromocodeUseCase
 from app.modules.promocodes.usecases.generate_promocode_code import GeneratePromocodeCodeUseCase
@@ -20,6 +23,7 @@ from app.modules.promocodes.usecases.warn_expiring_promocode_discounts import (
 )
 
 __all__ = [
+    "ActivatePromocodeByLinkUseCase",
     "ActivatePromocodeUseCase",
     "CreatePromocodeUseCase",
     "DeletePromocodeUseCase",

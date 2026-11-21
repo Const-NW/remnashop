@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 from app.core.constants import ZERO_AMOUNT
-from app.core.enums import AdLinkChannel, Currency
+from app.core.enums import AdLinkChannel, Currency, PromocodeLinkOutcome, PromocodeRewardType
 
 
 class AdLinkResponse(BaseModel):
@@ -20,6 +20,7 @@ class AdLinkResponse(BaseModel):
     allow_webcabinet: bool
     note: Optional[str] = None
     created_by: Optional[int] = None
+    promocode_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -38,6 +39,7 @@ class CreateAdLinkRequest(BaseModel):
     allow_bot: bool = True
     allow_webcabinet: bool = True
     note: Optional[str] = None
+    promocode_id: Optional[int] = None
 
 
 class UpdateAdLinkRequest(BaseModel):
@@ -49,6 +51,8 @@ class UpdateAdLinkRequest(BaseModel):
     allow_bot: Optional[bool] = None
     allow_webcabinet: Optional[bool] = None
     note: Optional[str] = None
+    # null unlinks the promocode; leaving the field out keeps it
+    promocode_id: Optional[int] = None
 
 
 class AdLinkShareUrlsResponse(BaseModel):
@@ -137,3 +141,22 @@ class AdAttributionResponse(BaseModel):
 class UserAdAttributionResponse(BaseModel):
     # an object even when there is none, like the registration snapshot
     attribution: Optional[AdAttributionResponse]
+
+
+class ActivateAdLinkPromocodeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=64)
+
+
+class AdLinkPromocodeResponse(BaseModel):
+    code: str
+    reward_type: PromocodeRewardType
+    reward: Optional[int] = None
+    reward_addon_id: Optional[int] = None
+    reward_plan_id: Optional[int] = None
+    reward_duration_days: Optional[int] = None
+
+
+class AdLinkPromocodeResultResponse(BaseModel):
+    # both null: the link carries no promocode it may give
+    outcome: Optional[PromocodeLinkOutcome] = None
+    promocode: Optional[AdLinkPromocodeResponse] = None

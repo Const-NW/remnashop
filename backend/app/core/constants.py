@@ -48,6 +48,8 @@ WEB_PREFIX: Final[str] = "web_"
 WEBAUTH_START_PREFIX: Final[str] = "webauth_"
 REFERRAL_START_PREFIX: Final[str] = "ref_"
 PLAN_START_PREFIX: Final[str] = "plan_"
+AD_LINK_START_PREFIX: Final[str] = "ad_"
+PROMOCODE_START_PREFIX: Final[str] = "promo_"
 # callback data under a customer's Telegram notification
 CUSTOMER_NOTIFICATION_CLOSE_CALLBACK: Final[str] = "cn:close"
 CUSTOMER_NOTIFICATION_RENEW_PREFIX: Final[str] = "cn:renew:"

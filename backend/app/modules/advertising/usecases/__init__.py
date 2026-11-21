@@ -1,3 +1,6 @@
+from app.modules.advertising.usecases.activate_ad_link_promocode import (
+    ActivateAdLinkPromocodeUseCase,
+)
 from app.modules.advertising.usecases.create_ad_link import CreateAdLinkUseCase
 from app.modules.advertising.usecases.delete_ad_link import DeleteAdLinkUseCase
 from app.modules.advertising.usecases.generate_ad_link_code import GenerateAdLinkCodeUseCase
@@ -17,6 +20,7 @@ from app.modules.advertising.usecases.record_ad_link_attribution import (
 from app.modules.advertising.usecases.update_ad_link import UpdateAdLinkUseCase
 
 __all__ = [
+    "ActivateAdLinkPromocodeUseCase",
     "CreateAdLinkUseCase",
     "DeleteAdLinkUseCase",
     "GenerateAdLinkCodeUseCase",

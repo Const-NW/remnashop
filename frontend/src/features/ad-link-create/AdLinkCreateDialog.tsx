@@ -10,6 +10,7 @@ import {
   generateAdLinkCode,
 } from "@entities/advertising/api";
 import { type AdLinkChannels, ChannelsPicker } from "@entities/advertising/ChannelsPicker";
+import { PromocodePicker } from "@entities/advertising/PromocodePicker";
 import { RevenueSharePercentField } from "@entities/advertising/RevenueSharePercentField";
 import { CURRENCIES } from "@entities/pricing/api";
 import { CURRENCY_ICON } from "@entities/transactions/api";
@@ -55,6 +56,7 @@ function AdLinkCreateDialogBody({
   const [currency, setCurrency] = useState("USD");
   const [revenueSharePercent, setRevenueSharePercent] = useState("0");
   const [note, setNote] = useState("");
+  const [promocodeId, setPromocodeId] = useState<number | null>(null);
   const [channels, setChannels] = useState<AdLinkChannels>({ allow_bot: true, allow_webcabinet: true });
   const trimmedCode = code.trim();
   const isCodeInvalid = trimmedCode !== "" && !AD_LINK_CODE_PATTERN.test(trimmedCode);
@@ -84,6 +86,7 @@ function AdLinkCreateDialogBody({
         revenue_share_percent: revenueSharePercent,
         ...channels,
         note: note.trim() || null,
+        promocode_id: promocodeId,
       });
       toast.success(t("advertising.create.saved"));
       onSaved(created);
@@ -182,6 +185,16 @@ function AdLinkCreateDialogBody({
                   {t("advertising.create.codeInvalid")}
                 </p>
               )}
+            </Field>
+          </div>
+
+          <div className={GLASS_DIALOG_CARD_CLASS}>
+            <Field
+              label={t("advertising.promocode.label")}
+              htmlFor="adlink-promocode"
+              hint={t("advertising.promocode.hint")}
+            >
+              <PromocodePicker id="adlink-promocode" value={promocodeId} onChange={setPromocodeId} />
             </Field>
           </div>
 

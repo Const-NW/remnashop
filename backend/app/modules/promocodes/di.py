@@ -4,6 +4,7 @@ from app.modules.plans import PlanReferenceCleaner
 from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.promocodes.targets import PromocodeTargets
 from app.modules.promocodes.usecases import (
+    ActivatePromocodeByLinkUseCase,
     ActivatePromocodeUseCase,
     CreatePromocodeUseCase,
     DeletePromocodeUseCase,
@@ -43,6 +44,7 @@ class PromocodesProvider(Provider):
         GetPromocodeSummaryUseCase,
         ListPromocodeActivatedUsersUseCase,
         ActivatePromocodeUseCase,
+        ActivatePromocodeByLinkUseCase,
         ListPromocodeTargetsUseCase,
         ValidatePromocodeUseCase,
         WarnExpiringPromocodeDiscountsUseCase,

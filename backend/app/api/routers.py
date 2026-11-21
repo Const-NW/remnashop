@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.modules.account_merge.api import admin_router as account_merge_admin_router
 from app.modules.advertising.api import admin_router as advertising_admin_router
+from app.modules.advertising.api import public_router as advertising_public_router
 from app.modules.advertising.api import user_router as advertising_user_router
 from app.modules.analytics.api import admin_router as analytics_admin_router
 from app.modules.announcements.api import admin_router as announcements_admin_router
@@ -127,6 +128,7 @@ ROUTERS: Final[tuple[APIRouter, ...]] = (
     translations_locales_router,
     dialogs_admin_router,
     advertising_admin_router,
+    advertising_public_router,
     advertising_user_router,
     analytics_admin_router,
     overview_admin_router,
@@ -145,6 +147,7 @@ CABINET_ROUTERS: Final[tuple[APIRouter, ...]] = (
     settings_shop_router,
     connect_guide_router,
     promocodes_public_router,
+    advertising_public_router,
     referrals_public_router,
     subscriptions_public_router,
     subscriptions_own_router,

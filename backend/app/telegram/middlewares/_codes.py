@@ -1,11 +1,13 @@
-from typing import Final, Optional
+from typing import Optional
 
 from aiogram.types import Message, TelegramObject
 from loguru import logger
 
-from app.core.constants import REFERRAL_START_PREFIX, WEBAUTH_START_PREFIX
-
-_AD_LINK_PREFIX: Final[str] = "ad_"
+from app.core.constants import (
+    AD_LINK_START_PREFIX,
+    REFERRAL_START_PREFIX,
+    WEBAUTH_START_PREFIX,
+)
 
 
 def _parse_start_code(event: TelegramObject, prefix: str) -> Optional[str]:
@@ -35,7 +37,7 @@ def parse_start_payload(event: TelegramObject) -> Optional[str]:
 
 
 def parse_ad_link_code(event: TelegramObject) -> Optional[str]:
-    return _parse_start_code(event, _AD_LINK_PREFIX)
+    return _parse_start_code(event, AD_LINK_START_PREFIX)
 
 
 def parse_referral_code(event: TelegramObject) -> Optional[str]:

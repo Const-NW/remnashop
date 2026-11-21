@@ -7,12 +7,22 @@ from app.api.dependencies.rate_limit import user_rate_limit
 from app.api.errors import error_responses
 from app.core.constants import TIME_1M
 from app.modules.promocodes.api.schemas import (
+    ActivatePromocodeByLinkRequest,
     ActivatePromocodeRequest,
+    PromocodeLinkResponse,
     PromocodeTargetsResponse,
     PublicPromocodeResponse,
 )
-from app.modules.promocodes.dto import ActivatePromocodeDto, ListPromocodeTargetsDto
-from app.modules.promocodes.usecases import ActivatePromocodeUseCase, ListPromocodeTargetsUseCase
+from app.modules.promocodes.dto import (
+    ActivatePromocodeByLinkDto,
+    ActivatePromocodeDto,
+    ListPromocodeTargetsDto,
+)
+from app.modules.promocodes.usecases import (
+    ActivatePromocodeByLinkUseCase,
+    ActivatePromocodeUseCase,
+    ListPromocodeTargetsUseCase,
+)
 from app.modules.users import UserDto
 
 router = APIRouter(prefix="/promocodes", tags=["promocodes"])
@@ -60,3 +70,22 @@ async def list_promocode_targets(
 ) -> PromocodeTargetsResponse:
     subscriptions = await use_case(actor, ListPromocodeTargetsDto(code=code))
     return PromocodeTargetsResponse(subscription_ids=[s.id for s in subscriptions])
+
+
+# a promocode link (?promo=<code>): applied at once when it needs no choice
+@router.post(
+    "/actions/activate-by-link",
+    response_model=PromocodeLinkResponse,
+    dependencies=[
+        Depends(user_rate_limit(key="promocode_activate", limit=10, window_seconds=TIME_1M))
+    ],
+    responses=error_responses(400, 404, 503),
+)
+@inject
+async def activate_promocode_by_link(
+    payload: ActivatePromocodeByLinkRequest,
+    use_case: FromDishka[ActivatePromocodeByLinkUseCase],
+    actor: UserDto = Depends(get_current_user),
+) -> PromocodeLinkResponse:
+    result = await use_case(actor, ActivatePromocodeByLinkDto(code=payload.code))
+    return PromocodeLinkResponse.model_validate(result, from_attributes=True)
