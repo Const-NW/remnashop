@@ -29,6 +29,7 @@ from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.plans.dto import CreatePlanDto
 from app.modules.plans.repository import PlanRepository
 from app.modules.subscriptions import panel_sync
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     PushSubscriptionToPanelDto,
@@ -87,7 +88,9 @@ def _sync(
         subscription_repository,
         uow,
         publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
 
 

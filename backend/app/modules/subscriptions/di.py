@@ -3,6 +3,7 @@ from typing import cast
 from dishka import Provider, Scope, alias, provide, provide_all
 
 from app.modules.subscriptions.change_credit import ChangeCreditCalculator
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dispatch import (
     GrantAddOnDispatch,
     PanelSyncDispatch,
@@ -79,6 +80,7 @@ class SubscriptionsProvider(Provider):
 
     services = provide_all(
         SubscriptionRepository,
+        CreditSegmentRepository,
         SubscriptionStatsRepository,
         PurchaseIdempotencyRepository,
         SubscriptionLifecycleService,

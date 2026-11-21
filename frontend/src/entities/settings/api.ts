@@ -221,6 +221,8 @@ export interface ShopSettings {
   payment_email: string | null;
   // off: a plan change is paid in full, the old term's unused part is dropped
   plan_change_credit_enabled: boolean;
+  // on: a traffic limit that never resets caps the credit of the term running now
+  plan_change_traffic_cap_enabled: boolean;
 }
 
 // a PATCH: only the fields sent change (the support card saves its two on their own)

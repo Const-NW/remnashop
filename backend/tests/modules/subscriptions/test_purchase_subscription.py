@@ -27,6 +27,7 @@ from app.core.db.models import (
 from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     AddOnType,
+    CreditSegmentKind,
     Currency,
     DiscountSource,
     FulfillmentHold,
@@ -58,6 +59,7 @@ from app.modules.pricing.dto import UpdateCurrencyRateDto
 from app.modules.pricing.repository import PricingRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     GrantAddOnDto,
@@ -81,6 +83,7 @@ from app.modules.users.repository import UserRepository
 from tests.fakes.events import RecordingEventPublisher
 from tests.fakes.remnawave import FakeUserStore
 from tests.modules.subscriptions.factories import (
+    credit_summary,
     make_eligibility,
     make_plan_snapshot,
     snapshot_from_plan,
@@ -136,7 +139,9 @@ async def test_new_purchase_creates_subscription_with_real_remnawave_identity(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -190,7 +195,9 @@ async def test_new_purchase_with_a_squad_gone_from_the_panel_never_touches_it(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -237,7 +244,9 @@ async def test_new_purchase_forbidden_for_a_different_users_actor(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -284,7 +293,9 @@ async def test_owner_can_purchase_on_behalf_of_another_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -327,7 +338,9 @@ async def test_new_purchase_rejects_target_subscription_id(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -370,7 +383,9 @@ async def test_new_purchase_blocked_at_concurrent_subscription_cap(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -414,7 +429,9 @@ async def test_new_purchase_at_the_cap_never_touches_the_panel(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -459,7 +476,9 @@ async def test_renew_adds_a_calendar_month_or_exact_days(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -534,7 +553,9 @@ async def test_monthly_renewals_come_back_to_the_anchor_day(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -606,7 +627,9 @@ async def test_a_paid_renew_takes_the_plans_tag_and_a_bonus_one_keeps_it(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -661,7 +684,9 @@ async def test_a_paid_renew_of_an_edited_plan_moves_to_its_terms_and_keeps_add_o
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -727,7 +752,9 @@ async def test_a_renew_from_unlimited_to_a_finite_plan_keeps_add_ons(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -793,7 +820,9 @@ async def test_a_bonus_renew_of_an_edited_plan_keeps_the_old_terms(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -848,7 +877,9 @@ async def test_a_paid_renew_lands_even_when_the_panel_refuses_the_tag(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -911,7 +942,9 @@ async def test_renew_requires_target_subscription_id(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -954,7 +987,9 @@ async def test_renew_rejects_target_belonging_to_another_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1011,7 +1046,9 @@ async def test_renew_rejects_target_on_a_different_plan(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1067,7 +1104,9 @@ async def test_renew_rejects_a_deleted_target(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1125,7 +1164,9 @@ async def test_change_applies_proration_credit_as_extra_days(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1216,7 +1257,9 @@ async def test_change_converts_proration_credit_across_currencies(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         pricing_repository,
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1282,7 +1325,9 @@ async def test_change_credit_converts_at_list_price_not_the_discounted_price(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1361,7 +1406,9 @@ async def test_change_requires_target_subscription_id(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1423,7 +1470,9 @@ async def test_change_from_trial_gives_no_credit(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1501,7 +1550,7 @@ async def test_concurrent_new_purchases_never_exceed_the_cap(
             remnawave_sdk,
             UnitOfWork(session),
             _NoopEventPublisher(),
-            SubscriptionLifecycleService(repo),
+            SubscriptionLifecycleService(repo, CreditSegmentRepository(repo.session)),
             PricingRepository(session),
             PurchaseIdempotencyRepository(session),
             UserRepository(repo.session),
@@ -1627,7 +1676,9 @@ async def test_purchase_with_same_idempotency_key_returns_existing_subscription(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1672,7 +1723,9 @@ async def test_purchase_failure_after_panel_call_disables_the_panel_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1730,7 +1783,9 @@ async def test_cancelled_purchase_releases_its_idempotency_key(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1783,7 +1838,9 @@ async def test_renew_reactivates_an_expired_subscription(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1804,9 +1861,9 @@ async def test_renew_reactivates_an_expired_subscription(
         ),
     )
     async with uow:
-        await SubscriptionLifecycleService(subscription_repository).sync_status(
-            purchased.id, SubscriptionStatus.EXPIRED
-        )
+        await SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ).sync_status(purchased.id, SubscriptionStatus.EXPIRED)
 
     renewed = await use_case(
         buyer,
@@ -1844,7 +1901,9 @@ async def test_renew_with_same_idempotency_key_returns_existing_subscription(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1903,7 +1962,9 @@ async def test_purchase_with_idempotency_key_can_retry_after_a_failed_attempt(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -1960,7 +2021,9 @@ async def test_idempotency_key_is_released_after_a_panel_call_failure(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2018,7 +2081,9 @@ async def test_change_does_not_reparent_addon_entitlement_to_the_new_row(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2105,7 +2170,9 @@ async def test_trial_upgrade_does_not_reparent_addon_entitlement_to_the_new_row(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2190,7 +2257,9 @@ async def test_new_purchase_upgrades_an_active_trial_in_place(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2263,7 +2332,9 @@ async def test_new_purchase_without_a_trial_still_mints_a_fresh_panel_user(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2314,7 +2385,9 @@ async def test_new_purchase_provisions_the_plans_traffic_limit_strategy_on_the_p
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2366,7 +2439,9 @@ async def _renew_fixture(
 ]:
     buyer = await _create_buyer(user_repository, telegram_id)
     plan = await _create_plan(plan_repository, public_code)
-    lifecycle = SubscriptionLifecycleService(subscription_repository)
+    lifecycle = SubscriptionLifecycleService(
+        subscription_repository, CreditSegmentRepository(subscription_repository.session)
+    )
     use_case = PurchaseSubscriptionUseCase(
         subscription_repository,
         make_eligibility(subscription_repository.session),
@@ -2561,7 +2636,9 @@ async def test_a_system_grant_does_not_consume_the_purchase_discount(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2611,7 +2688,9 @@ async def test_only_a_paid_purchase_event_carries_the_payment_key(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         PurchaseIdempotencyRepository(subscription_repository.session),
         UserRepository(subscription_repository.session),
@@ -2665,7 +2744,9 @@ async def test_change_that_loses_the_race_gives_the_panel_back_to_the_winner(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2834,7 +2915,9 @@ def _purchase_use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -2958,7 +3041,9 @@ async def test_change_deducts_spent_traffic_from_the_credit(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),
@@ -3004,7 +3089,183 @@ async def test_change_deducts_spent_traffic_from_the_credit(
     assert used == (0 if reset_traffic else spent)
 
 
-async def test_change_credit_is_the_average_rate_over_renewals(
+def _term(
+    plan: PlanDto, buyer: UserDto, price: str, purchase_type: PurchaseType, **kw: Any
+) -> PurchaseSubscriptionDto:
+    return PurchaseSubscriptionDto(
+        user_id=buyer.id,
+        plan_snapshot=snapshot_from_plan(
+            plan, price_paid=Decimal(price), currency=Currency.RUB, duration_days=30
+        ),
+        duration_days=30,
+        price_paid=Decimal(price),
+        currency=Currency.RUB,
+        purchase_type=purchase_type,
+        **kw,
+    )
+
+
+@pytest.mark.parametrize(("cap_enabled", "credit_days"), [(True, 3), (False, 60)])
+async def test_traffic_used_ahead_of_time_cuts_the_credit_of_every_term_left(
+    cap_enabled: bool,
+    credit_days: int,
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await settings_repository.update_shop_settings(
+        UpdateShopSettingsDto(
+            plan_change_traffic_cap_enabled=cap_enabled,
+            fields_set=frozenset({"plan_change_traffic_cap_enabled"}),
+        )
+    )
+    buyer = await _create_buyer(user_repository, 451 + int(cap_enabled))
+    old_plan = await _create_plan(plan_repository, f"cap-old-{cap_enabled}")
+    new_plan = await _create_plan(plan_repository, f"cap-new-{cap_enabled}")
+    await _paid_order(plan_repository.session, buyer, old_plan, f"cap-new-{cap_enabled}")
+    bought = await purchase_subscription_use_case(
+        buyer,
+        _term(old_plan, buyer, "300", PurchaseType.NEW, idempotency_key=f"cap-new-{cap_enabled}"),
+    )
+    # the next month paid ahead resets the counter: the traffic used since is its own
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        old_plan,
+        f"cap-renew-{cap_enabled}",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=bought.id,
+    )
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            old_plan,
+            buyer,
+            "300",
+            PurchaseType.RENEW,
+            target_subscription_id=bought.id,
+            idempotency_key=f"cap-renew-{cap_enabled}",
+            reset_traffic=True,
+        ),
+    )
+    remnawave_store[renewed.remnawave_user_id]["userTraffic"]["usedTrafficBytes"] = 95 * 1024**3
+
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _term(new_plan, buyer, "300", PurchaseType.CHANGE, target_subscription_id=renewed.id),
+    )
+
+    # one counter for both months since the renewal reset it: 95% used with almost all
+    # the time left cuts the 600 by days to 5%, 30 at 10 a day
+    days = (changed.expire_at - datetime_now()).days - 30
+    assert credit_days - 2 <= days <= credit_days + 1
+
+
+@pytest.mark.parametrize(("cap_enabled", "credit_days"), [(True, 30), (False, 60)])
+async def test_a_renewal_bought_to_zero_used_up_traffic_unlocks_only_its_own_money(
+    cap_enabled: bool,
+    credit_days: int,
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await settings_repository.update_shop_settings(
+        UpdateShopSettingsDto(
+            plan_change_traffic_cap_enabled=cap_enabled,
+            fields_set=frozenset({"plan_change_traffic_cap_enabled"}),
+        )
+    )
+    buyer = await _create_buyer(user_repository, 454 + int(cap_enabled))
+    old_plan = await _create_plan(plan_repository, f"zero-old-{cap_enabled}")
+    new_plan = await _create_plan(plan_repository, f"zero-new-{cap_enabled}")
+    await _paid_order(plan_repository.session, buyer, old_plan, f"zero-new-{cap_enabled}")
+    bought = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            old_plan,
+            buyer,
+            "300",
+            PurchaseType.NEW,
+            idempotency_key=f"zero-new-{cap_enabled}",
+            reset_traffic=True,
+        ),
+    )
+    # all the traffic gone on the first day
+    remnawave_store[bought.remnawave_user_id]["userTraffic"]["usedTrafficBytes"] = 100 * 1024**3
+    await _paid_order(
+        plan_repository.session,
+        buyer,
+        old_plan,
+        f"zero-renew-{cap_enabled}",
+        purchase_type=PurchaseType.RENEW,
+        target_subscription_id=bought.id,
+    )
+    # a renewal that zeroes the counter: the traffic is all back
+    renewed = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            old_plan,
+            buyer,
+            "300",
+            PurchaseType.RENEW,
+            target_subscription_id=bought.id,
+            idempotency_key=f"zero-renew-{cap_enabled}",
+            reset_traffic=True,
+        ),
+    )
+    assert remnawave_store[renewed.remnawave_user_id]["userTraffic"]["usedTrafficBytes"] == 0
+
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _term(new_plan, buyer, "300", PurchaseType.CHANGE, target_subscription_id=renewed.id),
+    )
+
+    # the new plan's own month, plus the renewal's own 300 back: the used-up month
+    # gives nothing, however fresh the counter is
+    days = (changed.expire_at - datetime_now()).days - 30
+    assert abs(days - credit_days) <= 2
+
+
+async def test_a_change_records_the_new_term_then_the_carried_credit(
+    purchase_subscription_use_case: PurchaseSubscriptionUseCase,
+    plan_repository: PlanRepository,
+    user_repository: UserRepository,
+    subscription_repository: SubscriptionRepository,
+) -> None:
+    buyer = await _create_buyer(user_repository, 453)
+    old_plan = await _create_plan(plan_repository, "segments-old")
+    new_plan = await _create_plan(plan_repository, "segments-new")
+    bought = await purchase_subscription_use_case(
+        buyer, _term(old_plan, buyer, "300", PurchaseType.NEW)
+    )
+
+    changed = await purchase_subscription_use_case(
+        buyer,
+        _term(
+            new_plan,
+            buyer,
+            "300",
+            PurchaseType.CHANGE,
+            target_subscription_id=bought.id,
+            idempotency_key=None,
+        ),
+    )
+
+    own, carried = await CreditSegmentRepository(subscription_repository.session).list_for(
+        changed.id
+    )
+    assert (own.kind, own.paid) == (CreditSegmentKind.PURCHASE, Decimal("300"))
+    assert carried.kind is CreditSegmentKind.CARRIED
+    assert Decimal("290") < carried.paid <= Decimal("300")
+    assert carried.ends_at == changed.expire_at
+    assert own.ends_at == carried.ends_at - timedelta(seconds=carried.seconds)
+
+
+async def test_a_change_credits_each_renewal_at_its_own_price(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
@@ -3038,8 +3299,9 @@ async def test_change_credit_is_the_average_rate_over_renewals(
     original = await use_case(buyer, dto(30, "100", PurchaseType.NEW))
     renewed = await use_case(buyer, dto(365, "600", PurchaseType.RENEW, original.id))
 
-    assert renewed.plan_snapshot.credit_paid == Decimal("700")
-    assert renewed.plan_snapshot.credit_days == 395
+    credit = await credit_summary(subscription_repository.session, renewed.id)
+    assert credit.live_paid == Decimal("700")
+    assert abs(credit.live_days - 395) <= 2
     assert renewed.plan_snapshot.price_paid == Decimal("100")
     assert renewed.plan_snapshot.duration_days == 30
 
@@ -3092,14 +3354,13 @@ async def test_a_free_renewal_adds_days_to_the_credit_but_not_money(
         ),
     )
 
-    assert granted.plan_snapshot.credit_paid == Decimal("100")
+    credit = await credit_summary(subscription_repository.session, granted.id)
+    assert credit.live_paid == Decimal("100")
     # two calendar months: the days they really hold
-    assert granted.plan_snapshot.credit_days == _days_between(
-        original.created_at, granted.expire_at
-    )
+    assert credit.live_days == _days_between(original.created_at, granted.expire_at)
 
 
-async def test_a_renewal_in_another_currency_accumulates_in_the_snapshot_currency(
+async def test_a_renewal_in_another_currency_keeps_its_own_currency(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
@@ -3155,10 +3416,12 @@ async def test_a_renewal_in_another_currency_accumulates_in_the_snapshot_currenc
     )
 
     assert renewed.plan_snapshot.currency is Currency.RUB
-    assert renewed.plan_snapshot.credit_paid == Decimal("600")
-    assert renewed.plan_snapshot.credit_days == _days_between(
-        original.created_at, renewed.expire_at
-    )
+    segments = await CreditSegmentRepository(subscription_repository.session).list_for(renewed.id)
+    # converted only when a change counts the credit
+    assert [(s.paid, s.currency) for s in segments] == [
+        (Decimal("300"), Currency.RUB),
+        (Decimal("3"), Currency.USD),
+    ]
 
 
 def _trial_dto(buyer: UserDto, plan: PlanDto) -> PurchaseSubscriptionDto:
@@ -3355,9 +3618,10 @@ async def test_a_second_change_credits_back_the_credit_the_first_one_carried(
     first = await purchase_subscription_use_case(
         buyer, dto(30, "100", PurchaseType.CHANGE, original.id)
     )
-    # about 598 credit at 100/30 per day: 179 days on top of 30
-    assert first.plan_snapshot.credit_days == 30 + 179
-    assert Decimal("698") < first.plan_snapshot.effective_credit_paid < Decimal("699")
+    # about 600 credit, counted by the second, at 100/30 per day: 179 days on top of 30
+    credit = await credit_summary(plan_repository.session, first.id)
+    assert 28 + 179 <= credit.live_days <= 31 + 179  # a calendar month on top
+    assert Decimal("699") < credit.live_paid <= Decimal("700")
 
     second = await purchase_subscription_use_case(
         buyer, dto(30, "100", PurchaseType.CHANGE, first.id)
@@ -3770,7 +4034,9 @@ def _purchase_use_case(
         remnawave_sdk,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
         PricingRepository(subscription_repository.session),
         idempotency_repository,
         UserRepository(subscription_repository.session),

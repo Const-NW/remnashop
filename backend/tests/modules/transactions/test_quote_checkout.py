@@ -37,7 +37,7 @@ from app.modules.promocodes.repository import PromocodeRepository
 from app.modules.settings import GetAccessSettingsUseCase
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
-from app.modules.subscriptions import ChangeCreditCalculator, SubscriptionRepository
+from app.modules.subscriptions import SubscriptionRepository
 from app.modules.transactions.checkout_pricing import CheckoutPricer
 from app.modules.transactions.dto import QuoteCheckoutDto
 from app.modules.transactions.repository import TransactionRepository
@@ -49,7 +49,7 @@ from app.modules.users.dto import CreateUserDto, UpdateUserDto, UserDto
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.payment_texts import FixedPaymentTexts
 from tests.fakes.remnawave import FakeUserStore, _user_payload
-from tests.modules.subscriptions.factories import make_eligibility
+from tests.modules.subscriptions.factories import make_change_credit_calculator, make_eligibility
 from tests.modules.transactions.test_usecases import (
     _checkout_dto,
     _FakeFactory,
@@ -68,6 +68,7 @@ def pricer(
     pricing_repository: PricingRepository,
     promocode_repository: PromocodeRepository,
     uow: UnitOfWork,
+    remnawave_sdk: RemnawaveSDK,
 ) -> CheckoutPricer:
     return CheckoutPricer(
         plan_repository,
@@ -78,6 +79,7 @@ def pricer(
         promocode_repository,
         SubscriptionRepository(plan_repository.session),
         SettingsRepository(plan_repository.session),
+        make_change_credit_calculator(plan_repository.session, remnawave_sdk),
     )
 
 
@@ -93,9 +95,7 @@ def quote_use_case(
         pricer,
         uow,
         SubscriptionRepository(session),
-        ChangeCreditCalculator(
-            remnawave_sdk, uow, PricingRepository(session), SettingsRepository(session)
-        ),
+        make_change_credit_calculator(session, remnawave_sdk),
     )
 
 

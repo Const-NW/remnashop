@@ -12,6 +12,7 @@ from app.core.constants import DEFAULT_PAGE_SIZE, ZERO_AMOUNT
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     AddOnType,
+    CreditSegmentKind,
     Currency,
     Locale,
     PanelSyncDirection,
@@ -42,14 +43,6 @@ class PlanSnapshot:
     internal_squads: list[UUID] = field(default_factory=list)
     external_squad: Optional[UUID] = None
     tag: Optional[str] = None
-    # money and days behind the current credit, accumulated by RENEW and grants since
-    # the last NEW/CHANGE; None on a snapshot written before they existed
-    credit_paid: Optional[Decimal] = None
-    credit_days: Optional[int] = None
-    # what a renewal into an unlimited term replaced, so its refund can put it back
-    unlimited_from: Optional[datetime] = None
-    unlimited_from_credit_paid: Optional[Decimal] = None
-    unlimited_from_credit_days: Optional[int] = None
     # the plan's translated names at checkout; `name` for a locale it has none for
     names: dict[Locale, str] = field(default_factory=dict)
     # a custom emoji, and the plain glyph shown where it can't render
@@ -75,14 +68,6 @@ class PlanSnapshot:
             other.external_squad,
         )
 
-    @property
-    def effective_credit_paid(self) -> Decimal:
-        return self.credit_paid if self.credit_paid is not None else self.price_paid
-
-    @property
-    def effective_credit_days(self) -> int:
-        return self.credit_days if self.credit_days is not None else self.duration_days
-
     def to_json(self) -> dict[str, Any]:
         return {
             "plan_id": self.plan_id,
@@ -98,17 +83,6 @@ class PlanSnapshot:
             "internal_squads": [str(squad) for squad in self.internal_squads],
             "external_squad": str(self.external_squad) if self.external_squad else None,
             "tag": self.tag,
-            "credit_paid": str(self.credit_paid) if self.credit_paid is not None else None,
-            "credit_days": self.credit_days,
-            "unlimited_from": (
-                self.unlimited_from.isoformat() if self.unlimited_from is not None else None
-            ),
-            "unlimited_from_credit_paid": (
-                str(self.unlimited_from_credit_paid)
-                if self.unlimited_from_credit_paid is not None
-                else None
-            ),
-            "unlimited_from_credit_days": self.unlimited_from_credit_days,
             "names": {locale.value: name for locale, name in self.names.items()},
             "icon_emoji_id": self.icon_emoji_id,
             "icon_emoji_fallback": self.icon_emoji_fallback,
@@ -130,21 +104,6 @@ class PlanSnapshot:
             internal_squads=[UUID(squad) for squad in data["internal_squads"]],
             external_squad=UUID(data["external_squad"]) if data["external_squad"] else None,
             tag=data.get("tag"),
-            credit_paid=(
-                Decimal(data["credit_paid"]) if data.get("credit_paid") is not None else None
-            ),
-            credit_days=data.get("credit_days"),
-            unlimited_from=(
-                datetime.fromisoformat(data["unlimited_from"])
-                if data.get("unlimited_from") is not None
-                else None
-            ),
-            unlimited_from_credit_paid=(
-                Decimal(data["unlimited_from_credit_paid"])
-                if data.get("unlimited_from_credit_paid") is not None
-                else None
-            ),
-            unlimited_from_credit_days=data.get("unlimited_from_credit_days"),
             names={Locale(locale): name for locale, name in (data.get("names") or {}).items()},
             icon_emoji_id=data.get("icon_emoji_id"),
             icon_emoji_fallback=data.get("icon_emoji_fallback"),
@@ -174,12 +133,46 @@ class PlanSnapshot:
             internal_squads=plan.internal_squads,
             external_squad=plan.external_squad,
             tag=plan.tag,
-            credit_paid=price_paid,
-            credit_days=duration_days,
             names=plan.localized_names(),
             icon_emoji_id=plan.icon_emoji_id,
             icon_emoji_fallback=plan.icon_emoji_fallback,
         )
+
+
+class CreditSegmentDto(BaseDto, TimestampMixin):
+    """A stretch of a subscription's term and what was paid for it."""
+
+    id: int
+    subscription_id: int
+    kind: CreditSegmentKind
+    payment_key: Optional[str] = None
+    traffic_reset_at: Optional[datetime] = None
+    traffic_pace: Decimal = Decimal(1)
+    paid: Decimal
+    currency: Currency
+    seconds: int
+    # None: an unlimited term
+    ends_at: Optional[datetime] = None
+    replaced_expire_at: Optional[datetime] = None
+    superseded_by_id: Optional[int] = None
+
+    @property
+    def is_live(self) -> bool:
+        return self.superseded_by_id is None
+
+
+@dataclass(frozen=True, kw_only=True)
+class CreateCreditSegmentDto:
+    subscription_id: int
+    kind: CreditSegmentKind
+    paid: Decimal
+    currency: Currency
+    seconds: int
+    ends_at: Optional[datetime]
+    payment_key: Optional[str] = None
+    traffic_reset_at: Optional[datetime] = None
+    traffic_pace: Decimal = Decimal(1)
+    replaced_expire_at: Optional[datetime] = None
 
 
 class AddOnEntitlementDto(BaseDto, TimestampMixin):
@@ -251,6 +244,7 @@ class PanelSquadDto:
 class SubscriptionDetailsDto:
     subscription: SubscriptionDto
     activity: "PanelActivityDto"
+    credit_segments: list[CreditSegmentDto]
 
 
 @dataclass(frozen=True, kw_only=True)

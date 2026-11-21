@@ -11,6 +11,7 @@ from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, SEARCH_MAX_LENG
 from app.core.enums import SubscriptionStatus
 from app.modules.subscriptions.api.schemas import (
     ChangeSubscriptionPlanRequest,
+    CreditSegmentResponse,
     DeletedSubscriptionsResponse,
     DeviceListResponse,
     DeviceResponse,
@@ -312,6 +313,10 @@ async def get_subscription(
             "online_at": details.activity.online_at,
             "sub_last_opened_at": details.activity.sub_last_opened_at,
             "sub_last_user_agent": details.activity.sub_last_user_agent,
+            "credit_segments": [
+                CreditSegmentResponse.model_validate(segment, from_attributes=True)
+                for segment in details.credit_segments
+            ],
         }
     )
 

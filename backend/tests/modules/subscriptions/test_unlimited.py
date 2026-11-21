@@ -5,9 +5,8 @@ import pytest
 
 from app.core.enums import Currency, PlanType
 from app.modules.plans.dto import PlanDto, PlanDurationDto, PlanPriceOverrideDto
-from app.modules.subscriptions.dto import PlanSnapshot
 from app.modules.subscriptions.unlimited import expiry_after, is_unlimited_expiry
-from tests.modules.subscriptions.factories import make_plan_snapshot, make_subscription_dto
+from tests.modules.subscriptions.factories import make_subscription_dto
 
 
 def test_expiry_after_zero_is_year_2099_same_day() -> None:
@@ -53,33 +52,6 @@ def test_is_unlimited_expiry_threshold() -> None:
     assert not is_unlimited_expiry(datetime(2098, 12, 31, 23, 59, tzinfo=timezone.utc))
     assert is_unlimited_expiry(datetime(2099, 1, 1, tzinfo=timezone.utc))
     assert is_unlimited_expiry(datetime(2105, 6, 1, tzinfo=timezone.utc))
-
-
-def test_plan_snapshot_unlimited_from_round_trips() -> None:
-    before = datetime(2026, 12, 1, tzinfo=timezone.utc)
-    snapshot = make_plan_snapshot(
-        unlimited_from=before,
-        unlimited_from_credit_paid=Decimal("300"),
-        unlimited_from_credit_days=30,
-    )
-
-    restored = PlanSnapshot.from_json(snapshot.to_json())
-
-    assert restored.unlimited_from == before
-    assert restored.unlimited_from_credit_paid == Decimal("300")
-    assert restored.unlimited_from_credit_days == 30
-
-
-def test_plan_snapshot_without_unlimited_keys_reads_none() -> None:
-    data = make_plan_snapshot().to_json()
-    for key in ("unlimited_from", "unlimited_from_credit_paid", "unlimited_from_credit_days"):
-        data.pop(key, None)
-
-    restored = PlanSnapshot.from_json(data)
-
-    assert restored.unlimited_from is None
-    assert restored.unlimited_from_credit_paid is None
-    assert restored.unlimited_from_credit_days is None
 
 
 def test_subscription_dto_is_unlimited() -> None:

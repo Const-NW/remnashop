@@ -1,5 +1,4 @@
 from contextlib import suppress
-from dataclasses import replace
 from datetime import datetime
 
 from loguru import logger
@@ -18,6 +17,7 @@ from app.modules.subscriptions.dto import PurchaseSubscriptionDto, SubscriptionD
 from app.modules.subscriptions.eligibility import PurchaseEligibility
 from app.modules.subscriptions.events import SubscriptionPurchasedEvent
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
+from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import (
     configure_for_plan,
     new_panel_user,
@@ -48,6 +48,7 @@ class NewPurchase:
         event_publisher: EventPublisher,
         user_repository: UserRepository,
         config: AppConfig,
+        lifecycle_service: SubscriptionLifecycleService,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._idempotency = idempotency_repository
@@ -57,6 +58,7 @@ class NewPurchase:
         self._event_publisher = event_publisher
         self._user_repository = user_repository
         self._prefix = config.remnawave.username_prefix
+        self._lifecycle_service = lifecycle_service
 
     async def run(self, actor: Actor, data: PurchaseSubscriptionDto) -> SubscriptionDto:
         async with self._uow:
@@ -93,7 +95,6 @@ class NewPurchase:
         now = datetime_now()
         expire_at = expiry_after(now, data.duration_days, exact_days=data.exact_days)
         anchor_day = term_anchor(now, data.duration_days, exact_days=data.exact_days)
-        data = _credit_actual_days(data, now, expire_at)
         plan = data.plan_snapshot
         panel_user = await self._remnawave_sdk.users.create_user(
             new_panel_user(buyer, plan, expire_at, self._prefix)
@@ -124,7 +125,7 @@ class NewPurchase:
                 subscription = await self._subscription_repository.create(
                     subscription_row(data, panel_user, term_anchor_day=anchor_day)
                 )
-                await self._finish(actor, data, subscription)
+                await self._finish(actor, data, subscription, now=now, expire_at=expire_at)
         except _AlreadyProvisionedError as done:
             with suppress(Exception):
                 await self._remnawave_sdk.users.disable_user(panel_user.id)
@@ -185,7 +186,6 @@ class NewPurchase:
         now = datetime_now()
         expire_at = expiry_after(now, data.duration_days, exact_days=data.exact_days)
         anchor_day = term_anchor(now, data.duration_days, exact_days=data.exact_days)
-        data = _credit_actual_days(data, now, expire_at)
         plan = data.plan_snapshot
         panel_user = await self._remnawave_sdk.users.update_user(
             configure_for_plan(trial.remnawave_user_id, plan, expire_at, enable=True)
@@ -216,7 +216,7 @@ class NewPurchase:
                         term_anchor_day=anchor_day,
                     )
                 )
-                await self._finish(actor, data, subscription)
+                await self._finish(actor, data, subscription, now=now, expire_at=expire_at)
         except _AlreadyProvisionedError as done:
             # no revert: the panel user now belongs to the finished subscription
             async with self._uow:
@@ -237,7 +237,7 @@ class NewPurchase:
             raise
 
         subscription = await reset_traffic_if_paid(
-            self._remnawave_sdk, self._subscription_repository, self._uow, data, subscription
+            self._remnawave_sdk, self._lifecycle_service, self._uow, data, subscription
         )
 
         logger.info(
@@ -247,8 +247,22 @@ class NewPurchase:
         return subscription
 
     async def _finish(
-        self, actor: Actor, data: PurchaseSubscriptionDto, subscription: SubscriptionDto
+        self,
+        actor: Actor,
+        data: PurchaseSubscriptionDto,
+        subscription: SubscriptionDto,
+        *,
+        now: datetime,
+        expire_at: datetime,
     ) -> None:
+        await self._lifecycle_service.add_term(
+            subscription.id,
+            starts_at=now,
+            expire_at=expire_at,
+            paid=data.price_paid,
+            currency=data.currency,
+            payment_key=data.idempotency_key,
+        )
         if data.idempotency_key is not None:
             await self._idempotency.link(data.idempotency_key, subscription.id, data.claim_token)
         if not data.publish_event:
@@ -261,14 +275,6 @@ class NewPurchase:
                 purchase_type=data.purchase_type,
                 payment_key=data.idempotency_key,
                 is_trial=data.plan_snapshot.is_trial,
-                added_days=data.plan_snapshot.credit_days,
+                added_days=term_days(now, expire_at, data.duration_days),
             )
         )
-
-
-def _credit_actual_days(
-    data: PurchaseSubscriptionDto, now: datetime, expire_at: datetime
-) -> PurchaseSubscriptionDto:
-    # proration divides by the days the term really holds
-    days = term_days(now, expire_at, data.duration_days)
-    return replace(data, plan_snapshot=replace(data.plan_snapshot, credit_days=days))

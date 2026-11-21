@@ -15,7 +15,6 @@ from app.modules.pricing import (
     price_for,
     round_amount,
 )
-from app.modules.subscriptions import SubscriptionDto
 from app.modules.transactions.dto import PriceQuote
 from app.modules.users import UserDto
 
@@ -89,14 +88,3 @@ def quote_price(
         plan_discount_percent=plan_discount_percent,
         change_credit=change_credit,
     )
-
-
-def change_credit_for(
-    target: SubscriptionDto, duration_days: int, currency: Currency, rates: CurrencyRateTable
-) -> Decimal:
-    """What a change from `target` to a plan's `duration_days` takes off the price: all
-    that was paid for an unlimited subscription moving to another unlimited plan."""
-    if duration_days != 0 or not target.is_unlimited or target.is_trial:
-        return ZERO_AMOUNT
-    snapshot = target.plan_snapshot
-    return rates.convert(snapshot.effective_credit_paid, snapshot.currency, currency)

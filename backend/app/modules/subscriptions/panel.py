@@ -1,6 +1,7 @@
 import re
 from contextlib import suppress
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Final, Literal, Optional
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from app.core.constants import GB_TO_BYTES, INT32_MAX, INT64_MAX, WEB_PREFIX
 from app.core.db.uow import UnitOfWork
 from app.core.enums import AddOnType, SubscriptionStatus
 from app.core.utils.time import datetime_now
+from app.modules.subscriptions.credit import traffic_left_share
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     PlanSnapshot,
@@ -224,24 +226,68 @@ def subscription_row(
 
 async def reset_traffic_if_paid(
     sdk: RemnawaveSDK,
-    repository: SubscriptionRepository,
+    lifecycle: SubscriptionLifecycleService,
     uow: UnitOfWork,
     data: PurchaseSubscriptionDto,
     subscription: SubscriptionDto,
+    *,
+    pace_of: Optional[SubscriptionDto] = None,
 ) -> SubscriptionDto:
+    """`pace_of`, the renewed subscription as it was before, when the plan change credit
+    counts traffic: how far its traffic ran ahead of time carries over the reset."""
     if not data.reset_traffic:
         return subscription
+    pace = (
+        await _pace_before_reset(sdk, lifecycle, uow, data, pace_of)
+        if pace_of is not None
+        else Decimal(1)
+    )
     # a failure leaves the old counter running, nothing to revert
     try:
         panel_user = await sdk.users.reset_user_traffic(subscription.remnawave_user_id)
     except Exception:
         logger.exception(f"Failed to reset traffic of subscription '{subscription.id}'")
         return subscription
-    return await sync_status_after_reset(repository, uow, subscription, panel_user)
+    if data.idempotency_key is not None:
+        # only once the panel took it: the plan change credit counts traffic from here
+        try:
+            async with uow:
+                await lifecycle.record_traffic_reset(
+                    subscription.id, data.idempotency_key, at=datetime_now(), pace=pace
+                )
+        except Exception:
+            logger.exception(f"Failed to record the traffic reset of '{subscription.id}'")
+    return await sync_status_after_reset(lifecycle, uow, subscription, panel_user)
+
+
+async def _pace_before_reset(
+    sdk: RemnawaveSDK,
+    lifecycle: SubscriptionLifecycleService,
+    uow: UnitOfWork,
+    data: PurchaseSubscriptionDto,
+    subscription: SubscriptionDto,
+) -> Decimal:
+    """How far traffic ran ahead of time before a renewal zeroes the counter, so a
+    renewal bought only for that unlocks no credit; counted against the limit it had."""
+    if data.idempotency_key is None or traffic_left_share(subscription, 0) is None:
+        return Decimal(1)
+    try:
+        panel_user = await sdk.users.get_user_by_id(subscription.remnawave_user_id)
+        left = traffic_left_share(subscription, int(panel_user.used_traffic_bytes))
+        if left is None:
+            return Decimal(1)
+        async with uow:
+            return await lifecycle.pace_before_reset(
+                subscription.id, data.idempotency_key, left, datetime_now()
+            )
+    except Exception:
+        # in the customer's favour, as if the traffic went no faster than time
+        logger.exception(f"Failed to read the traffic of '{subscription.id}' before a reset")
+        return Decimal(1)
 
 
 async def sync_status_after_reset(
-    repository: SubscriptionRepository,
+    lifecycle: SubscriptionLifecycleService,
     uow: UnitOfWork,
     subscription: SubscriptionDto,
     panel_user: UserResponseDto,
@@ -254,9 +300,7 @@ async def sync_status_after_reset(
         return subscription
     try:
         async with uow:
-            return await SubscriptionLifecycleService(repository).sync_status(
-                subscription.id, SubscriptionStatus.ACTIVE
-            )
+            return await lifecycle.sync_status(subscription.id, SubscriptionStatus.ACTIVE)
     except Exception:
         logger.exception(f"Failed to sync status of subscription '{subscription.id}'")
         return subscription

@@ -9,6 +9,7 @@ from remnapy.enums import TrafficLimitStrategy
 from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
 from app.core.enums import (
     AddOnType,
+    CreditSegmentKind,
     Currency,
     Locale,
     PanelSyncDirection,
@@ -61,12 +62,26 @@ class SubscriptionResponse(BaseModel):
         return value.to_json() if isinstance(value, PlanSnapshot) else value
 
 
+class CreditSegmentResponse(BaseModel):
+    id: int
+    kind: CreditSegmentKind
+    paid: Decimal
+    currency: Currency
+    seconds: int
+    ends_at: Optional[datetime]
+    replaced_expire_at: Optional[datetime]
+    superseded_by_id: Optional[int]
+    created_at: datetime
+
+
 class SubscriptionDetailResponse(SubscriptionResponse):
     # from the panel; None when it is unreachable or hasn't seen the client
     used_traffic: Optional[int] = None  # bytes
     online_at: Optional[datetime] = None
     sub_last_opened_at: Optional[datetime] = None
     sub_last_user_agent: Optional[str] = None
+    # what the term was paid with, the plan change credit counted from it
+    credit_segments: list[CreditSegmentResponse] = []
 
 
 class SubscriptionListItemResponse(SubscriptionResponse):

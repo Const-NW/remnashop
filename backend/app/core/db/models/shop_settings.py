@@ -36,6 +36,11 @@ class ShopSettings(BaseSql, TimestampMixin):
 
     # off: a plan change is always paid in full, the old term's unused part is dropped
     plan_change_credit_enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
+    # on: a never-resetting traffic limit caps the credit of the term running now by
+    # the share of traffic left
+    plan_change_traffic_cap_enabled: Mapped[bool] = mapped_column(
+        default=True, server_default="true"
+    )
 
     # sent to every gateway instead of the customer's own email; set, nobody is asked for one
     payment_email: Mapped[Optional[str]] = mapped_column(String(320))

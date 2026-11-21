@@ -8,7 +8,9 @@ from remnapy import RemnawaveSDK
 from app.core.db.uow import UnitOfWork
 from app.core.utils.time import datetime_now
 from app.modules.plans import PlanRepository
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto, PanelActivityDto, SubscriptionDto
+from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usage import PanelTrafficUsage
 from app.modules.subscriptions.usecases import (
@@ -103,7 +105,13 @@ async def test_the_admin_detail_reads_used_traffic_from_the_panel(
     )
     remnawave_store[78021] = _panel_user(78021, 42)
     use_case = GetSubscriptionUseCase(
-        subscription_repository, user_repository, PanelTrafficUsage(remnawave_sdk), uow
+        subscription_repository,
+        user_repository,
+        PanelTrafficUsage(remnawave_sdk),
+        uow,
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
 
     assert (await use_case.system(known.id)).activity.used_traffic == 42

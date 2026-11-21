@@ -11,6 +11,7 @@ from app.core.enums import AddOnType, Locale, Role, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.utils.time import datetime_now, truncate_to_ms
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     ListSubscriptionsDto,
@@ -63,7 +64,9 @@ def _update_use_case(
         remnawave_sdk,
         event_publisher,
         uow,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
 
 

@@ -2,13 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Final, Optional, TypedDict
+from typing import Final, Optional
 from uuid import UUID
 
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import GB_TO_BYTES, ZERO_AMOUNT
 from app.core.enums import SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
@@ -122,102 +120,29 @@ class SubscriptionState:
         assert_transition(self.status, target)
         return replace(self, status=target, expire_at=new_expire_at)
 
-    def add_renewal_credit(
-        self,
-        paid: Decimal,
-        days: int,
-        *,
-        restart: bool = False,
-        previous_expire_at: Optional[datetime] = None,
-    ) -> SubscriptionState:
-        snap = self.plan_snapshot
-        if days == 0:
-            # an unlimited term isn't prorated by days; what it replaced is kept
-            # for a refund to put back
-            return replace(
-                self,
-                plan_snapshot=replace(
-                    snap,
-                    credit_paid=paid,
-                    credit_days=0,
-                    unlimited_from=previous_expire_at,
-                    unlimited_from_credit_paid=snap.effective_credit_paid,
-                    unlimited_from_credit_days=snap.effective_credit_days,
-                ),
-            )
-        # a lapsed term's money was used up, and an unlimited one's isn't prorated
-        # by days: the new term starts its own credit
-        fresh = restart or snap.effective_credit_days == 0
-        base_paid = ZERO_AMOUNT if fresh else snap.effective_credit_paid
-        base_days = 0 if fresh else snap.effective_credit_days
-        return replace(
-            self,
-            plan_snapshot=replace(snap, credit_paid=base_paid + paid, credit_days=base_days + days),
-        )
-
-    def shorten_after_refund(self, days: int, paid: Decimal, now: datetime) -> SubscriptionState:
-        """Takes a refunded renewal's term back off, with the credit it added."""
+    def shorten_after_refund(self, days: int, now: datetime) -> SubscriptionState:
+        """Takes a refunded renewal's days back off the end; a later unlimited
+        renewal that replaced the term keeps the subscription unlimited."""
         if self.status is SubscriptionStatus.DELETED:
             raise ValidationError(
                 "Cannot shorten a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
             )
-        snap = self.plan_snapshot
-        if days == 0:
-            return self._undo_unlimited_renewal(now)
         if is_unlimited_expiry(self.expire_at):
-            return self._shorten_under_unlimited(days, paid)
-        expire_at = self.expire_at - timedelta(days=days)
-        status = SubscriptionStatus.EXPIRED if expire_at <= now else self.status
-        assert_transition(self.status, status)
-        return replace(
-            self,
-            status=status,
-            expire_at=expire_at,
-            plan_snapshot=replace(
-                snap,
-                credit_paid=max(snap.effective_credit_paid - paid, ZERO_AMOUNT),
-                credit_days=max(snap.effective_credit_days - days, 0),
-            ),
-        )
-
-    def _shorten_under_unlimited(self, days: int, paid: Decimal) -> SubscriptionState:
-        """A later unlimited renewal replaced the refunded term: it stays unlimited,
-        and the term it would give back on its own refund loses the refunded days."""
-        snap = self.plan_snapshot
-        if snap.unlimited_from is None:
             return self
-        return replace(
-            self,
-            plan_snapshot=replace(
-                snap,
-                unlimited_from=snap.unlimited_from - timedelta(days=days),
-                unlimited_from_credit_paid=max(
-                    (snap.unlimited_from_credit_paid or ZERO_AMOUNT) - paid, ZERO_AMOUNT
-                ),
-                unlimited_from_credit_days=max((snap.unlimited_from_credit_days or 0) - days, 0),
-            ),
-        )
+        return self._end_at(self.expire_at - timedelta(days=days), now)
 
-    def _undo_unlimited_renewal(self, now: datetime) -> SubscriptionState:
-        """Back to the term an unlimited renewal replaced; without a record of
-        it the refunded access ends now."""
-        snap = self.plan_snapshot
-        expire_at = refunded_unlimited_expiry(snap, now)
+    def end_unlimited(self, restore_to: datetime, now: datetime) -> SubscriptionState:
+        """A refunded unlimited renewal: back to the term it replaced."""
+        if self.status is SubscriptionStatus.DELETED:
+            raise ValidationError(
+                "Cannot shorten a deleted subscription", code=ErrorCode.SUBSCRIPTION_DELETED
+            )
+        return self._end_at(restore_to, now)
+
+    def _end_at(self, expire_at: datetime, now: datetime) -> SubscriptionState:
         status = SubscriptionStatus.EXPIRED if expire_at <= now else self.status
         assert_transition(self.status, status)
-        return replace(
-            self,
-            status=status,
-            expire_at=expire_at,
-            plan_snapshot=replace(
-                snap,
-                credit_paid=snap.unlimited_from_credit_paid,
-                credit_days=snap.unlimited_from_credit_days,
-                unlimited_from=None,
-                unlimited_from_credit_paid=None,
-                unlimited_from_credit_days=None,
-            ),
-        )
+        return replace(self, status=status, expire_at=expire_at)
 
     def restore_after_refund(self, now: datetime) -> SubscriptionState:
         """The one way out of DELETED: a refunded plan change puts the replaced
@@ -234,72 +159,3 @@ class SubscriptionState:
     def mark_deleted(self) -> SubscriptionState:
         assert_transition(self.status, SubscriptionStatus.DELETED)
         return replace(self, status=SubscriptionStatus.DELETED)
-
-
-def refunded_unlimited_expiry(snapshot: PlanSnapshot, now: datetime) -> datetime:
-    return snapshot.unlimited_from if snapshot.unlimited_from is not None else now
-
-
-class ProrationTerms(TypedDict):
-    """The old subscription's side of a change credit, shared by the credit and the
-    check whether it needs the panel's traffic."""
-
-    credit_paid: Decimal
-    credit_days: int
-    expire_at: datetime
-    is_trial: bool
-    traffic_limit: int
-    traffic_limit_strategy: TrafficLimitStrategy
-
-
-def _no_proration_credit(
-    credit_paid: Decimal, credit_days: int, expire_at: datetime, is_trial: bool
-) -> bool:
-    # an unlimited term has no remaining days to credit, whatever credit it still carries
-    return is_trial or credit_paid <= 0 or credit_days <= 0 or is_unlimited_expiry(expire_at)
-
-
-def _credit_capped_by_traffic(
-    traffic_limit: int, traffic_limit_strategy: TrafficLimitStrategy
-) -> bool:
-    # a resetting counter covers the current period, not the whole term
-    return traffic_limit > 0 and traffic_limit_strategy is TrafficLimitStrategy.NO_RESET
-
-
-def proration_uses_traffic(
-    *,
-    credit_paid: Decimal,
-    credit_days: int,
-    expire_at: datetime,
-    is_trial: bool,
-    traffic_limit: int,
-    traffic_limit_strategy: TrafficLimitStrategy,
-) -> bool:
-    """Whether calculate_proration_credit reads used_traffic_bytes: the panel is asked only then."""
-    return not _no_proration_credit(
-        credit_paid, credit_days, expire_at, is_trial
-    ) and _credit_capped_by_traffic(traffic_limit, traffic_limit_strategy)
-
-
-def calculate_proration_credit(
-    *,
-    credit_paid: Decimal,
-    credit_days: int,
-    expire_at: datetime,
-    is_trial: bool,
-    now: datetime,
-    traffic_limit: int,
-    traffic_limit_strategy: TrafficLimitStrategy,
-    used_traffic_bytes: int,
-) -> Decimal:
-    """Proration credit from the old subscription's fields alone, so ChangePurchase
-    knows the new expire_at before touching the panel."""
-    if _no_proration_credit(credit_paid, credit_days, expire_at, is_trial):
-        return Decimal("0")
-    remaining_days = max(0, (expire_at - now).days)
-    credit = min(credit_paid / Decimal(credit_days) * Decimal(remaining_days), credit_paid)
-    if _credit_capped_by_traffic(traffic_limit, traffic_limit_strategy):
-        limit_bytes = traffic_limit * GB_TO_BYTES
-        remaining_bytes = max(0, limit_bytes - used_traffic_bytes)
-        credit = min(credit, credit_paid * Decimal(remaining_bytes) / Decimal(limit_bytes))
-    return credit

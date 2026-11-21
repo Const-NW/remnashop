@@ -21,6 +21,7 @@ from app.core.db.models.bot_translation import BotTranslation
 from app.core.db.models.broadcast import Broadcast, BroadcastEmailImage, BroadcastRecipient
 from app.core.db.models.cabinet_auth_settings import CabinetAuthSettings
 from app.core.db.models.connect_guide_settings import ConnectGuideSettings
+from app.core.db.models.credit_segment import CreditSegment
 from app.core.db.models.currency_rate import CurrencyRate
 from app.core.db.models.customer_notification import CustomerNotification
 from app.core.db.models.dialog_button import DialogButton
@@ -86,6 +87,7 @@ __all__ = [
     "BroadcastRecipient",
     "CabinetAuthSettings",
     "ConnectGuideSettings",
+    "CreditSegment",
     "CurrencyRate",
     "CustomerNotification",
     "DialogButton",
