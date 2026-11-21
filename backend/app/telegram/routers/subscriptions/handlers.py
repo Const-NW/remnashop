@@ -63,6 +63,18 @@ async def open_subscriptions(manager: DialogManager, subscriptions: list[Subscri
         await manager.start(Subscriptions.LIST, mode=StartMode.RESET_STACK)
 
 
+async def open_devices(manager: DialogManager, active: list[SubscriptionDto]) -> None:
+    # the main menu's own subscription: the first active one, as its block shows
+    if not active:
+        await manager.start(MainMenu.MAIN, mode=StartMode.RESET_STACK)
+        return
+    await manager.start(
+        Subscriptions.DEVICES,
+        data={SELECTED_SUBSCRIPTION_KEY: active[0].id, DEVICES_FROM_MENU_KEY: True},
+        mode=StartMode.RESET_STACK,
+    )
+
+
 @inject
 async def on_open_subscriptions(
     callback: CallbackQuery,
@@ -81,17 +93,8 @@ async def on_open_devices(
     dialog_manager: DialogManager,
     list_own_active_subscriptions: FromDishka[ListOwnActiveSubscriptionsUseCase],
 ) -> None:
-    # the main menu's own subscription: the first active one, as its block shows
     user: UserDto = dialog_manager.middleware_data[USER_KEY]
-    active = await list_own_active_subscriptions(user)
-    if not active:
-        await dialog_manager.start(MainMenu.MAIN, mode=StartMode.RESET_STACK)
-        return
-    await dialog_manager.start(
-        Subscriptions.DEVICES,
-        data={SELECTED_SUBSCRIPTION_KEY: active[0].id, DEVICES_FROM_MENU_KEY: True},
-        mode=StartMode.RESET_STACK,
-    )
+    await open_devices(dialog_manager, await list_own_active_subscriptions(user))
 
 
 async def on_devices_back(
