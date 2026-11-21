@@ -524,7 +524,9 @@ async def test_a_repeated_event_writes_no_first_connection_or_creation_date(
         subscription_repository,
         uow,
         event_publisher,
-        SubscriptionLifecycleService(subscription_repository),
+        SubscriptionLifecycleService(
+            subscription_repository, CreditSegmentRepository(subscription_repository.session)
+        ),
     )
     event = SyncSubscriptionStatusDto(
         remnawave_user_id=71903,
