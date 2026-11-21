@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import any_, func, or_, select, union_all
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
 
 from app.core.db.errors import constraint_name
 from app.core.db.models.blacklist import Blacklist
@@ -190,7 +191,12 @@ class BlacklistRepository:
         emails: set[str] = set(manual.blocked_emails) if manual else set()
         rows = (
             await self.session.execute(
-                select(BlacklistSource).where(BlacklistSource.enabled.is_(True))
+                select(BlacklistSource)
+                .options(
+                    undefer(BlacklistSource.blocked_telegram_ids),
+                    undefer(BlacklistSource.blocked_emails),
+                )
+                .where(BlacklistSource.enabled.is_(True))
             )
         ).scalars()
         for row in rows:
@@ -207,6 +213,10 @@ class BlacklistRepository:
         rows = (
             await self.session.execute(
                 select(BlacklistSource)
+                .options(
+                    undefer(BlacklistSource.blocked_telegram_ids),
+                    undefer(BlacklistSource.blocked_emails),
+                )
                 .where(BlacklistSource.enabled.is_(True))
                 .order_by(BlacklistSource.id)
             )
