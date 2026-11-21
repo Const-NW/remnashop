@@ -1,5 +1,5 @@
 from collections.abc import Collection
-from typing import Optional, Union
+from typing import Final, Optional, Union
 
 from sqlalchemy import ARRAY, BigInteger, ColumnElement, any_, literal, or_, select
 from sqlalchemy.orm import InstrumentedAttribute
@@ -10,6 +10,8 @@ from app.core.enums import Role
 _IntColumn = Union[
     InstrumentedAttribute[int], InstrumentedAttribute[Optional[int]], ColumnElement[int]
 ]
+
+_STAFF_ROLES: Final[tuple[Role, ...]] = tuple(role for role in Role if role is not Role.USER)
 
 
 def in_ids(column: _IntColumn, ids: Collection[int]) -> ColumnElement[bool]:
@@ -22,7 +24,8 @@ def customer_rows(column: _IntColumn) -> ColumnElement[bool]:
     """Rows of a NOT NULL user id column that belong to customers. Excludes the
     few staff ids instead of matching every customer: past a few hundred thousand
     customers an `IN (customers)` under an OR stops fitting a hash and goes quadratic."""
-    return column.notin_(select(User.id).where(User.role != Role.USER))
+    # `in_`, not `!= USER`: an inequality can't use ix_users_role
+    return column.notin_(select(User.id).where(User.role.in_(_STAFF_ROLES)))
 
 
 def visible_rows(column: _IntColumn, viewer_id: int) -> ColumnElement[bool]:
