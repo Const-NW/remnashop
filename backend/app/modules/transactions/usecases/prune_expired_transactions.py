@@ -18,8 +18,9 @@ from app.modules.transactions.usecases.check_transaction_payment import (
 )
 from app.modules.users import UserRepository
 
-# a gateway still unreachable this long after expiry no longer holds the order open
-_STATUS_CHECK_GIVE_UP: Final[timedelta] = timedelta(days=1)
+# a gateway still unanswering this long after expiry no longer holds the order
+# open; a late webhook still settles it
+_STATUS_CHECK_GIVE_UP: Final[timedelta] = timedelta(hours=1)
 
 
 class PruneExpiredTransactionsUseCase(UseCase[None, None]):
@@ -44,7 +45,7 @@ class PruneExpiredTransactionsUseCase(UseCase[None, None]):
         async with self._uow:
             expired = await self._transaction_repository.list_expired_pending(now)
         # a lost webhook must not cancel a paid order: the gateway is asked first
-        to_cancel = [order.id for order in expired if not await self._status_unknown(order, now)]
+        to_cancel = [order.id for order in expired if not await self._keep_pending(order, now)]
         async with self._uow:
             canceled = await self._transaction_repository.cancel_expired_pending(now, to_cancel)
             for order in canceled:
@@ -58,9 +59,9 @@ class PruneExpiredTransactionsUseCase(UseCase[None, None]):
             f"Canceled {len(canceled)} of {len(expired)} unpaid transaction(s) past their expiry"
         )
 
-    async def _status_unknown(self, order: TransactionDto, now: datetime) -> bool:
+    async def _keep_pending(self, order: TransactionDto, now: datetime) -> bool:
         """True when the gateway couldn't say whether the order was paid, so it
-        stays PENDING until the next sweep. A paid order leaves PENDING here."""
+        waits for the next sweep. A paid order leaves PENDING here."""
         if order.gateway_type is None or order.expires_at <= now - _STATUS_CHECK_GIVE_UP:
             return False
         try:
@@ -71,5 +72,8 @@ class PruneExpiredTransactionsUseCase(UseCase[None, None]):
             return False  # no status API for this gateway, or the customer is gone
         except PaymentGatewayError as error:
             logger.warning(f"Kept expired transaction '{order.id}' pending: {error}")
+            return True
+        except Exception:  # one order's failure must not hold back the rest of the sweep
+            logger.exception(f"Kept expired transaction '{order.id}' pending")
             return True
         return False

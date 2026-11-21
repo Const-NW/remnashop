@@ -317,8 +317,9 @@ async def _prune(
         (_StubGateway(None), TransactionStatus.CANCELED),
         (_StubGateway(_PAID, supported=False), TransactionStatus.CANCELED),
         (_StubGateway(None, error=PaymentGatewayError("down")), TransactionStatus.PENDING),
+        (_StubGateway(None, error=RuntimeError("bug")), TransactionStatus.PENDING),
     ],
-    ids=["paid", "not-paid", "no-status-api", "gateway-down"],
+    ids=["paid", "not-paid", "no-status-api", "gateway-down", "unexpected-error"],
 )
 async def test_the_expiry_sweep_asks_the_gateway_before_canceling(
     gateway: _StubGateway,
@@ -339,7 +340,7 @@ async def test_the_expiry_sweep_asks_the_gateway_before_canceling(
     assert len(dispatch.messages) == (1 if status is TransactionStatus.PAID else 0)
 
 
-async def test_the_expiry_sweep_stops_waiting_for_a_gateway_down_for_a_day(
+async def test_the_expiry_sweep_stops_waiting_for_a_gateway_down_for_an_hour(
     session: AsyncSession,
     transaction_repository: TransactionRepository,
     user_repository: UserRepository,
@@ -348,8 +349,28 @@ async def test_the_expiry_sweep_stops_waiting_for_a_gateway_down_for_a_day(
     plan_id: int,
 ) -> None:
     order = await _order(transaction_repository, uow, user_id=user_id, plan_id=plan_id)
-    await _expire(transaction_repository, uow, order.id, timedelta(days=1, minutes=1))
+    await _expire(transaction_repository, uow, order.id, timedelta(hours=1, minutes=1))
     gateway = _StubGateway(None, error=PaymentGatewayError("down"))
+
+    await _prune(gateway, session, transaction_repository, user_repository, uow)
+
+    assert gateway.calls == 0
+    assert (await transaction_repository.get_by_id(order.id)).status is TransactionStatus.CANCELED
+
+
+async def test_the_expiry_sweep_cancels_a_free_order_without_a_call(
+    session: AsyncSession,
+    transaction_repository: TransactionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    user_id: int,
+    plan_id: int,
+) -> None:
+    order = await _order(
+        transaction_repository, uow, user_id=user_id, plan_id=plan_id, gateway_type=None
+    )
+    await _expire(transaction_repository, uow, order.id, timedelta(minutes=1))
+    gateway = _StubGateway(_PAID)
 
     await _prune(gateway, session, transaction_repository, user_repository, uow)
 
