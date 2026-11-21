@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 from typing import Final, Optional
 
-from sqlalchemy import ARRAY, Text, any_, case, delete, literal, select, update
+from sqlalchemy import ARRAY, Text, any_, case, cast, delete, func, literal, select, update
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,8 @@ from app.modules.translations.serializer import serialize_to_fluent
 
 # five binds a row, well under asyncpg's 32,767-parameter cap
 _SEED_CHUNK: Final[int] = 1000
+# between the fields of one row in the fingerprint; never part of a key or value
+_FIELD_SEP: Final[str] = "\x1f"
 
 
 class TranslationRepository:
@@ -86,6 +89,43 @@ class TranslationRepository:
             select(BotTranslation).where(BotTranslation.locale == locale)
         )
         return [self._to_dto(row) for row in result.scalars()]
+
+    async def fluent_fingerprint(self) -> str:
+        """Changes with anything get_fluent_text_by_locale and the default locale
+        read: computed in the database, so a cache check doesn't ship every row."""
+        sep = literal(_FIELD_SEP)
+        locale_key = cast(ActiveLocale.locale, Text) + sep + cast(ActiveLocale.is_default, Text)
+        locales = select(
+            func.string_agg(locale_key, aggregate_order_by(sep, cast(ActiveLocale.locale, Text)))
+        ).scalar_subquery()
+        row_key = (
+            cast(BotTranslation.locale, Text)
+            + sep
+            + BotTranslation.message_id
+            + sep
+            + BotTranslation.attribute_id
+            + sep
+            + BotTranslation.value
+        )
+        texts = (
+            select(
+                func.string_agg(
+                    row_key,
+                    aggregate_order_by(
+                        literal("\n"),
+                        cast(BotTranslation.locale, Text),
+                        BotTranslation.message_id,
+                        BotTranslation.attribute_id,
+                    ),
+                )
+            )
+            .where(BotTranslation.locale.in_(select(ActiveLocale.locale)))
+            .scalar_subquery()
+        )
+        fingerprint = func.md5(
+            func.coalesce(locales, "") + literal("\n") + func.coalesce(texts, "")
+        )
+        return str(await self.session.scalar(select(fingerprint)))
 
     async def get_fluent_text_by_locale(self, locales: list[Locale]) -> dict[Locale, str]:
         if not locales:

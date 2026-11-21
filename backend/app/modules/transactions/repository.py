@@ -12,6 +12,7 @@ from sqlalchemy import (
     false,
     func,
     literal,
+    literal_column,
     or_,
     select,
     type_coerce,
@@ -20,10 +21,9 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX, ZERO_AMOUNT
-from app.core.db.filters import in_ids
+from app.core.db.filters import customer_rows, in_ids
 from app.core.db.models.subscription_purchase_idempotency import SubscriptionPurchaseIdempotency
 from app.core.db.models.transaction import Transaction
-from app.core.db.models.user import User
 from app.core.db.timestamp import NOW_FUNC
 from app.core.enums import (
     Currency,
@@ -32,7 +32,6 @@ from app.core.enums import (
     PaymentGatewayType,
     PurchaseChannel,
     PurchaseType,
-    Role,
     TransactionStatus,
 )
 from app.core.error_codes import ErrorCode
@@ -57,14 +56,15 @@ def _search_filter(search: str, *, search_staff: bool) -> ColumnElement[bool]:
     email_match: ColumnElement[bool] = Transaction.customer_email.icontains(search, autoescape=True)
     if not search_staff:
         # a staff order's email is hidden from this caller; matching it would be an oracle
-        email_match = and_(
-            email_match,
-            Transaction.user_id.in_(select(User.id).where(User.role == Role.USER)),
-        )
+        email_match = and_(email_match, customer_rows(Transaction.user_id))
     search_filters: list[ColumnElement[bool]] = [
         Transaction.external_payment_id.icontains(search, autoescape=True),
         email_match,
-        Transaction.plan_snapshot["name"].astext.icontains(search, autoescape=True),
+        # the key inlined, not bound: ix_transactions_plan_name_trgm is on
+        # `plan_snapshot ->> 'name'`, which a generic plan's `->> $1` doesn't match
+        Transaction.plan_snapshot.op("->>")(literal_column("'name'")).icontains(
+            search, autoescape=True
+        ),
     ]
     # id/user_id are Integer; a longer digit string would overflow asyncpg
     if search.isascii() and search.isdigit() and int(search) <= INT32_MAX:

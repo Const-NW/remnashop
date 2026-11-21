@@ -81,3 +81,30 @@ async def test_flush_shop_redis_clears_legacy_stream(redis: Redis) -> None:
     assert await redis.type("taskiq") == "stream"
     await flush_shop_redis(redis)
     assert await redis.exists("taskiq") == 0
+
+
+async def test_an_old_database_with_pg_trgm_migrates_and_rolls_back(
+    legacy_engine: AsyncEngine, config: AppConfig, legacy_at: LegacyAt
+) -> None:
+    await legacy_at(legacy_engine, LEGACY_HEAD)
+    async with legacy_engine.begin() as connection:
+        await connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        await connection.execute(
+            text("CREATE INDEX old_trgm ON users USING gin (name gin_trgm_ops)")
+        )
+    await migrate(
+        legacy_engine,
+        panel_index=PanelIndex(),
+        crypt_key=config.crypt_key.get_secret_value(),
+        bot_owner_id=None,
+        original_revision=LEGACY_HEAD,
+    )
+    assert await _revision(legacy_engine) == NEW_HEAD
+
+    await rollback(legacy_engine)
+
+    async with legacy_engine.connect() as connection:
+        kept = await connection.scalar(
+            text("SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'old_trgm'")
+        )
+    assert kept == 1

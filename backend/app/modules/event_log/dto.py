@@ -9,6 +9,7 @@ from app.core.dto import BaseDto
 from app.core.events import EventCategory
 
 NOTIFICATIONS_LIMIT: Final[int] = 20
+UNREAD_COUNT_LIMIT: Final[int] = 100
 
 
 class EventLogEntryDto(BaseDto):

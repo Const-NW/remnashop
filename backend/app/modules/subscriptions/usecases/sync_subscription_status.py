@@ -46,11 +46,22 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             if subscription is None:
                 return None
 
-            if data.first_connected_at is not None:
+            # the row is the live one when there is one: the writes below skip
+            # DELETED rows, so a loaded DELETED row means there is nothing to write
+            live = subscription.status is not SubscriptionStatus.DELETED
+            if (
+                live
+                and data.first_connected_at is not None
+                and subscription.first_connected_at is None
+            ):
                 await self._subscription_repository.set_first_connected_at(
                     data.remnawave_user_id, data.first_connected_at
                 )
-            if data.panel_created_at is not None:
+            if (
+                live
+                and data.panel_created_at is not None
+                and subscription.panel_created_at != data.panel_created_at
+            ):
                 await self._subscription_repository.set_panel_created_at(
                     data.remnawave_user_id, data.panel_created_at
                 )

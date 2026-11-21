@@ -16,9 +16,14 @@ class BlacklistSource(BaseSql, TimestampMixin):
     name: Mapped[Optional[str]] = mapped_column(Text)
     enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
 
-    # Fetched from `url`, normalised, replaced wholesale on each sync.
-    blocked_telegram_ids: Mapped[list[int]] = mapped_column(ARRAY(BigInteger), server_default="{}")
-    blocked_emails: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default="{}")
+    # Fetched from `url`, normalised, replaced wholesale on each sync. Deferred:
+    # a public list runs to megabytes, and most reads need only the metadata.
+    blocked_telegram_ids: Mapped[list[int]] = mapped_column(
+        ARRAY(BigInteger), server_default="{}", deferred=True
+    )
+    blocked_emails: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), server_default="{}", deferred=True
+    )
 
     last_synced_at: Mapped[Optional[datetime]]
     last_error: Mapped[Optional[str]] = mapped_column(Text)

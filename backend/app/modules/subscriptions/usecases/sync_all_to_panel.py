@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from functools import partial
 from typing import Optional
 from uuid import UUID
 
@@ -17,6 +18,7 @@ from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions.dto import (
     PanelSyncResultDto,
+    SubscriptionDto,
     SyncToPanelOptionsDto,
     UpdateSubscriptionSquadsDto,
 )
@@ -25,16 +27,15 @@ from app.modules.subscriptions.panel_squads import replace_squads
 from app.modules.subscriptions.panel_sync import (
     finish_panel_sync,
     holding_panel_sync,
-    is_orphan,
     match_shop_user,
     named_shop_user,
     panel_lags_behind,
-    panel_users,
     push_to_panel,
     recreate_in_panel,
+    scan_panel,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
-from app.modules.users import UserRepository
+from app.modules.users import UserDto, UserRepository
 
 
 class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
@@ -80,11 +81,14 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
             }
         updated = failed = recreated = deleted = 0
         try:
-            snapshot = {user.id: user async for user in panel_users(self._remnawave_sdk)}
+            by_panel_id = {s.remnawave_user_id: s for s in subscriptions}
+            listing = await scan_panel(
+                self._remnawave_sdk, linked, partial(_lags_behind, by_panel_id, owners)
+            )
             for position, subscription in enumerate(subscriptions):
-                user = snapshot.get(subscription.remnawave_user_id)
+                lags = listing.tracked.get(subscription.remnawave_user_id)
                 owner = owners[subscription.user_id]
-                if user is not None and not panel_lags_behind(subscription, user, owner):
+                if lags is False:
                     continue
                 try:
                     # the row as it is now, not as listed before the stream
@@ -92,7 +96,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
                         current = await self._subscription_repository.get_by_id(subscription.id)
                     if current.status is SubscriptionStatus.DELETED:
                         continue  # deleted while the sync ran
-                    if user is None:
+                    if lags is None:
                         if not options.recreate_missing:
                             continue
                         await recreate_in_panel(
@@ -121,7 +125,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
                 updated += 1
             else:
                 deleted, delete_failed = await self._delete_orphans(
-                    actor, snapshot, linked, options.delete_orphans
+                    actor, listing.orphans, options.delete_orphans
                 )
                 failed += delete_failed
         except Exception:
@@ -173,16 +177,13 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
     async def _delete_orphans(
         self,
         actor: Actor,
-        snapshot: dict[int, UserResponseDto],
-        linked: set[int],
+        orphans: list[UserResponseDto],
         enabled: bool,
     ) -> tuple[int, int]:
         """(deleted, failed) for the shop users' panel users no subscription
         stands for; a panel user the shop didn't name is someone else's."""
         if not enabled:
             return 0, 0
-        now = datetime_now()
-        orphans = [user for user in snapshot.values() if is_orphan(user, linked, now)]
         deleted = failed = 0
         for position, user in enumerate(orphans):
             try:
@@ -218,3 +219,12 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
             deleted += 1
             logger.info(f"{actor.log} Deleted panel user {user.id} of user '{owner.id}'")
         return deleted, failed
+
+
+def _lags_behind(
+    by_panel_id: dict[int, SubscriptionDto], owners: dict[int, UserDto], user: UserResponseDto
+) -> Optional[bool]:
+    subscription = by_panel_id.get(user.id)
+    if subscription is None:
+        return None
+    return panel_lags_behind(subscription, user, owners[subscription.user_id])

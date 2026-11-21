@@ -35,6 +35,22 @@ class User(BaseSql, TimestampMixin):
         ),
         # newest-first user list, registrations per period
         Index("ix_users_created_at_id", text("created_at DESC"), text("id DESC")),
+        # the user search's substring matches (pg_trgm, core/db/user_search.py)
+        *(
+            Index(
+                f"ix_users_{column}_trgm",
+                column,
+                postgresql_using="gin",
+                postgresql_ops={column: "gin_trgm_ops"},
+            )
+            for column in ("name", "username", "email", "login")
+        ),
+        # the overview's bounced-emails check
+        Index(
+            "ix_users_email_undeliverable_at",
+            "email_undeliverable_at",
+            postgresql_where=text("email_undeliverable_at IS NOT NULL"),
+        ),
         # LOGIN_PATTERN (app/core/constants.py) at the DB level, which also
         # covers rows the API didn't write
         CheckConstraint(

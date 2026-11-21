@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Final, Optional
 
-from sqlalchemy import Integer, Numeric, func, select
+from sqlalchemy import ColumnElement, Integer, Numeric, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import ZERO_AMOUNT
@@ -171,8 +171,18 @@ class SubscriptionStatsRepository:
         )
         return list((await self.session.execute(stmt)).tuples().all())
 
-    async def list_live(self) -> list[LiveSubscriptionDto]:
+    async def list_live(
+        self,
+        *,
+        expiring_from: Optional[datetime] = None,
+        expiring_before: Optional[datetime] = None,
+    ) -> list[LiveSubscriptionDto]:
         snapshot = Subscription.plan_snapshot
+        window: list[ColumnElement[bool]] = []
+        if expiring_from is not None:
+            window.append(Subscription.expire_at >= expiring_from)
+        if expiring_before is not None:
+            window.append(Subscription.expire_at < expiring_before)
         stmt = select(
             Subscription.user_id,
             Subscription.is_trial,
@@ -182,7 +192,7 @@ class SubscriptionStatsRepository:
             snapshot["price_paid"].astext.cast(Numeric),
             snapshot["currency"].astext,
             func.coalesce(snapshot["duration_days"].astext.cast(Integer), 0),
-        ).where(Subscription.status.in_(_PAYING_STATUSES))
+        ).where(Subscription.status.in_(_PAYING_STATUSES), *window)
         rows = (await self.session.execute(stmt)).tuples().all()
         return [
             LiveSubscriptionDto(

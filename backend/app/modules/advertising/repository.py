@@ -1,17 +1,16 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import ColumnElement, and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.errors import constraint_name
-from app.core.db.filters import in_ids
+from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.ad_link import AdLink
 from app.core.db.models.ad_link_attribution import AdLinkAttribution
-from app.core.db.models.user import User
 from app.core.db.partial_update import apply_partial_update
-from app.core.enums import AdLinkChannel, Role
+from app.core.enums import AdLinkChannel
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.modules.advertising.dto import (
@@ -260,13 +259,9 @@ class AdLinkRepository:
     ) -> tuple[list[AdLinkAttributionDto], int]:
         condition: ColumnElement[bool] = AdLinkAttribution.ad_link_id == ad_link_id
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own is not
             condition = and_(
                 condition,
-                or_(
-                    AdLinkAttribution.user_id.in_(select(User.id).where(User.role == Role.USER)),
-                    AdLinkAttribution.user_id == hide_staff_from,
-                ),
+                visible_rows(AdLinkAttribution.user_id, hide_staff_from),
             )
         total = await self.session.scalar(
             select(func.count()).select_from(AdLinkAttribution).where(condition)

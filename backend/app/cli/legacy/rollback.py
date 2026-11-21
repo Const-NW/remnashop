@@ -20,6 +20,14 @@ async def rollback(engine: AsyncEngine) -> Optional[str]:
     async with engine.begin() as connection:
         await _require_legacy(connection)
         original = await recorded_origin(connection, "legacy")
+        # the new schema's pg_trgm would go with it, and with it any old index on it
+        if await connection.scalar(
+            text(
+                "SELECT 1 FROM pg_extension "
+                "WHERE extname = 'pg_trgm' AND extnamespace = 'public'::regnamespace"
+            )
+        ):
+            await connection.execute(text("ALTER EXTENSION pg_trgm SET SCHEMA legacy"))
         await connection.execute(text("DROP SCHEMA public CASCADE"))
         await connection.execute(text("ALTER SCHEMA legacy RENAME TO public"))
     return original

@@ -13,7 +13,7 @@ from app.modules.analytics.dto import (
     ExpiringCustomerPageDto,
     ListExpiringCustomersDto,
 )
-from app.modules.analytics.expiring import expiring_window
+from app.modules.analytics.expiring import expiring_horizon
 from app.modules.subscriptions import LiveSubscriptionDto, SubscriptionStatsRepository
 from app.modules.transactions import TransactionStatsRepository
 from app.modules.users import UserRepository
@@ -49,8 +49,10 @@ class ListExpiringCustomersUseCase(UseCase[ListExpiringCustomersDto, ExpiringCus
     async def _compute(self, data: ListExpiringCustomersDto) -> ExpiringCustomerPageDto:
         async with self._uow:
             now = datetime_now()
-            live = await self._subscription_stats.list_live()
-            expiring = [row for row in expiring_window(live, now) if not row.is_trial]
+            live = await self._subscription_stats.list_live(
+                expiring_from=now, expiring_before=expiring_horizon(now)
+            )
+            expiring = [row for row in live if not row.is_trial]
             summaries = await self._transaction_stats.payer_summaries(
                 now, user_ids={row.user_id for row in expiring}
             )

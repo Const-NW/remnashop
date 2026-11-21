@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from datetime import datetime
+from functools import partial
 from typing import Final, Optional
 
 from loguru import logger
@@ -29,10 +32,9 @@ from app.modules.subscriptions.panel_sync import (
     from_panel,
     holding_panel_sync,
     imported_row,
-    is_orphan,
     match_shop_user,
     named_shop_user,
-    panel_users,
+    scan_panel,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases.sync_subscription_status import (
@@ -87,15 +89,15 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
             return await self._sync(actor, data)
 
     async def _fill_reset_anchors(
-        self, subscriptions: list[SubscriptionDto], snapshot: dict[int, UserResponseDto]
+        self, subscriptions: list[SubscriptionDto], listed: dict[int, "_Listed"]
     ) -> None:
         """The panel's createdAt for rows without it or with another one, read off the
         listing: not counted as an update, nothing else on the row moves."""
         anchors = {
-            s.remnawave_user_id: listed.created_at
+            s.remnawave_user_id: entry.created_at
             for s in subscriptions
-            if (listed := snapshot.get(s.remnawave_user_id)) is not None
-            and s.panel_created_at != listed.created_at
+            if (entry := listed.get(s.remnawave_user_id)) is not None
+            and s.panel_created_at != entry.created_at
         }
         if anchors:
             async with self._uow:
@@ -107,11 +109,14 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
             linked = await self._subscription_repository.list_linked_remnawave_user_ids()
         updated = failed = missing = imported = users_created = over_limit = 0
         try:
-            snapshot = {user.id: user async for user in panel_users(self._remnawave_sdk)}
-            await self._fill_reset_anchors(subscriptions, snapshot)
+            by_panel_id = {s.remnawave_user_id: s for s in subscriptions}
+            listing = await scan_panel(
+                self._remnawave_sdk, linked, partial(_summarize, by_panel_id)
+            )
+            await self._fill_reset_anchors(subscriptions, listing.tracked)
             for position, subscription in enumerate(subscriptions):
-                listed = snapshot.get(subscription.remnawave_user_id)
-                if listed is not None and not differs_from_panel(subscription, listed):
+                entry = listing.tracked.get(subscription.remnawave_user_id)
+                if entry is not None and entry.in_sync:
                     continue
                 try:
                     fresh = await self._fresh(subscription.remnawave_user_id)
@@ -141,7 +146,7 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
                 updated += 1
             else:
                 imported, users_created, over_limit, import_failed = await self._import_orphans(
-                    actor, snapshot, linked, options
+                    actor, listing.orphans, options
                 )
                 failed += import_failed
         except Exception:
@@ -177,14 +182,11 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
     async def _import_orphans(
         self,
         actor: Actor,
-        snapshot: dict[int, UserResponseDto],
-        linked: set[int],
+        orphans: list[UserResponseDto],
         options: SyncFromPanelOptionsDto,
     ) -> tuple[int, int, int, int]:
         """(imported, users_created, over_limit, failed) for the panel users no
         subscription stands for."""
-        now = datetime_now()
-        orphans = [user for user in snapshot.values() if is_orphan(user, linked, now)]
         if not orphans:
             return 0, 0, 0, 0
         async with self._uow:
@@ -261,3 +263,16 @@ class SyncAllFromPanelUseCase(UseCase[SyncFromPanelOptionsDto, PanelSyncResultDt
             return await self._remnawave_sdk.users.get_user_by_id(remnawave_user_id)
         except RemnawaveNotFoundError:
             return None
+
+
+@dataclass(frozen=True, kw_only=True)
+class _Listed:
+    in_sync: bool
+    created_at: datetime
+
+
+def _summarize(by_panel_id: dict[int, SubscriptionDto], user: UserResponseDto) -> Optional[_Listed]:
+    subscription = by_panel_id.get(user.id)
+    if subscription is None:
+        return None
+    return _Listed(in_sync=not differs_from_panel(subscription, user), created_at=user.created_at)

@@ -17,13 +17,12 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX
-from app.core.db.filters import in_ids
+from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.addon_entitlement import AddOnEntitlement
 from app.core.db.models.addon_grant_idempotency import AddOnGrantIdempotency
 from app.core.db.models.subscription import Subscription
-from app.core.db.models.user import User
 from app.core.db.partial_update import apply_partial_update
-from app.core.enums import AddOnType, Role, SubscriptionStatus
+from app.core.enums import AddOnType, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
 from app.core.utils.time import datetime_now
@@ -169,18 +168,11 @@ class SubscriptionRepository:
         if user_id is not None:
             filters.append(Subscription.user_id == user_id)
         if hide_staff_from is not None:
-            # same rule as visible_user: staff rows are hidden, the viewer's own are not
-            filters.append(
-                or_(
-                    Subscription.user_id.in_(select(User.id).where(User.role == Role.USER)),
-                    Subscription.user_id == hide_staff_from,
-                )
-            )
+            filters.append(visible_rows(Subscription.user_id, hide_staff_from))
         if search:
-            pattern = f"%{search}%"
             search_filters: list[ColumnElement[bool]] = [
-                Subscription.tag.ilike(pattern),
-                Subscription.plan_snapshot["name"].astext.ilike(pattern),
+                Subscription.tag.icontains(search, autoescape=True),
+                Subscription.plan_snapshot["name"].astext.icontains(search, autoescape=True),
             ]
             # id/user_id are Integer; a longer digit string would overflow asyncpg
             if search.isascii() and search.isdigit() and int(search) <= INT32_MAX:

@@ -8,7 +8,7 @@ from typing import Final, Optional
 
 from redis.asyncio import Redis
 from redis.asyncio.lock import Lock
-from redis.exceptions import LockNotOwnedError
+from redis.exceptions import LockNotOwnedError, RedisError
 
 from app.core.actor import Actor
 from app.core.config import AppConfig
@@ -51,6 +51,8 @@ from app.modules.users import UserRepository, mark_bot_blocked
 
 _TOKEN_REJECTED: Final[str] = "Bot token was rejected"
 _MEDIA_MISSING: Final[str] = "Media file is missing"
+# how stale the dashboard's progress counters may get mid-broadcast
+_RECOUNT_EVERY_S: Final[int] = 15
 
 
 class DeliverBroadcastBatchUseCase(UseCase[int, None]):
@@ -161,9 +163,26 @@ class DeliverBroadcastBatchUseCase(UseCase[int, None]):
             if not await self._send_groups(data, queue, media, send):
                 return False
 
-        async with self._uow:
-            await self._broadcast_repository.refresh_counts(data)
+        if await self._recount_due(data):
+            async with self._uow:
+                await self._broadcast_repository.refresh_counts(data)
         return True
+
+    async def _recount_due(self, broadcast_id: int) -> bool:
+        # a recount reads every recipient: once per window, not per batch of 100;
+        # completion, failure and cancel recount in full
+        try:
+            return bool(
+                await self._redis.set(
+                    f"{REDIS_KEY_PREFIX}broadcast_counts:{broadcast_id}",
+                    "1",
+                    nx=True,
+                    ex=_RECOUNT_EVERY_S,
+                )
+            )
+        except RedisError:
+            # the batch is sent: recount rather than drop the chain over a throttle
+            return True
 
     async def _send_groups(
         self,

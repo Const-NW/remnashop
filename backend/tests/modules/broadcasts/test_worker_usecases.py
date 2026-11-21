@@ -8,6 +8,7 @@ import httpx
 import pytest
 from redis.asyncio import Redis
 from redis.asyncio.lock import Lock
+from redis.exceptions import ConnectionError as RedisConnectionError
 from redis.exceptions import LockNotOwnedError
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1769,3 +1770,26 @@ async def test_complete_once_when_both_chains_finish(
         _strip(BroadcastCompletedEvent(broadcast_id=broadcast.id, sent=2, failed=0, blocked=0))
     ]
     assert len(telegram.requests) == 1
+
+
+async def test_progress_is_recounted_once_per_window(
+    make_deliver: Callable[[MockTelegram], DeliverBroadcastBatchUseCase], redis: Redis
+) -> None:
+    use_case = make_deliver(MockTelegram(ok_response))
+
+    assert await use_case._recount_due(4242) is True
+    assert await use_case._recount_due(4242) is False
+    assert await use_case._recount_due(4243) is True
+
+
+async def test_progress_is_recounted_when_redis_fails(
+    make_deliver: Callable[[MockTelegram], DeliverBroadcastBatchUseCase],
+    monkeypatch: pytest.MonkeyPatch,
+    redis: Redis,
+) -> None:
+    async def broken(*args: Any, **kwargs: Any) -> None:
+        raise RedisConnectionError("down")
+
+    monkeypatch.setattr(redis, "set", broken)
+
+    assert await make_deliver(MockTelegram(ok_response))._recount_due(4244) is True

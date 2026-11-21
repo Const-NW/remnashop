@@ -3,7 +3,12 @@ from typing import Final
 from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
-from app.modules.event_log.dto import NOTIFICATIONS_LIMIT, EventLogEntryDto, NotificationsDto
+from app.modules.event_log.dto import (
+    NOTIFICATIONS_LIMIT,
+    UNREAD_COUNT_LIMIT,
+    EventLogEntryDto,
+    NotificationsDto,
+)
 from app.modules.event_log.ip_masking import mask_staff_ips
 from app.modules.event_log.repository import EventLogRepository
 from app.modules.notifications import BELL_EVENT_TYPES
@@ -45,6 +50,7 @@ class GetNotificationsUseCase(UseCase[None, NotificationsDto, UserDto]):
                 event_types=event_types,
                 exclude_actor_id=actor.id,
                 since=actor.notifications_seen_at,
+                limit=UNREAD_COUNT_LIMIT,
             )
             items = await mask_staff_ips(self._event_log_repository, actor, items)
         if not PermissionPolicy.has_permission(actor, Permission.EVENT_LOG_VIEW):
