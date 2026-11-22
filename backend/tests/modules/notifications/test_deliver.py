@@ -68,21 +68,20 @@ async def _user(
         )
 
 
-@pytest.fixture
-def telegram_calls(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, str]]:
-    calls: list[tuple[int, str]] = []
+_TELEGRAM_CALLS: list[tuple[int, str]] = []
 
-    async def fake_send(
-        token: str, proxy: Optional[str], chat_id: int, text: str, *, html: bool = False
-    ) -> bool:
-        assert html is True
-        calls.append((chat_id, text))
+
+class FakeTelegramQueue:
+    async def send(self, token: str, proxy: Optional[str], chat_id: int, text: str) -> None:
+        _TELEGRAM_CALLS.append((chat_id, text))
         if chat_id == BROKEN_CHAT:
             raise RuntimeError("unexpected client error")
-        return chat_id != BLOCKED_CHAT
 
-    monkeypatch.setattr(deliver_module, "send_telegram_message", fake_send)
-    return calls
+
+@pytest.fixture
+def telegram_calls() -> list[tuple[int, str]]:
+    _TELEGRAM_CALLS.clear()
+    return _TELEGRAM_CALLS
 
 
 def _use_case(
@@ -95,6 +94,7 @@ def _use_case(
         FakeRendererFactory(),  # type: ignore[arg-type]
         FakeBotTokenSource(token),  # type: ignore[arg-type]
         FakeCardDataLoader(),  # type: ignore[arg-type]
+        FakeTelegramQueue(),  # type: ignore[arg-type]
         AppConfig.get(),
     )
 
@@ -231,6 +231,7 @@ async def test_failure_before_sending_is_retryable(
         BrokenFactory(),  # type: ignore[arg-type]
         FakeBotTokenSource("token"),  # type: ignore[arg-type]
         FakeCardDataLoader(),  # type: ignore[arg-type]
+        FakeTelegramQueue(),  # type: ignore[arg-type]
         AppConfig.get(),
     )
 

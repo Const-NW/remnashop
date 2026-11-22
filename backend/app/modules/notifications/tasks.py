@@ -15,7 +15,10 @@ from app.modules.notifications.dto import (
     COALESCED_EVENT_TYPES,
     DeliverNotificationDto,
 )
-from app.modules.notifications.usecases import DeliverNotificationUseCase
+from app.modules.notifications.usecases import (
+    DeliverNotificationUseCase,
+    DrainAdminTelegramUseCase,
+)
 
 # longer than the outbox sweep keeps retrying a row
 _DELIVERED_TTL_S: Final[int] = TTL_1D
@@ -187,10 +190,14 @@ async def deliver_notification_task(
 @broker.task(schedule=[{"cron": "*/1 * * * *"}])
 @inject(patch_module=True)
 async def flush_coalesced_notifications_task(
-    use_case: FromDishka[DeliverNotificationUseCase], redis: FromDishka[Redis]
+    use_case: FromDishka[DeliverNotificationUseCase],
+    drain_use_case: FromDishka[DrainAdminTelegramUseCase],
+    redis: FromDishka[Redis],
 ) -> None:
     async with cron_lock(
         redis, "flush_coalesced_notifications", ttl_seconds=_FLUSH_LOCK_TTL_S
     ) as acquired:
         if acquired:
+            # first, so the summaries queue behind cards held since before them
+            await drain_use_case.system()
             await flush_coalesced(redis, use_case)

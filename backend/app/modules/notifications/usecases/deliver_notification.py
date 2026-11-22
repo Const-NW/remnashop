@@ -21,9 +21,9 @@ from app.modules.notifications.dto import (
 )
 from app.modules.notifications.render import NotificationRenderer, notification_args
 from app.modules.notifications.sources import BotTokenSource, NotificationRendererFactory
-from app.modules.notifications.telegram import send_telegram_message
 from app.modules.notifications.telegram_data import CardData, TelegramCardDataLoader
 from app.modules.notifications.telegram_layout import LAYOUTS, build_telegram_card
+from app.modules.notifications.telegram_queue import AdminTelegramQueue
 from app.modules.notifications.webpush import WebPushSender
 from app.modules.users import UserDto, UserRepository
 
@@ -72,6 +72,7 @@ class DeliverNotificationUseCase(UseCase[DeliverNotificationDto, None]):
         renderer_factory: NotificationRendererFactory,
         bot_token_source: BotTokenSource,
         card_data_loader: TelegramCardDataLoader,
+        telegram_queue: AdminTelegramQueue,
         config: AppConfig,
     ) -> None:
         self._user_repository = user_repository
@@ -80,6 +81,7 @@ class DeliverNotificationUseCase(UseCase[DeliverNotificationDto, None]):
         self._renderer_factory = renderer_factory
         self._bot_token_source = bot_token_source
         self._card_data_loader = card_data_loader
+        self._telegram_queue = telegram_queue
         self._config = config
 
     async def _card_data(
@@ -133,7 +135,7 @@ class DeliverNotificationUseCase(UseCase[DeliverNotificationDto, None]):
                     logger.exception(f"Push notification for {user.log} failed")
             if NotificationChannel.TELEGRAM in channels and token and user.telegram_id:
                 try:
-                    await send_telegram_message(
+                    await self._telegram_queue.send(
                         token,
                         proxy,
                         user.telegram_id,
@@ -149,7 +151,6 @@ class DeliverNotificationUseCase(UseCase[DeliverNotificationDto, None]):
                             body=body,
                             notes=notes,
                         ),
-                        html=True,
                     )
                 except Exception:
                     logger.exception(f"Telegram notification for {user.log} failed")

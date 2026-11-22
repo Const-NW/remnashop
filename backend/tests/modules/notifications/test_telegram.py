@@ -5,7 +5,6 @@ import pytest
 from app.modules.notifications import telegram
 from app.modules.notifications.telegram import (
     TelegramSendResult,
-    send_telegram_message,
     send_telegram_text,
 )
 from tests.fakes.telegram_bot import FakeBotSession, flood, refusal, use_fake_bot
@@ -35,7 +34,7 @@ async def test_rate_limited_send_waits_and_retries_once(
 
     use_fake_bot(monkeypatch, FakeBotSession({"sendMessage": _send}))
 
-    assert await send_telegram_message(_TOKEN, None, 1, "hi") is True
+    assert await send_telegram_text(_TOKEN, None, 1, "hi") is TelegramSendResult.SENT
     assert slept == [3]
 
 
@@ -44,7 +43,7 @@ async def test_second_rate_limit_gives_up(
 ) -> None:
     use_fake_bot(monkeypatch, FakeBotSession({"sendMessage": flood(1)}))
 
-    assert await send_telegram_message(_TOKEN, None, 1, "hi") is False
+    assert await send_telegram_text(_TOKEN, None, 1, "hi") is TelegramSendResult.FAILED
 
 
 async def test_a_long_flood_wait_is_not_waited_out(
@@ -61,7 +60,6 @@ async def test_blocked_bot_is_forbidden(monkeypatch: pytest.MonkeyPatch) -> None
     use_fake_bot(monkeypatch, FakeBotSession({"sendMessage": blocked}))
 
     assert await send_telegram_text(_TOKEN, None, 1, "hi") is TelegramSendResult.FORBIDDEN
-    assert await send_telegram_message(_TOKEN, None, 1, "hi") is False
 
 
 async def test_a_chat_telegram_does_not_know_is_forbidden(monkeypatch: pytest.MonkeyPatch) -> None:
