@@ -1027,7 +1027,7 @@
         "set_media": "Медиа рассылки изменено",
         "delete_media": "Медиа рассылки удалено",
         "add_email_image": "Картинка письма добавлена",
-        "duplicate": "Рассылка продублирована"
+        "duplicate": "Создана копия рассылки"
       },
       "ConnectGuideChangedEvent": {
         "update": "Инструкция подключения изменена",
@@ -2424,7 +2424,7 @@
     "BROADCASTS_VIEW": "Просмотр рассылок",
     "BROADCASTS_DETAIL_VIEW": "Просмотр рассылки",
     "BROADCASTS_CREATE": "Создание рассылок",
-    "BROADCASTS_DUPLICATE": "Дублирование рассылок",
+    "BROADCASTS_DUPLICATE": "Копирование рассылок",
     "BROADCASTS_UPDATE": "Изменение рассылок",
     "BROADCASTS_DELETE": "Удаление рассылок",
     "BROADCASTS_SEND": "Отправка рассылок",
@@ -5222,7 +5222,7 @@
           "done": "Рассылка остановлена."
         },
         "duplicate": {
-          "button": "Дублировать",
+          "button": "Создать копию",
           "done": "Копия сохранена как черновик."
         },
         "retry": {
