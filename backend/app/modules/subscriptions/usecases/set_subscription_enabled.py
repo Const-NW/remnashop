@@ -9,6 +9,7 @@ from app.core.enums import SubscriptionStatus
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import SetSubscriptionEnabledDto, SubscriptionDto
 from app.modules.subscriptions.eligibility import (
     get_manageable_subscription,
@@ -17,6 +18,7 @@ from app.modules.subscriptions.eligibility import (
 )
 from app.modules.subscriptions.events import SubscriptionEditAction, SubscriptionEditedEvent
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.panel import restore
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
@@ -28,6 +30,7 @@ class SetSubscriptionEnabledUseCase(UseCase[SetSubscriptionEnabledDto, Subscript
         self,
         subscription_repository: SubscriptionRepository,
         user_repository: UserRepository,
+        settings_repository: SettingsRepository,
         remnawave_sdk: RemnawaveSDK,
         lifecycle_service: SubscriptionLifecycleService,
         event_publisher: EventPublisher,
@@ -35,6 +38,7 @@ class SetSubscriptionEnabledUseCase(UseCase[SetSubscriptionEnabledDto, Subscript
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
+        self._settings_repository = settings_repository
         self._remnawave_sdk = remnawave_sdk
         self._lifecycle_service = lifecycle_service
         self._event_publisher = event_publisher
@@ -45,9 +49,15 @@ class SetSubscriptionEnabledUseCase(UseCase[SetSubscriptionEnabledDto, Subscript
             subscription = await get_manageable_subscription(
                 self._subscription_repository, self._user_repository, actor, data.subscription_id
             )
+            grace = await self._settings_repository.get_grace_settings()
 
         users = self._remnawave_sdk.users
-        if data.enabled:
+        if data.enabled and subscription.grace_until is not None:
+            # real expiry is past: the panel goes back to the grace config, the row stays EXPIRED
+            expired = subscription.model_copy(update={"status": SubscriptionStatus.EXPIRED})
+            await users.update_user(restore(expired, grace=grace))
+            panel_status = SubscriptionStatus.EXPIRED.value
+        elif data.enabled:
             panel_status = (await users.enable_user(subscription.remnawave_user_id)).status
         else:
             panel_status = (await users.disable_user(subscription.remnawave_user_id)).status

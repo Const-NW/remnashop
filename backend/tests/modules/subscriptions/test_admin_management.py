@@ -397,6 +397,7 @@ def _set_enabled(
     return SetSubscriptionEnabledUseCase(
         subscription_repository,
         UserRepository(subscription_repository.session),
+        SettingsRepository(subscription_repository.session),
         remnawave_sdk,
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)

@@ -15,7 +15,7 @@ from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
 from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
-from app.core.enums import PlanType, SubscriptionStatus
+from app.core.enums import Locale, PlanType, Role, SubscriptionStatus
 from app.core.exceptions import RetryableTaskError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now, truncate_to_ms
@@ -32,6 +32,7 @@ from app.modules.settings.dto import UpdateGraceSettingsDto
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     ProcessRemnawaveWebhookDto,
+    SetSubscriptionEnabledDto,
     SubscriptionDto,
     UpdateSubscriptionSquadsDto,
 )
@@ -42,14 +43,17 @@ from app.modules.subscriptions.usecases import (
     EnterGraceUseCase,
     ProcessRemnawaveWebhookUseCase,
     PublishPanelEventUseCase,
+    SetSubscriptionEnabledUseCase,
     SweepGraceUseCase,
     SyncSubscriptionStatusUseCase,
 )
+from app.modules.users.dto import UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.remnawave import FakeUserStore, _user_payload
 from tests.fakes.remnawave_webhook import sign_webhook, user_event_payload
 from tests.modules.subscriptions.factories import create_subscription
 
+OWNER: Final[UserDto] = UserDto(login="owner", name="owner", role=Role.OWNER, language=Locale.EN)
 _GRACE_SQUAD: Final[UUID] = uuid4()
 _PLAN_SQUAD: Final[UUID] = uuid4()
 _CUSTOMER_EVENTS: Final[tuple[str, ...]] = (
@@ -593,3 +597,49 @@ async def test_expired_with_unpushed_claim_pushes_grace(
     )
     assert (await subscription_repository.get_by_id(before.id)).grace_until == claimed.grace_until
     assert await _events(session, before.id) == []
+
+
+async def test_enable_in_grace_keeps_the_row_expired_on_the_grace_config(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    event_publisher: EventPublisher,
+    uow: UnitOfWork,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_101)
+    assert await grace.enter.system(before.id)
+    toggle = SetSubscriptionEnabledUseCase(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_sdk,
+        SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
+        event_publisher,
+        uow,
+    )
+
+    disabled = await toggle(
+        OWNER, SetSubscriptionEnabledDto(subscription_id=before.id, enabled=False)
+    )
+    assert disabled.status is SubscriptionStatus.DISABLED
+    remnawave_store[94_101]["tag"] = "DRIFTED"
+    enabled = await toggle(
+        OWNER, SetSubscriptionEnabledDto(subscription_id=before.id, enabled=True)
+    )
+
+    assert enabled.status is SubscriptionStatus.EXPIRED
+    assert enabled.grace_until is not None
+    assert truncate_to_ms(enabled.expire_at) == truncate_to_ms(before.expire_at)
+    panel = remnawave_store[94_101]
+    assert panel["status"] == "ACTIVE"
+    assert panel["tag"] == "GRACE"
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_101)) == truncate_to_ms(
+        enabled.grace_until
+    )
