@@ -2,7 +2,7 @@ import math
 from datetime import datetime, timedelta
 from typing import Any, Final, Optional, Union, cast
 
-from app.core.constants import TTL_1D
+from app.core.constants import DATE_FORMAT, TTL_1D
 from app.core.event_bus import EventBus
 from app.core.events import StoredEvent
 from app.modules.account_merge import AccountsMergedEvent
@@ -27,6 +27,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
     SubscriptionPurchasedEvent,
@@ -34,6 +35,7 @@ from app.modules.subscriptions import (
     SubscriptionTrafficLimitedEvent,
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
+    is_unlimited_expiry,
 )
 from app.modules.transactions import (
     PaidOrderNotFulfilledEvent,
@@ -158,6 +160,20 @@ async def _on_subscription(
     await _notify(entry, event.user.id, {}, subscription_id=event.subscription_id)
 
 
+async def _on_grace_started(event: SubscriptionGraceStartedEvent, entry: StoredEvent) -> None:
+    until = datetime.fromisoformat(event.grace_until)
+    await _notify(
+        entry,
+        event.user.id,
+        {
+            # an indefinite grace has no date to name
+            "grace_until": "none" if is_unlimited_expiry(until) else until.strftime(DATE_FORMAT),
+            "traffic_limit_mb": event.traffic_limit_mb,
+        },
+        subscription_id=event.subscription_id,
+    )
+
+
 async def _on_traffic_threshold(
     event: SubscriptionTrafficThresholdEvent, entry: StoredEvent
 ) -> None:
@@ -253,6 +269,7 @@ def register_subscribers(bus: EventBus) -> None:
     bus.subscribe(TransactionExpiredEvent, _on_abandoned)
     bus.subscribe(SubscriptionExpiringEvent, _on_hours)
     bus.subscribe(SubscriptionExpiredEvent, _on_subscription)
+    bus.subscribe(SubscriptionGraceStartedEvent, _on_grace_started)
     bus.subscribe(SubscriptionTrafficLimitedEvent, _on_subscription)
     bus.subscribe(SubscriptionTrafficThresholdEvent, _on_traffic_threshold)
     bus.subscribe(SubscriptionNotConnectedEvent, _on_hours)

@@ -46,6 +46,7 @@ class SubscriptionResponse(BaseModel):
     internal_squads: list[UUID]
     external_squad: Optional[UUID] = None
     expire_at: datetime
+    grace_until: Optional[datetime] = None
     is_unlimited: bool
     created_at: Optional[datetime] = None
     first_connected_at: Optional[datetime] = None
@@ -210,6 +211,7 @@ class OwnSubscriptionResponse(BaseModel):
     status: SubscriptionStatus
     is_trial: bool
     expire_at: datetime
+    grace_until: Optional[datetime] = None
     is_unlimited: bool
     url: str
     effective_traffic_limit: int

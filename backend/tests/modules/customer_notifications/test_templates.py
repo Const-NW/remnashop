@@ -42,6 +42,7 @@ _ARGS: dict[str, dict[str, Union[str, int]]] = {
     "PaidOrderNotFulfilledEvent": {"order_id": 1, "amount": "10.00", "currency": "USD"},
     "SubscriptionExpiringEvent": {"hours": 24, "is_trial": "no"},
     "SubscriptionExpiredEvent": {"is_trial": "yes"},
+    "SubscriptionGraceStartedEvent": {"grace_until": "05.12.2026", "traffic_limit_mb": 512},
     "SubscriptionExpiredAgoEvent": {"hours": 72, "is_trial": "no"},
     "SubscriptionTrafficLimitedEvent": {"is_trial": "no", "traffic_strategy": "MONTH"},
     "SubscriptionTrafficThresholdEvent": {

@@ -74,6 +74,7 @@ def register_subscriptions_metadata() -> None:
                 "is_unlimited",
                 "traffic_limit",
                 "device_limit",
+                "grace",
             ),
             buttons=(
                 catalog.CatalogButton(

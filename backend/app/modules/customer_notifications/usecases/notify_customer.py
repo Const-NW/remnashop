@@ -67,6 +67,7 @@ from app.modules.subscriptions import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
     SubscriptionPurchasedEvent,
@@ -102,6 +103,7 @@ _RENEWABLE: Final[frozenset[str]] = frozenset(
     for event in (
         SubscriptionExpiringEvent,
         SubscriptionExpiredEvent,
+        SubscriptionGraceStartedEvent,
         SubscriptionExpiredAgoEvent,
         SubscriptionTrafficLimitedEvent,
     )

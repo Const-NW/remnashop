@@ -19,6 +19,7 @@ from app.modules.subscriptions import (
     ListOwnSubscriptionsUseCase,
     SubscriptionDto,
     SubscriptionRefDto,
+    is_unlimited_expiry,
 )
 from app.modules.users import UserDto
 from app.telegram.banners import window_banner
@@ -54,6 +55,18 @@ _KNOWN_PLATFORMS: Final[frozenset[str]] = frozenset({"ios", "android", "windows"
 def _platform_icon_key(platform: Optional[str]) -> str:
     normalized = (platform or "default").lower()
     return normalized if normalized in _KNOWN_PLATFORMS else "default"
+
+
+def grace_line(runner: TranslatorRunner, subscription: SubscriptionDto) -> str:
+    """The card's grace-period line; empty (so the line drops) outside a grace."""
+    if subscription.grace_until is None:
+        return ""
+    return runner.get(
+        "frg-subscription-grace",
+        grace_until="none"
+        if is_unlimited_expiry(subscription.grace_until)
+        else format_date(subscription.grace_until),
+    )
 
 
 def device_title(device: DeviceDto) -> str:
@@ -178,6 +191,7 @@ async def subscription_card_getter(
             is_unlimited=int(subscription.is_unlimited),
             traffic_limit=subscription.effective_traffic_limit,
             device_limit=subscription.effective_device_limit,
+            grace=grace_line(runner, subscription),
             **resolve_variable_kwargs(data),
         )
     data["buttons"] = await render_dialog_buttons(

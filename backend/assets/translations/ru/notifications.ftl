@@ -161,6 +161,16 @@ ntf-customer-subscription-expired = { $is_trial ->
     }
     .title = Доступ приостановлен — VPN не работает
     .emoji = ⛔
+ntf-customer-subscription-grace-started = Ваша подписка истекла. { $grace_until ->
+        [none] Действует
+       *[other] До { $grace_until } действует
+    } льготный доступ{ $traffic_unit ->
+        [gb]: { $traffic_value } ГБ
+        [mb]: { $traffic_value } МБ
+       *[none] {""}
+    }. Продлите подписку, чтобы вернуть тариф.
+    .title = Подписка истекла
+    .emoji = ⏳
 ntf-customer-subscription-traffic-limited = Ваш трафик израсходован. { $is_trial ->
         [yes] Оформите подписку, чтобы продолжить пользоваться сервисом.
        *[no] { $traffic_strategy ->
