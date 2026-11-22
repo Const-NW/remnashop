@@ -74,6 +74,7 @@ def _user(
     personal_discount_promocode_id: Optional[int] = None,
     purchase_discount_promocode_id: Optional[int] = None,
     loyalty_discount: int = 0,
+    markup_percent: int = 0,
 ) -> UserDto:
     return UserDto(
         name="buyer",
@@ -83,6 +84,7 @@ def _user(
         personal_discount_promocode_id=personal_discount_promocode_id,
         purchase_discount_promocode_id=purchase_discount_promocode_id,
         loyalty_discount=loyalty_discount,
+        markup_percent=markup_percent,
     )
 
 
@@ -419,3 +421,48 @@ def test_a_paid_trial_takes_no_customer_discount_but_keeps_the_plan_sale() -> No
     assert quote.discount_source is DiscountSource.NONE
     assert quote.discount_percent == 0
     assert quote.final_price == Decimal("90")
+
+
+def test_markup_raises_the_base_before_every_discount() -> None:
+    plan = _plan(base_price=Decimal("500"))
+
+    quote = quote_price(
+        plan, 30, Currency.RUB, _user(markup_percent=20, personal_discount=10), _rates()
+    )
+
+    # the customer sees 600 as the plan's price and their 10% off it
+    assert quote.base_price == Decimal("600")
+    assert quote.final_price == Decimal("540")
+    assert quote.markup_percent == 20
+    assert quote.anchor_base_price == Decimal("600")
+
+
+def test_markup_keeps_the_percent_on_a_charm_priced_plan() -> None:
+    rates = _charm_rates()
+
+    quote = quote_price(
+        _plan(base_price=Decimal("200")), 30, Currency.RUB, _user(markup_percent=10), rates
+    )
+
+    # 299 + 10%, not lifted to the next 99
+    assert quote.base_price == Decimal("329")
+
+
+def test_markup_leaves_a_free_plan_free() -> None:
+    quote = quote_price(
+        _plan(base_price=Decimal("0")), 30, Currency.RUB, _user(markup_percent=50), _rates()
+    )
+
+    assert quote.base_price == quote.final_price == Decimal("0")
+    assert quote.markup_percent == 0
+
+
+def test_change_credit_comes_off_the_marked_up_price() -> None:
+    plan = _plan(base_price=Decimal("5000"), days=0)
+
+    quote = quote_price(
+        plan, 0, Currency.RUB, _user(markup_percent=10), _rates(), change_credit=Decimal("3000")
+    )
+
+    assert quote.base_price == Decimal("5500")
+    assert quote.final_price == Decimal("2500")

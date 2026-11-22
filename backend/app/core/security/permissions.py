@@ -102,6 +102,7 @@ class Permission(UpperStrEnum):
     USERS_STATS_VIEW = auto()
     USERS_DELETE = auto()
     USERS_DISCOUNT_MANAGE = auto()
+    USERS_MARKUP_MANAGE = auto()
     STAFF_SELF_MANAGE = auto()
     USERS_LOYALTY_VIEW = auto()
     USERS_LOYALTY_MANAGE = auto()
@@ -356,6 +357,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.USERS_STATS_VIEW: PermissionMeta(resource="users", kind="read"),
     Permission.USERS_DELETE: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_DISCOUNT_MANAGE: PermissionMeta(resource="users", kind="write"),
+    Permission.USERS_MARKUP_MANAGE: PermissionMeta(resource="users", kind="write"),
     Permission.STAFF_SELF_MANAGE: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_LOYALTY_VIEW: PermissionMeta(resource="users", kind="read"),
     Permission.USERS_LOYALTY_MANAGE: PermissionMeta(resource="users", kind="write"),
@@ -792,6 +794,7 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.USERS_DETAIL_VIEW,
             Permission.USERS_REGISTRATION_VIEW,
             Permission.USERS_DISCOUNT_MANAGE,
+            Permission.USERS_MARKUP_MANAGE,
             Permission.USERS_EMAIL_UNDELIVERABLE_CLEAR,
             Permission.USERS_BOT_MENU_RESET,
             Permission.USERS_TRIAL_MANAGE,

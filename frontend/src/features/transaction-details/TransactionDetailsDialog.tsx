@@ -201,20 +201,25 @@ function TransactionDetailsDialogBody({
               value={money(order.final_price)}
               valueSuffix={(hasDiscount(order) || hasCredit) && <s>{money(order.base_price)}</s>}
               hint={
-                hasDiscount(order) || hasCredit
-                  ? [
-                      hasCredit && t("transactions.details.changeCredit", { amount: money(order.change_credit) }),
-                      order.plan_discount_percent > 0 &&
-                        t("transactions.details.planDiscount", { percent: order.plan_discount_percent }),
-                      order.discount_percent > 0 &&
-                        t("transactions.details.discount", {
-                          percent: order.discount_percent,
-                          source: t(`transactions.discountSource.${order.discount_source}`),
-                        }),
-                    ]
-                      .filter(Boolean)
-                      .join(" + ")
-                  : t("transactions.details.noDiscount")
+                <>
+                  {order.markup_percent > 0 && (
+                    <span className="block">{t("transactions.details.markup", { percent: order.markup_percent })}</span>
+                  )}
+                  {hasDiscount(order) || hasCredit
+                    ? [
+                        hasCredit && t("transactions.details.changeCredit", { amount: money(order.change_credit) }),
+                        order.plan_discount_percent > 0 &&
+                          t("transactions.details.planDiscount", { percent: order.plan_discount_percent }),
+                        order.discount_percent > 0 &&
+                          t("transactions.details.discount", {
+                            percent: order.discount_percent,
+                            source: t(`transactions.discountSource.${order.discount_source}`),
+                          }),
+                      ]
+                        .filter(Boolean)
+                        .join(" + ")
+                    : order.markup_percent === 0 && t("transactions.details.noDiscount")}
+                </>
               }
             />
             <KpiTile glass label={t("transactions.details.period")} value={period} hint={purchaseType} />

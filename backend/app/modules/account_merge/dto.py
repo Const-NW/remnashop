@@ -20,6 +20,7 @@ class MergeConflictKey(StrEnum):
     LANGUAGE = auto()
     PERSONAL_DISCOUNT = auto()
     PURCHASE_DISCOUNT = auto()
+    MARKUP = auto()
     REFERRED_BY = auto()
 
 
@@ -106,6 +107,7 @@ class MergedUserDto:
     personal_discount_promocode_id: Optional[int]
     purchase_discount: int
     purchase_discount_promocode_id: Optional[int]
+    markup_percent: int
     role: Role
     permission_grants: Optional[list[str]]
     permission_revokes: Optional[list[str]]

@@ -169,3 +169,17 @@ async def test_within_one_priority_the_catalog_order_decides(
 
     assert result.plan is not None
     assert result.plan.public_code == "first"
+
+
+async def test_a_paid_trial_is_offered_with_the_customers_markup(
+    plan_repository: PlanRepository, user_repository: UserRepository, uow: UnitOfWork
+) -> None:
+    await _create_trial_plan(plan_repository, code="marked-trial", price=Decimal("2.00"))
+    created = await user_repository.create(CreateUserDto(name="marked-trial"))
+    actor = await user_repository.update_fields(created.id, UpdateUserDto(markup_percent=50))
+    assert actor is not None
+
+    result = await _use_case(plan_repository, uow)(actor)
+
+    assert result.price == Decimal("3.00")
+    assert next(p.price for p in result.prices if p.currency is Currency.USD) == Decimal("3.00")

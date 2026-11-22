@@ -26,6 +26,7 @@ const OWN_ACCOUNT_WRITES: ReadonlySet<Permission> = new Set<Permission>([
   "REFERRALS_POINTS_MANAGE",
   "REFERRALS_BONUS_DAYS_MANAGE",
   "USERS_DISCOUNT_MANAGE",
+  "USERS_MARKUP_MANAGE",
 ]);
 
 export function useCurrentUser(): AsyncState<CurrentUser> {

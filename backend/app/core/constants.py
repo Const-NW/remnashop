@@ -210,3 +210,6 @@ DEFAULT_UNLIMITED_REWARD_DAYS: Final[int] = 365
 
 # an unlimited (0-day) order's paid coverage, long enough to outlast any report
 UNLIMITED_COVERAGE_DAYS: Final[int] = 36500
+
+# a customer's hidden price markup, in percent of the plan price
+MAX_MARKUP_PERCENT: Final[int] = 500

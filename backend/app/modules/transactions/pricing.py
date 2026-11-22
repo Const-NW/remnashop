@@ -11,6 +11,7 @@ from app.modules.pricing import (
     CurrencyRateDto,
     CurrencyRateTable,
     apply_discounts,
+    apply_markup,
     convert_for_report,
     price_for,
     round_amount,
@@ -61,8 +62,10 @@ def quote_price(
     *,
     change_credit: Decimal = ZERO_AMOUNT,
 ) -> PriceQuote:
-    base_price = _base_price(plan, duration_days, currency, rates)
     rate = rates.for_currency(currency)
+    base_price = apply_markup(
+        _base_price(plan, duration_days, currency, rates), rate, user.markup_percent
+    )
     # what the plan being changed was paid comes off first, discounts apply to the rest
     payable = _after_credit(base_price, change_credit, rate)
     plan_discount_percent = plan.active_discount(datetime_now())
@@ -87,4 +90,5 @@ def quote_price(
         discount_promocode_id=discount_promocode_id,
         plan_discount_percent=plan_discount_percent,
         change_credit=change_credit,
+        markup_percent=user.markup_percent if base_price else 0,
     )

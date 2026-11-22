@@ -25,6 +25,7 @@ _CHECK_NAMES: Final[frozenset[str]] = frozenset(
         "ck_users_email_lowercase",
         "ck_users_login_charset",
         "ck_users_loyalty_discount_range",
+        "ck_users_markup_percent_range",
         "ck_users_personal_discount_range",
         "ck_users_points_non_negative",
         "ck_users_purchase_discount_range",

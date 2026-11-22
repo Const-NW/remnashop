@@ -177,6 +177,7 @@ class ErrorCode(UpperStrEnum):
     LOGIN_TAKEN = auto()
     LOYALTY_TIERS_INVALID = auto()
     LOYALTY_TIERS_REQUIRED = auto()
+    MARKUP_PERCENT_INVALID = auto()
     MERGE_ACCOUNT_BLOCKED = auto()
     MERGE_ACCOUNT_PRIVILEGED = auto()
     MERGE_BOTH_PRIVILEGED = auto()

@@ -42,6 +42,8 @@ export interface TransactionItem {
   discount_percent: number;
   discount_source: DiscountSource;
   plan_discount_percent: number;
+  /** the customer's hidden markup, already in base_price */
+  markup_percent: number;
   final_price: string;
   change_credit: string;
   customer_email: string | null;

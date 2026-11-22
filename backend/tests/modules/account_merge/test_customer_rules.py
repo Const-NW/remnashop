@@ -103,3 +103,14 @@ def test_sides_take_earlier_referrer() -> None:
     assert sides(early, late) == "source"
     assert sides(late, early) == "target"
     assert sides(early, early) == "target"
+
+
+def test_a_customer_merge_keeps_the_bigger_markup() -> None:
+    smaller_current = customer_sides(
+        _user(id=1, markup_percent=5), _user(id=2, markup_percent=20), _links()
+    )
+    bigger_current = customer_sides(
+        _user(id=1, markup_percent=30), _user(id=2, markup_percent=20), _links()
+    )
+
+    assert smaller_current["markup"] == "source" and bigger_current["markup"] == "target"
