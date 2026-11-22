@@ -68,7 +68,7 @@ def subscription_menu_values(
         "subscription_traffic_limit": "",
         "subscription_device_limit": "",
         "subscription_expire_at": "",
-        "subscription_expire_at_unix": "",
+        "subscription_expire_at_local": "",
     }
     if listed_elsewhere:
         # several subscriptions allowed: they sit behind "My subscriptions"
@@ -91,7 +91,7 @@ def subscription_menu_values(
             ),
             "subscription_device_limit": str(devices) if devices else unlimited,
             "subscription_expire_at": format_expiry(runner, subscription.expire_at, with_time=True),
-            "subscription_expire_at_unix": format_expiry_tag(
+            "subscription_expire_at_local": format_expiry_tag(
                 runner, subscription.expire_at, with_time=True
             ),
         }
@@ -116,7 +116,7 @@ def subscription_menu_values(
         traffic_limit=values["subscription_traffic_limit"],
         device_limit=values["subscription_device_limit"],
         expire_at=values["subscription_expire_at"],
-        expire_at_unix=values["subscription_expire_at_unix"],
+        expire_at_local=values["subscription_expire_at_local"],
         extra_count=str(extra_count) if extra_count > 0 else "",
     )
     return {**values, "subscription_block": TrustedHtml(block)}

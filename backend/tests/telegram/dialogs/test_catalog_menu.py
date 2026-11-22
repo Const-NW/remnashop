@@ -152,7 +152,7 @@ def test_registers_main_menu_text_variables() -> None:
         "subscription_traffic_limit",
         "subscription_device_limit",
         "subscription_expire_at",
-        "subscription_expire_at_unix",
+        "subscription_expire_at_local",
         "subscription_block",
     }
     assert menu_only <= set(catalog.get_window("menu.main").text_variables)

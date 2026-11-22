@@ -171,7 +171,7 @@ async def subscription_card_getter(
             status=subscription.status.value,
             is_trial=int(subscription.is_trial),
             expire_at=format_expiry(runner, subscription.expire_at),
-            expire_at_unix=format_expiry_tag(runner, subscription.expire_at),
+            expire_at_local=format_expiry_tag(runner, subscription.expire_at),
             traffic_limit=subscription.effective_traffic_limit,
             device_limit=subscription.effective_device_limit,
             **resolve_variable_kwargs(data),
@@ -292,7 +292,7 @@ async def device_getter(
             device_system=" ".join(filter(None, (device.platform, device.os_version))),
             device_app=device.app or "",
             device_created_at=format_date(device.created_at),
-            device_created_at_unix=format_date_tag(device.created_at),
+            device_created_at_local=format_date_tag(device.created_at),
             **resolve_variable_kwargs({}),
         )
     data: dict[str, Any] = {

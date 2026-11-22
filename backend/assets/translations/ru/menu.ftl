@@ -17,7 +17,7 @@ frg-menu-subscription =
             <blockquote>
             • <b>Лимит трафика</b>: { $traffic_limit }
             • <b>Лимит устройств</b>: { $device_limit }
-            • <b>Действует до</b>: { $expire_at_unix }
+            • <b>Действует до</b>: { $expire_at_local }
             </blockquote>
         [EXPIRED]
             <blockquote>
@@ -85,7 +85,7 @@ msg-menu-device =
     Модель: { $device_model }
     Система: { $device_system }
     Приложение: { $device_app }
-    Подключено: { $device_created_at_unix }
+    Подключено: { $device_created_at_local }
 msg-menu-device-rename = Отправьте новое имя для «{ $device_name }» — до { $device_name_max_length } символов.
 msg-menu-devices-confirm-delete = Удалить это устройство?
 msg-menu-devices-confirm-delete-all = Удалить все устройства? Ссылка подключения сменится, все устройства потеряют доступ — каждое придётся подключать заново по новой ссылке.
@@ -186,7 +186,7 @@ msg-subscription-card =
         [0] Безлимит
        *[other] { $device_limit }
     }
-    • <b>Действует до</b>: { $expire_at_unix }
+    • <b>Действует до</b>: { $expire_at_local }
     </blockquote>
 msg-referrals =
     <b>👥 Пригласить друзей</b>

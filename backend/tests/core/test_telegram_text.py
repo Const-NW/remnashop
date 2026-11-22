@@ -58,7 +58,7 @@ def test_valid_html(text: str) -> None:
         "<![CDATA[x]]>",
         '<tg-time format="d">x</tg-time>',
         '<tg-time unix="abc">x</tg-time>',
-        '<tg-time unix="{ $expire_at_unix }">x</tg-time>',
+        '<tg-time unix="{ $expire_at_local }">x</tg-time>',
         '<tg-time unix="1" format="rd">x</tg-time>',
     ],
 )
