@@ -29,7 +29,9 @@ class RenameDeviceUseCase(UseCase[RenameDeviceDto, None, UserDto]):
         self._uow = uow
 
     async def _execute(self, actor: UserDto, data: RenameDeviceDto) -> None:
-        name = " ".join((data.name or "").split())
+        # zero-width and control characters would leave a blank button in the bot
+        visible = "".join(char for char in data.name or "" if char.isprintable() or char.isspace())
+        name = " ".join(visible.split())
         if len(name) > DEVICE_NAME_MAX_LENGTH:
             raise ValidationError("Device name is too long", code=ErrorCode.DEVICE_NAME_TOO_LONG)
 

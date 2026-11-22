@@ -287,7 +287,11 @@ async def device_getter(
             device_created_at=format_date(device.created_at),
             **resolve_variable_kwargs({}),
         )
-    data: dict[str, Any] = {"window_text": window_text, UNAVAILABLE_BUTTONS_KEY: unavailable}
+    data: dict[str, Any] = {
+        "window_text": window_text,
+        "device_has_name": device is not None and device.name is not None,
+        UNAVAILABLE_BUTTONS_KEY: unavailable,
+    }
     data["buttons"] = await render_dialog_buttons("menu.device", dialog_config_cache, runner, data)
     return data
 

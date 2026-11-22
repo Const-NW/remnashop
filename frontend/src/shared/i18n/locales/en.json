@@ -2925,6 +2925,12 @@
       "support_url": "Support link",
       "devices_current": "Devices connected",
       "devices_max": "Device limit",
+      "device_name": "Device name or model",
+      "device_model": "Device model",
+      "device_system": "Device system",
+      "device_app": "Client app and its version",
+      "device_created_at": "Device connection date",
+      "device_name_max_length": "Longest allowed name",
       "name": "Name",
       "username": "Username",
       "points": "Points",
@@ -3036,6 +3042,8 @@
         "menu": {
           "main": "Main menu",
           "devices": "Devices",
+          "device": "Device card",
+          "device_rename": "Device name",
           "device_confirm_delete": "Delete a device",
           "device_confirm_delete_all": "Delete all devices",
           "device_confirm_reissue": "Reissue the link"

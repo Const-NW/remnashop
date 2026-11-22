@@ -3019,6 +3019,12 @@
       "support_url": "Ссылка на поддержку",
       "devices_current": "Подключено устройств",
       "devices_max": "Лимит устройств",
+      "device_name": "Имя или модель устройства",
+      "device_model": "Модель устройства",
+      "device_system": "Система устройства",
+      "device_app": "Приложение и его версия",
+      "device_created_at": "Дата подключения устройства",
+      "device_name_max_length": "Наибольшая длина имени",
       "name": "Имя",
       "username": "Username",
       "points": "Баллы",
@@ -3130,6 +3136,8 @@
         "menu": {
           "main": "Главное меню",
           "devices": "Устройства",
+          "device": "Карточка устройства",
+          "device_rename": "Имя устройства",
           "device_confirm_delete": "Удаление устройства",
           "device_confirm_delete_all": "Удаление всех устройств",
           "device_confirm_reissue": "Перевыпуск ссылки"

@@ -389,6 +389,10 @@ async def test_renaming_refuses_an_unknown_device_and_a_long_name(
         await rename(
             actor, RenameDeviceDto(subscription_id=subscription.id, hwid="known", name="x" * 33)
         )
+    # invisible characters only: the same as a blank name, nothing stored
+    await rename(
+        actor, RenameDeviceDto(subscription_id=subscription.id, hwid="known", name="\u200b\u2060")
+    )
     with pytest.raises(ValidationError):
         await rename(
             stranger, RenameDeviceDto(subscription_id=subscription.id, hwid="known", name="x")

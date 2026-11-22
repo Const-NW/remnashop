@@ -165,7 +165,7 @@ async def rename_own_device(
 @own_router.delete(
     "/{subscription_id:int}/devices/{hwid}/name",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=error_responses(400, 503),
+    responses=error_responses(400),
 )
 @inject
 async def clear_own_device_name(

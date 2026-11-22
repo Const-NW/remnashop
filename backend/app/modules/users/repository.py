@@ -26,6 +26,8 @@ from app.core.constants import DEFAULT_PAGE_SIZE, MAX_POINTS_BALANCE, ZERO_AMOUN
 from app.core.db.errors import constraint_name
 from app.core.db.filters import in_ids
 from app.core.db.models.oauth_identity import OAuthIdentity
+from app.core.db.models.subscription import Subscription
+from app.core.db.models.subscription_device_name import SubscriptionDeviceName
 from app.core.db.models.user import User
 from app.core.db.models.user_registration import UserRegistration
 from app.core.db.partial_update import apply_partial_update
@@ -764,6 +766,14 @@ class UserRepository:
         await self.session.execute(sa_delete(OAuthIdentity).where(OAuthIdentity.user_id == user_id))
         await self.session.execute(
             sa_delete(UserRegistration).where(UserRegistration.user_id == user_id)
+        )
+        # free text the customer typed, the subscriptions themselves stay
+        await self.session.execute(
+            sa_delete(SubscriptionDeviceName).where(
+                SubscriptionDeviceName.subscription_id.in_(
+                    select(Subscription.id).where(Subscription.user_id == user_id)
+                )
+            )
         )
         await self.session.flush()
         await self.session.refresh(db_user)
