@@ -8,7 +8,14 @@ from app.core.events import ActorEvent, EventCategory, SystemEvent
 class BroadcastChangedEvent(ActorEvent):
     category: ClassVar[EventCategory] = EventCategory.BROADCAST
     action: Literal[
-        "add_email_image", "create", "delete", "delete_media", "retry", "set_media", "update"
+        "add_email_image",
+        "create",
+        "delete",
+        "delete_media",
+        "duplicate",
+        "retry",
+        "set_media",
+        "update",
     ]
     broadcast_id: int
 

@@ -159,6 +159,12 @@ def email_image_ids(html: str) -> set[int]:
     return walker.ids
 
 
+def replace_email_image_ids(html: str, new_ids: dict[int, int]) -> str:
+    return _IMAGE_SRC_RE.sub(
+        lambda m: f"{EMAIL_IMAGE_SRC_PREFIX}{new_ids.get(int(m.group(1)), m.group(1))}", html
+    )
+
+
 class _Styler(_Walker):
     def __init__(self, accent: str, image_src: Callable[[int], str]) -> None:
         super().__init__()

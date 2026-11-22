@@ -10,6 +10,7 @@ _ALL = {
     Permission.BROADCASTS_VIEW,
     Permission.BROADCASTS_DETAIL_VIEW,
     Permission.BROADCASTS_CREATE,
+    Permission.BROADCASTS_DUPLICATE,
     Permission.BROADCASTS_UPDATE,
     Permission.BROADCASTS_DELETE,
     Permission.BROADCASTS_SEND,
