@@ -21,6 +21,7 @@ from app.core.exceptions import ConflictError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now, truncate_to_ms
 from app.modules.plans import PlanDto
+from app.modules.settings import GraceSettingsDto
 from app.modules.subscriptions.dispatch import PanelSyncDispatch
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
@@ -257,6 +258,9 @@ def panel_diff(
 
 
 def differs_from_panel(subscription: SubscriptionDto, user: UserResponseDto) -> bool:
+    # the panel holds the grace config during grace; a pull would keep the row anyway
+    if subscription.grace_until is not None:
+        return False
     return (
         subscription.status is not SubscriptionStatus(user.status)
         or truncate_to_ms(subscription.expire_at) != truncate_to_ms(user.expire_at)
@@ -268,6 +272,9 @@ def differs_from_panel(subscription: SubscriptionDto, user: UserResponseDto) -> 
 
 def panel_lags_behind(subscription: SubscriptionDto, user: UserResponseDto, owner: UserDto) -> bool:
     """Whether pushing the row would change anything in the panel."""
+    if subscription.grace_until is not None:
+        # the grace entry pushed the grace config; the row's terms aren't the panel's now
+        return False
     wanted = restore(subscription)
     return (
         # restore() leaves a past date out: the panel would refuse it
@@ -294,10 +301,14 @@ def _disabled_mismatch(subscription: SubscriptionDto, user: UserResponseDto) -> 
 
 
 async def push_to_panel(
-    sdk: RemnawaveSDK, subscription: SubscriptionDto, owner: UserDto
+    sdk: RemnawaveSDK,
+    subscription: SubscriptionDto,
+    owner: UserDto,
+    grace: Optional[GraceSettingsDto] = None,
 ) -> UserResponseDto:
-    """Puts the row's configuration, on/off switch and the owner's contacts into the panel."""
-    pushed: UserResponseDto = await sdk.users.update_user(restore(subscription, owner))
+    """Puts the row's configuration (the grace one while in grace), on/off switch
+    and the owner's contacts into the panel."""
+    pushed: UserResponseDto = await sdk.users.update_user(restore(subscription, owner, grace=grace))
     if _disabled_mismatch(subscription, pushed):
         if subscription.status is SubscriptionStatus.DISABLED:
             pushed = await sdk.users.disable_user(subscription.remnawave_user_id)

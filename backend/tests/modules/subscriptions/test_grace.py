@@ -11,9 +11,9 @@ from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.subscriptions.grace import (
     can_renew,
     grace_entry_allowed,
-    grace_panel_update,
     grace_until_for,
 )
+from app.modules.subscriptions.panel import grace_panel_update
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.unlimited import is_unlimited_expiry
 from app.modules.users.dto import CreateUserDto

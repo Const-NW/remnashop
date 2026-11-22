@@ -5,7 +5,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
-from app.core.utils.time import truncate_to_ms
+from app.core.utils.time import datetime_now, truncate_to_ms
 from app.modules.subscriptions.dto import (
     PanelConfigDto,
     SubscriptionDto,
@@ -66,10 +66,37 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
                     data.remnawave_user_id, data.panel_created_at
                 )
 
+            if live and subscription.grace_until is not None:
+                if not _leaves_grace(subscription, data):
+                    # the panel holds the grace config, not the row's terms
+                    if data.config is not None and data.config.url != subscription.url:
+                        subscription = await self._sync_url(
+                            subscription, data.config.url, data.source
+                        )
+                    return subscription
+                subscription = await self._subscription_repository.set_grace_until(
+                    subscription.id, None
+                )
+
             subscription = await self._sync_status(subscription, data)
             if data.config is not None and subscription.status is not SubscriptionStatus.DELETED:
                 subscription = await self._sync_config(subscription, data.config, data.source)
             return subscription
+
+    async def _sync_url(
+        self, subscription: SubscriptionDto, url: str, source: StatusSyncSource
+    ) -> SubscriptionDto:
+        subscription = await self._subscription_repository.set_url(subscription.id, url)
+        await self._event_publisher.publish(
+            SubscriptionConfigSyncedEvent(
+                subscription_id=subscription.id,
+                source=source,
+                changed_fields=["url"],
+                removed_addon_types=[],
+                user_id=subscription.user_id,
+            )
+        )
+        return subscription
 
     async def _sync_status(
         self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
@@ -128,3 +155,14 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             )
         )
         return subscription
+
+
+def _leaves_grace(subscription: SubscriptionDto, data: SyncSubscriptionStatusDto) -> bool:
+    """A deletion, or an admin moving the panel's date off the grace end: the
+    panel's terms are real again."""
+    assert subscription.grace_until is not None
+    return data.status is SubscriptionStatus.DELETED or (
+        data.expire_at is not None
+        and truncate_to_ms(data.expire_at) != truncate_to_ms(subscription.grace_until)
+        and data.expire_at > datetime_now()
+    )

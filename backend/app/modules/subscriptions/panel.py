@@ -10,10 +10,11 @@ from remnapy import RemnawaveSDK
 from remnapy.enums import UserStatus
 from remnapy.models import CreateUserRequestDto, UpdateUserRequestDto, UserResponseDto
 
-from app.core.constants import GB_TO_BYTES, INT32_MAX, INT64_MAX, WEB_PREFIX
+from app.core.constants import GB_TO_BYTES, INT32_MAX, INT64_MAX, MB_TO_BYTES, WEB_PREFIX
 from app.core.db.uow import UnitOfWork
 from app.core.enums import AddOnType, SubscriptionStatus
 from app.core.utils.time import datetime_now
+from app.modules.settings import GraceSettingsDto
 from app.modules.subscriptions.credit import traffic_left_share
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
@@ -158,13 +159,46 @@ def configure_for_renewal(
     )
 
 
-def restore(subscription: SubscriptionDto, owner: Optional[UserDto] = None) -> UpdateUserRequestDto:
-    """Puts a panel user back to the configuration its subscription row holds;
-    with `owner`, also to the owner's Telegram and email where the shop knows them."""
+def grace_panel_update(
+    subscription: SubscriptionDto,
+    settings: GraceSettingsDto,
+    grace_until: datetime,
+    **extra: Any,
+) -> UpdateUserRequestDto:
+    fields: dict[str, Any] = {
+        "status": UserStatus.ACTIVE,
+        "expire_at": grace_until,
+        "traffic_limit_bytes": settings.traffic_limit_mb * MB_TO_BYTES,
+        "traffic_limit_strategy": settings.traffic_limit_strategy,
+        "hwid_device_limit": subscription.effective_device_limit,
+        "active_internal_squads": settings.internal_squads or None,
+        "external_squad_uuid": settings.external_squad,
+        "tag": settings.tag,
+    }
+    return panel_update(**(fields | extra))
+
+
+def restore(
+    subscription: SubscriptionDto,
+    owner: Optional[UserDto] = None,
+    *,
+    grace: Optional[GraceSettingsDto] = None,
+) -> UpdateUserRequestDto:
+    """Puts a panel user back to the configuration its subscription row holds,
+    or to the grace config while the row is in grace; with `owner`, also to the
+    owner's Telegram and email where the shop knows them."""
+    contact: dict[str, Any] = {
+        "id": subscription.remnawave_user_id,
+        "telegram_id": owner.telegram_id if owner else None,
+        "email": owner.email if owner else None,
+    }
+    if subscription.grace_until is not None and grace is not None:
+        if subscription.status is SubscriptionStatus.DISABLED:
+            # an admin's switch-off outlives grace: None leaves the panel's status as is
+            contact["status"] = None
+        return grace_panel_update(subscription, grace, subscription.grace_until, **contact)
     return panel_update(
-        id=subscription.remnawave_user_id,
-        telegram_id=owner.telegram_id if owner else None,
-        email=owner.email if owner else None,
+        **contact,
         # the panel refuses a past expireAt on update and expires the user itself
         expire_at=subscription.expire_at if subscription.expire_at > datetime_now() else None,
         traffic_limit_bytes=subscription.effective_traffic_limit * GB_TO_BYTES,
@@ -181,6 +215,7 @@ async def revert_panel_to_owner(
     repository: SubscriptionRepository,
     uow: UnitOfWork,
     current: SubscriptionDto,
+    grace: Optional[GraceSettingsDto] = None,
 ) -> None:
     """Best effort: puts the panel user back to the row that owns it in the
     database, `current` or the newer row that took the panel user over."""
@@ -194,7 +229,7 @@ async def revert_panel_to_owner(
         owner = owner or current
         if owner.status is SubscriptionStatus.DELETED:
             return
-        await sdk.users.update_user(restore(owner))
+        await sdk.users.update_user(restore(owner, grace=grace))
 
 
 def subscription_row(

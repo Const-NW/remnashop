@@ -28,6 +28,7 @@ from app.core.utils.time import datetime_now
 from app.modules.blacklist.repository import BlacklistRepository
 from app.modules.plans.dto import CreatePlanDto
 from app.modules.plans.repository import PlanRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import panel_sync
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
@@ -148,6 +149,7 @@ async def test_a_long_run_keeps_its_running_mark(
 async def test_sync_to_panel_skips_a_row_deleted_while_it_ran(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -176,6 +178,7 @@ async def test_sync_to_panel_skips_a_row_deleted_while_it_ran(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert remnawave_store[89_011]["trafficLimitBytes"] == 10 * GB_TO_BYTES
@@ -185,6 +188,7 @@ async def test_sync_to_panel_skips_a_row_deleted_while_it_ran(
 async def test_sync_to_panel_pushes_rows_that_differ_and_recreates_missing(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -213,6 +217,7 @@ async def test_sync_to_panel_pushes_rows_that_differ_and_recreates_missing(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert remnawave_store[89_001]["trafficLimitBytes"] == 100 * GB_TO_BYTES
@@ -228,6 +233,7 @@ async def test_sync_to_panel_pushes_rows_that_differ_and_recreates_missing(
 async def test_push_disables_the_panel_user_of_a_disabled_row(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -249,6 +255,7 @@ async def test_push_disables_the_panel_user_of_a_disabled_row(
         event_publisher,
         uow,
         AppConfig.get(),
+        settings_repository,
     )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id))
 
     assert remnawave_store[89_011]["status"] == "DISABLED"
@@ -257,6 +264,7 @@ async def test_push_disables_the_panel_user_of_a_disabled_row(
 async def test_sync_to_panel_fills_the_owners_contacts_and_keeps_unknown_ones(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -279,6 +287,7 @@ async def test_sync_to_panel_fills_the_owners_contacts_and_keeps_unknown_ones(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert result.updated >= 1
@@ -367,6 +376,7 @@ async def test_sync_from_panel_imports_a_shop_users_panel_user(
 async def test_sync_to_panel_deletes_a_shop_users_panel_user_without_a_subscription(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -399,6 +409,7 @@ async def test_sync_to_panel_deletes_a_shop_users_panel_user_without_a_subscript
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert 89_061 not in remnawave_store
@@ -410,6 +421,7 @@ async def test_sync_to_panel_deletes_a_shop_users_panel_user_without_a_subscript
 async def test_push_without_a_panel_user_creates_one_from_the_row(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -430,6 +442,7 @@ async def test_push_without_a_panel_user_creates_one_from_the_row(
         event_publisher,
         uow,
         AppConfig.get(),
+        settings_repository,
     )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id))
 
     panel_user = remnawave_store[pushed.remnawave_user_id]
@@ -447,6 +460,7 @@ async def test_push_does_not_recreate_on_another_not_found(
     monkeypatch: pytest.MonkeyPatch,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     uow: UnitOfWork,
     event_publisher: EventPublisher,
@@ -469,6 +483,7 @@ async def test_push_does_not_recreate_on_another_not_found(
             event_publisher,
             uow,
             AppConfig.get(),
+            settings_repository,
         )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id))
 
     create_user.assert_not_awaited()
@@ -589,6 +604,7 @@ async def test_match_shop_user_ignores_other_names(
 async def test_orphans_are_deleted_only_when_the_shop_named_them(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -620,6 +636,7 @@ async def test_orphans_are_deleted_only_when_the_shop_named_them(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(_TO)
 
     assert not {89_091, 89_092, 89_093} & set(remnawave_store)
@@ -737,6 +754,7 @@ async def test_sync_from_panel_creates_customers_only_when_asked(
 async def test_sync_to_panel_can_skip_recreating_and_deleting(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -759,6 +777,7 @@ async def test_sync_to_panel_can_skip_recreating_and_deleting(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(SyncToPanelOptionsDto(recreate_missing=False, delete_orphans=False))
 
     assert (result.recreated, result.deleted) == (0, 0)
@@ -770,6 +789,7 @@ async def test_sync_to_panel_can_skip_recreating_and_deleting(
 async def test_sync_to_panel_leaves_another_prefixs_panel_users_alone(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     uow: UnitOfWork,
@@ -796,6 +816,7 @@ async def test_sync_to_panel_leaves_another_prefixs_panel_users_alone(
         redis,
         event_publisher,
         shop_b,
+        settings_repository,
     ).system(_TO)
 
     assert 89_131 in remnawave_store

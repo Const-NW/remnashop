@@ -16,6 +16,7 @@ from app.core.exceptions import RemnawavePanelUnavailableError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import (
     PanelSyncResultDto,
     SubscriptionDto,
@@ -55,6 +56,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
         redis: Redis,
         event_publisher: EventPublisher,
         config: AppConfig,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
@@ -63,6 +65,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
         self._redis = redis
         self._event_publisher = event_publisher
         self._prefix = config.remnawave.username_prefix
+        self._settings_repository = settings_repository
 
     async def _execute(self, actor: Actor, data: SyncToPanelOptionsDto) -> PanelSyncResultDto:
         async with holding_panel_sync(self._redis, PanelSyncDirection.TO_PANEL):
@@ -71,6 +74,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
     async def _sync(self, actor: Actor, options: SyncToPanelOptionsDto) -> PanelSyncResultDto:
         async with self._uow:
             await self._replace_squads(options.squad_replacements)
+            grace = await self._settings_repository.get_grace_settings()
             subscriptions = await self._subscription_repository.list_non_terminal()
             linked = await self._subscription_repository.list_linked_remnawave_user_ids()
             owners = {
@@ -109,7 +113,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
                         )
                         recreated += 1
                         continue
-                    await push_to_panel(self._remnawave_sdk, current, owner)
+                    await push_to_panel(self._remnawave_sdk, current, owner, grace)
                 except ValidationError:
                     continue  # deleted while the sync ran
                 except RemnawavePanelUnavailableError:
