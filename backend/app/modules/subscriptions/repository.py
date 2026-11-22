@@ -16,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX
+from app.core.constants import DEFAULT_PAGE_SIZE, GRACE_ENTRY_WINDOW, INT32_MAX
 from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.addon_entitlement import AddOnEntitlement
 from app.core.db.models.addon_grant_idempotency import AddOnGrantIdempotency
@@ -110,6 +110,7 @@ class SubscriptionRepository:
             panel_created_at=row.panel_created_at,
             term_anchor_day=row.term_anchor_day,
             paused_by_channel_leave=row.paused_by_channel_leave,
+            grace_until=row.grace_until,
             addon_entitlements=entitlements,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -547,6 +548,35 @@ class SubscriptionRepository:
         await self.session.refresh(row)
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
+    async def set_grace_until(
+        self, subscription_id: int, value: Optional[datetime]
+    ) -> SubscriptionDto:
+        row = await self._get_or_raise(subscription_id)
+        row.grace_until = value
+        await self.session.flush()
+        await self.session.refresh(row)
+        entitlements_by_subscription = await self._load_entitlements([row.id])
+        return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
+    async def _list_where(self, *conditions: Any, limit: int) -> list[SubscriptionDto]:
+        result = await self.session.execute(
+            select(Subscription).where(*conditions).order_by(Subscription.id).limit(limit)
+        )
+        rows = result.scalars().all()
+        entitlements_by_subscription = await self._load_entitlements([row.id for row in rows])
+        return [self._to_dto(row, entitlements_by_subscription.get(row.id, [])) for row in rows]
+
+    async def list_grace_entry_candidates(self, now: datetime, limit: int) -> list[SubscriptionDto]:
+        return await self._list_where(
+            Subscription.status == SubscriptionStatus.EXPIRED,
+            Subscription.grace_until.is_(None),
+            Subscription.expire_at > now - GRACE_ENTRY_WINDOW,
+            limit=limit,
+        )
+
+    async def list_grace_ended(self, now: datetime, limit: int) -> list[SubscriptionDto]:
+        return await self._list_where(Subscription.grace_until <= now, limit=limit)
 
     async def set_first_connected_at(self, remnawave_user_id: int, at: datetime) -> None:
         await self.session.execute(

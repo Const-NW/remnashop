@@ -1,5 +1,5 @@
 import re
-from datetime import timezone
+from datetime import timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from re import Pattern
@@ -138,6 +138,9 @@ TTL_30D: Final[int] = TIME_1D * 30
 # bytes (CreateUserRequestDto.traffic_limit_bytes): convert at the SDK call
 # only, never store bytes in our schema.
 GB_TO_BYTES: Final[int] = 1024**3
+MB_TO_BYTES: Final[int] = 1024**2
+# an expiry older than this was missed (worker down, grace switched on later): no grace for it
+GRACE_ENTRY_WINDOW: Final[timedelta] = timedelta(hours=24)
 
 # what Remnawave accepts as a user tag (CreateUserRequestDto.tag); a plan's tag goes
 # onto every panel user it provisions

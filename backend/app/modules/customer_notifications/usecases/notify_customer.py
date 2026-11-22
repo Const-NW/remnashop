@@ -75,6 +75,7 @@ from app.modules.subscriptions import (
     SubscriptionTrafficLimitedEvent,
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
+    can_renew,
     current_plan_snapshots,
     next_traffic_reset,
 )
@@ -453,18 +454,16 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         anchor = subscription.panel_created_at
         reset = next_traffic_reset(subscription.traffic_limit_strategy, anchor, datetime_now())
         # paid renewals reset the traffic: worth suggesting only where renewing is open
-        can_renew = not subscription.is_trial and not subscription.is_unlimited
-        if can_renew:
+        plan = None
+        if not subscription.is_trial and not subscription.is_unlimited:
             async with self._uow:
                 try:
                     plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
                 except NotFoundError:
                     plan = None
-            # a free duration isn't renewed either: the renewal catalog would come up empty
-            can_renew = plan is not None and plan.allow_renewal and bool(plan.renewable_durations())
         return {
             "reset_date": reset.strftime(DATE_FORMAT) if reset is not None else "none",
-            "can_renew": "yes" if can_renew else "no",
+            "can_renew": "yes" if can_renew(subscription, plan) else "no",
         }
 
     async def _find_subscription(self, subscription_id: int) -> Optional[SubscriptionDto]:

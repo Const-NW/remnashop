@@ -55,6 +55,8 @@ class Subscription(BaseSql, TimestampMixin):
     link_reset_at: Mapped[Optional[datetime]]
     # disabled because the customer left the required channel; only these come back on rejoin
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # set while the grace period holds the panel user active past expiry; cleared on renewal
+    grace_until: Mapped[Optional[datetime]]
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
     # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets
