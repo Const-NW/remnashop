@@ -11,6 +11,7 @@ from app.core.enums import AddOnType, Locale, Role, SubscriptionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.core.utils.time import datetime_now, truncate_to_ms
+from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
@@ -67,6 +68,7 @@ def _update_use_case(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        SettingsRepository(subscription_repository.session),
     )
 
 

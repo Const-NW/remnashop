@@ -200,6 +200,9 @@ class SubscriptionLifecycleService:
         # previous_expire_at is read before the panel call: the panel's webhook may
         # have synced the new expiry into the row by now
         dto = await self._subscription_repository.get_by_id_for_update(subscription_id)
+        if dto.grace_until is not None:
+            # every renewal ends grace; the sync heeds the panel again from here
+            await self._subscription_repository.set_grace_until(subscription_id, None)
         renewed = await self._subscription_repository.apply_state(
             _dto_to_state(dto).reactivate_on_renew(new_expire_at)
         )

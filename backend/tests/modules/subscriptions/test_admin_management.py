@@ -986,6 +986,7 @@ async def test_limits_are_restored_in_the_panel_when_deleted_mid_edit(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        SettingsRepository(subscription_repository.session),
     )
 
     with pytest.raises(ValidationError) as error:
@@ -1025,6 +1026,7 @@ async def test_a_hand_set_expiry_drops_the_term_anchor(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        SettingsRepository(subscription_repository.session),
     )
 
     updated = await use_case(
@@ -1384,6 +1386,7 @@ async def test_an_admin_changes_their_own_subscription_only_with_staff_self_mana
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        SettingsRepository(subscription_repository.session),
     )
 
     with pytest.raises(PermissionDeniedError):
