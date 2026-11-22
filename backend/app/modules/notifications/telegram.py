@@ -73,15 +73,3 @@ async def send_telegram_text(
         logger.warning(f"Telegram notification to {chat_id} failed: {bot_api_error_text(error)}")
         return TelegramSendResult.FAILED
     return TelegramSendResult.SENT
-
-
-async def send_telegram_message(
-    token: str,
-    proxy: Optional[str],
-    chat_id: int,
-    text: str,
-    *,
-    html: bool = False,
-) -> bool:
-    result = await send_telegram_text(token, proxy, chat_id, text, html=html)
-    return result is TelegramSendResult.SENT

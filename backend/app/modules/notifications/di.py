@@ -3,10 +3,12 @@ from dishka import Provider, Scope, provide, provide_all
 from app.modules.notifications.repository import NotificationRepository
 from app.modules.notifications.sources import BotTokenSource, NotificationRendererFactory
 from app.modules.notifications.telegram_data import TelegramCardDataLoader
+from app.modules.notifications.telegram_queue import AdminTelegramQueue
 from app.modules.notifications.usecases import (
     DeleteCustomerPushSubscriptionUseCase,
     DeletePushSubscriptionUseCase,
     DeliverNotificationUseCase,
+    DrainAdminTelegramUseCase,
     GenerateVapidKeysUseCase,
     GetCustomerPushPublicKeyUseCase,
     GetNotificationChannelsUseCase,
@@ -31,6 +33,7 @@ class NotificationsProvider(Provider):
     bot_token_source = provide(BotTokenSource)
     renderer_factory = provide(NotificationRendererFactory)
     telegram_card_data_loader = provide(TelegramCardDataLoader)
+    admin_telegram_queue = provide(AdminTelegramQueue)
     use_cases = provide_all(
         GetNotificationChannelsUseCase,
         UpdateNotificationChannelsUseCase,
@@ -47,6 +50,7 @@ class NotificationsProvider(Provider):
         DeleteCustomerPushSubscriptionUseCase,
         SendTestPushUseCase,
         DeliverNotificationUseCase,
+        DrainAdminTelegramUseCase,
     )
 
 

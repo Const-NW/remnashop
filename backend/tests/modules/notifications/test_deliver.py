@@ -68,25 +68,27 @@ async def _user(
         )
 
 
-@pytest.fixture
-def telegram_calls(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, str]]:
-    calls: list[tuple[int, str]] = []
+class FakeTelegramQueue:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, str]] = []
 
-    async def fake_send(
-        token: str, proxy: Optional[str], chat_id: int, text: str, *, html: bool = False
-    ) -> bool:
-        assert html is True
-        calls.append((chat_id, text))
+    async def send(self, token: str, proxy: Optional[str], chat_id: int, text: str) -> None:
+        self.calls.append((chat_id, text))
         if chat_id == BROKEN_CHAT:
             raise RuntimeError("unexpected client error")
-        return chat_id != BLOCKED_CHAT
 
-    monkeypatch.setattr(deliver_module, "send_telegram_message", fake_send)
-    return calls
+
+@pytest.fixture
+def telegram_queue() -> FakeTelegramQueue:
+    return FakeTelegramQueue()
 
 
 def _use_case(
-    user_repository: UserRepository, uow: UnitOfWork, push: FakePush, token: Optional[str]
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    push: FakePush,
+    token: Optional[str],
+    telegram_queue: Optional[FakeTelegramQueue] = None,
 ) -> DeliverNotificationUseCase:
     return DeliverNotificationUseCase(
         user_repository,
@@ -95,6 +97,7 @@ def _use_case(
         FakeRendererFactory(),  # type: ignore[arg-type]
         FakeBotTokenSource(token),  # type: ignore[arg-type]
         FakeCardDataLoader(),  # type: ignore[arg-type]
+        telegram_queue or FakeTelegramQueue(),  # type: ignore[arg-type]
         AppConfig.get(),
     )
 
@@ -106,7 +109,7 @@ def _login_failed(actor_id: Optional[int] = None) -> DeliverNotificationDto:
 
 
 async def test_delivers_to_permitted_staff_except_the_actor(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     owner = await _user(user_repository, uow, "owner", Role.OWNER)
     actor = await _staff(user_repository, uow, "actor")
@@ -117,7 +120,9 @@ async def test_delivers_to_permitted_staff_except_the_actor(
     customer = await _user(user_repository, uow, "cust", Role.USER)
     push = FakePush()
 
-    await _use_case(user_repository, uow, push, "token").system(_login_failed(actor.id))
+    await _use_case(user_repository, uow, push, "token", telegram_queue).system(
+        _login_failed(actor.id)
+    )
 
     recipients = {user_id for user_id, _ in push.sent}
     assert {owner.id, granted_admin.id} <= recipients
@@ -130,7 +135,7 @@ async def test_delivers_to_permitted_staff_except_the_actor(
 
 
 async def test_revoked_permission_and_switched_off_channel_get_nothing(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     revoked = await _user(
         user_repository, uow, "revoked", Role.OWNER, permission_revokes=["NOTIFICATIONS_VIEW"]
@@ -140,23 +145,23 @@ async def test_revoked_permission_and_switched_off_channel_get_nothing(
         await user_repository.set_notification_channels(quiet.id, {"security": []})
     push = FakePush()
 
-    await _use_case(user_repository, uow, push, "token").system(_login_failed())
+    await _use_case(user_repository, uow, push, "token", telegram_queue).system(_login_failed())
 
     assert {user_id for user_id, _ in push.sent}.isdisjoint({revoked.id, quiet.id})
 
 
 async def test_telegram_refusal_does_not_stop_other_deliveries(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     blocked = await _user(user_repository, uow, "blocked", Role.OWNER, telegram_id=BLOCKED_CHAT)
     other = await _staff(user_repository, uow, "other", telegram_id=777)
     push = FakePush()
 
-    await _use_case(user_repository, uow, push, "token").system(_login_failed())
+    await _use_case(user_repository, uow, push, "token", telegram_queue).system(_login_failed())
 
-    assert {chat for chat, _ in telegram_calls} >= {BLOCKED_CHAT, 777}
+    assert {chat for chat, _ in telegram_queue.calls} >= {BLOCKED_CHAT, 777}
     assert {user_id for user_id, _ in push.sent} >= {blocked.id, other.id}
-    assert telegram_calls[0][1] == (
+    assert telegram_queue.calls[0][1] == (
         "#LoginFailedEvent\n\n<b>🔅 event: Login failed</b>\n\n"
         "ℹ️ <b>details</b>:\n<blockquote>• <b>method</b>: method-password\n"
         "• <b>login</b>: <code>x</code>\n• <b>ip</b>: <code>—</code></blockquote>"
@@ -164,19 +169,19 @@ async def test_telegram_refusal_does_not_stop_other_deliveries(
 
 
 async def test_no_bot_token_skips_telegram(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     await _user(user_repository, uow, "owner", Role.OWNER, telegram_id=777)
-    await _use_case(user_repository, uow, FakePush(), None).system(_login_failed())
-    assert telegram_calls == []
+    await _use_case(user_repository, uow, FakePush(), None, telegram_queue).system(_login_failed())
+    assert telegram_queue.calls == []
 
 
 async def test_event_outside_groups_is_ignored(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     await _user(user_repository, uow, "owner", Role.OWNER)
     push = FakePush()
-    await _use_case(user_repository, uow, push, "token").system(
+    await _use_case(user_repository, uow, push, "token", telegram_queue).system(
         DeliverNotificationDto(
             event_type="LoginSucceededEvent", payload={}, actor_id=None, ip_address=None
         )
@@ -185,23 +190,25 @@ async def test_event_outside_groups_is_ignored(
 
 
 async def test_unexpected_telegram_error_does_not_stop_other_admins(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     await _user(user_repository, uow, "owner", Role.OWNER, telegram_id=BROKEN_CHAT)
     await _staff(user_repository, uow, "other", telegram_id=777)
 
-    await _use_case(user_repository, uow, FakePush(), "token").system(_login_failed())
+    await _use_case(user_repository, uow, FakePush(), "token", telegram_queue).system(
+        _login_failed()
+    )
 
-    assert {chat for chat, _ in telegram_calls} == {BROKEN_CHAT, 777}
+    assert {chat for chat, _ in telegram_queue.calls} == {BROKEN_CHAT, 777}
 
 
 async def test_long_body_is_cut_for_both_channels(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     await _user(user_repository, uow, "owner", Role.OWNER, telegram_id=777)
     push = FakePush()
 
-    await _use_case(user_repository, uow, push, "token").system(
+    await _use_case(user_repository, uow, push, "token", telegram_queue).system(
         DeliverNotificationDto(
             event_type="LoginFailedEvent",
             payload={"login": "x" * 5000},
@@ -212,11 +219,11 @@ async def test_long_body_is_cut_for_both_channels(
 
     [(_, message)] = push.sent
     assert len(message.body) <= deliver_module.MAX_BODY_LENGTH
-    assert len(telegram_calls[0][1]) <= deliver_module.MAX_BODY_LENGTH + 300
+    assert len(telegram_queue.calls[0][1]) <= deliver_module.MAX_BODY_LENGTH + 300
 
 
 async def test_failure_before_sending_is_retryable(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     await _user(user_repository, uow, "owner", Role.OWNER)
 
@@ -231,6 +238,7 @@ async def test_failure_before_sending_is_retryable(
         BrokenFactory(),  # type: ignore[arg-type]
         FakeBotTokenSource("token"),  # type: ignore[arg-type]
         FakeCardDataLoader(),  # type: ignore[arg-type]
+        telegram_queue or FakeTelegramQueue(),  # type: ignore[arg-type]
         AppConfig.get(),
     )
 
@@ -239,7 +247,7 @@ async def test_failure_before_sending_is_retryable(
 
 
 async def test_suppressed_count_is_appended_to_the_body(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     owner = await _user(user_repository, uow, "owner", Role.OWNER)
     push = FakePush()
@@ -251,14 +259,14 @@ async def test_suppressed_count_is_appended_to_the_body(
         suppressed=3,
     )
 
-    await _use_case(user_repository, uow, push, None).system(data)
+    await _use_case(user_repository, uow, push, None, telegram_queue).system(data)
 
     message = next(m for user_id, m in push.sent if user_id == owner.id)
     assert message.body == "Wrong password for x\n3 more not sent."
 
 
 async def test_a_merged_window_says_so_in_the_body(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     owner = await _user(user_repository, uow, "owner", Role.OWNER)
     push = FakePush()
@@ -270,21 +278,21 @@ async def test_a_merged_window_says_so_in_the_body(
         sources_merged=True,
     )
 
-    await _use_case(user_repository, uow, push, None).system(data)
+    await _use_case(user_repository, uow, push, None, telegram_queue).system(data)
 
     message = next(m for user_id, m in push.sent if user_id == owner.id)
     assert message.body == "Wrong password for x\nSources merged."
 
 
 async def test_telegram_card_shows_the_customer_but_not_the_system_actor(
-    user_repository: UserRepository, uow: UnitOfWork, telegram_calls: list[tuple[int, str]]
+    user_repository: UserRepository, uow: UnitOfWork, telegram_queue: FakeTelegramQueue
 ) -> None:
     await _user(user_repository, uow, "owner", Role.OWNER, telegram_id=777)
     customer = {"id": 5, "name": "Ivan", "role": "USER", "telegram_id": 42, "username": "ivan"}
     system = {"id": -1, "name": "SYSTEM", "role": "SYSTEM"}
 
     for snapshot in (customer, system):
-        await _use_case(user_repository, uow, FakePush(), "token").system(
+        await _use_case(user_repository, uow, FakePush(), "token", telegram_queue).system(
             DeliverNotificationDto(
                 event_type="LoginFailedEvent",
                 payload={"login": "x", "user": snapshot},
@@ -293,6 +301,6 @@ async def test_telegram_card_shows_the_customer_but_not_the_system_actor(
             )
         )
 
-    shown, hidden = (text for _, text in telegram_calls)
+    shown, hidden = (text for _, text in telegram_queue.calls)
     assert "• <b>name</b>: Ivan\n• <b>telegram-id</b>: <code>42</code>" in shown
     assert "SYSTEM" not in hidden

@@ -8,6 +8,7 @@ from app.modules.notifications.usecases.delete_push_subscription import (
     DeletePushSubscriptionUseCase,
 )
 from app.modules.notifications.usecases.deliver_notification import DeliverNotificationUseCase
+from app.modules.notifications.usecases.drain_admin_telegram import DrainAdminTelegramUseCase
 from app.modules.notifications.usecases.generate_vapid_keys import GenerateVapidKeysUseCase
 from app.modules.notifications.usecases.get_notification_channels import (
     GetNotificationChannelsUseCase,
@@ -30,6 +31,7 @@ __all__ = [
     "DeleteCustomerPushSubscriptionUseCase",
     "DeletePushSubscriptionUseCase",
     "DeliverNotificationUseCase",
+    "DrainAdminTelegramUseCase",
     "GenerateVapidKeysUseCase",
     "GetCustomerPushPublicKeyUseCase",
     "GetNotificationChannelsUseCase",
