@@ -20,6 +20,7 @@ SHORT_RETENTION_EVENT_TYPES: Final[frozenset[str]] = frozenset(
         "SubscriptionExpiredEvent",
         "SubscriptionExpiringEvent",
         "SubscriptionFirstConnectedEvent",
+        "SubscriptionGraceStartedEvent",
         "SubscriptionNotConnectedEvent",
         "SubscriptionStatusSyncedEvent",
         "SubscriptionTrafficLimitedEvent",

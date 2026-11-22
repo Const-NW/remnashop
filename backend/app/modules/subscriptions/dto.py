@@ -208,6 +208,7 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     term_anchor_day: Optional[int] = None
     paused_by_channel_leave: bool = False
     grace_until: Optional[datetime] = None
+    grace_ended_at: Optional[datetime] = None
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 
     @property

@@ -917,6 +917,7 @@
       "SubscriptionGrantedEvent": "Подписка выдана",
       "SubscriptionExpiringEvent": "Подписка скоро истечёт",
       "SubscriptionExpiredEvent": "Подписка истекла",
+      "SubscriptionGraceStartedEvent": "Начался грейс-период",
       "SubscriptionTrafficLimitedEvent": "Лимит трафика исчерпан",
       "SubscriptionTrafficThresholdEvent": "Порог трафика достигнут",
       "SubscriptionPlanChangedByAdminEvent": "План подписки изменён администратором",

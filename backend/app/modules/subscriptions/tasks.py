@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Optional
+from typing import Final, Optional
 from uuid import UUID
 
 from dishka.integrations.taskiq import FromDishka, inject
@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 
 from app.core.broker import broker
 from app.core.enums import Currency, PanelSyncDirection, PurchaseType
+from app.core.utils.lock import cron_lock
 from app.modules.subscriptions.dto import (
     GrantAddOnDto,
     PlanSnapshot,
@@ -22,9 +23,12 @@ from app.modules.subscriptions.usecases import (
     GrantAddOnUseCase,
     ProcessRemnawaveWebhookUseCase,
     PruneIdempotencyKeysUseCase,
+    SweepGraceUseCase,
     SyncAllFromPanelUseCase,
     SyncAllToPanelUseCase,
 )
+
+_GRACE_SWEEP_LOCK_TTL_S: Final[int] = 55
 
 
 @broker.task(retry_on_error=True, max_retries=3)
@@ -133,3 +137,13 @@ async def prune_subscription_idempotency_task(
     use_case: FromDishka[PruneIdempotencyKeysUseCase],
 ) -> None:
     await use_case.system()
+
+
+@broker.task(schedule=[{"cron": "*/1 * * * *"}])
+@inject(patch_module=True)
+async def sweep_grace_task(
+    use_case: FromDishka[SweepGraceUseCase], redis: FromDishka[Redis]
+) -> None:
+    async with cron_lock(redis, "grace_sweep", ttl_seconds=_GRACE_SWEEP_LOCK_TTL_S) as acquired:
+        if acquired:
+            await use_case.system()

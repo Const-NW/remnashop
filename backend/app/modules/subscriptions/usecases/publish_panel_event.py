@@ -54,6 +54,7 @@ _PLAIN_USER_EVENTS: Final[dict[str, Callable[..., BaseEvent]]] = {
     "user.traffic_reset": SubscriptionTrafficResetEvent,
     "user.revoked": SubscriptionRevokedEvent,
 }
+_MUTED_IN_GRACE: Final[frozenset[str]] = frozenset({"user.expiration", "user.limited"})
 _NODE_EVENTS: Final[dict[str, Callable[..., BaseEvent]]] = {
     "node.connection_restored": NodeConnectionRestoredEvent,
     "node.traffic_notify": NodeTrafficReachedEvent,
@@ -202,6 +203,9 @@ class PublishPanelEventUseCase(UseCase[PublishPanelEventDto, None]):
                 remnawave_user_id
             )
             if subscription is None or subscription.status is SubscriptionStatus.DELETED:
+                return
+            # the panel counts these from the grace end, and grace traffic runs out by design
+            if subscription.grace_until is not None and payload.event in _MUTED_IN_GRACE:
                 return
             owner = await self._user_repository.find_by_id(subscription.user_id)
             if owner is None:

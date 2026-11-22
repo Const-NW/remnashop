@@ -135,6 +135,15 @@ class SubscriptionExpiredEvent(UserEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class SubscriptionGraceStartedEvent(UserEvent):
+    category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
+    subscription_id: int
+    # ISO 8601, as event payloads carry dates
+    grace_until: str
+    traffic_limit_mb: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class SubscriptionTrafficLimitedEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int

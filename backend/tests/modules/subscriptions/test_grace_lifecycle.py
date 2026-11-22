@@ -1,0 +1,558 @@
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any, Final, Optional
+from uuid import UUID, uuid4
+
+import httpx
+import pytest
+from redis.asyncio import Redis
+from remnapy import RemnawaveSDK
+from remnapy.enums import TrafficLimitStrategy
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import AppConfig
+from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
+from app.core.db.models import EventOutboxEntry
+from app.core.db.uow import UnitOfWork
+from app.core.enums import PlanType, SubscriptionStatus
+from app.core.exceptions import RetryableTaskError
+from app.core.ports import EventPublisher
+from app.core.utils.time import datetime_now, truncate_to_ms
+from app.modules.plans.dto import (
+    CreatePlanDto,
+    PlanDto,
+    SetPlanDurationDto,
+    SetPlanDurationsDto,
+    UpdatePlanDto,
+)
+from app.modules.plans.repository import PlanRepository
+from app.modules.settings import SettingsRepository
+from app.modules.settings.dto import UpdateGraceSettingsDto
+from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
+from app.modules.subscriptions.dto import (
+    ProcessRemnawaveWebhookDto,
+    SubscriptionDto,
+    UpdateSubscriptionSquadsDto,
+)
+from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.repository import SubscriptionRepository
+from app.modules.subscriptions.usecases import (
+    EndGraceUseCase,
+    EnterGraceUseCase,
+    ProcessRemnawaveWebhookUseCase,
+    PublishPanelEventUseCase,
+    SweepGraceUseCase,
+    SyncSubscriptionStatusUseCase,
+)
+from app.modules.users.repository import UserRepository
+from tests.fakes.remnawave import FakeUserStore, _user_payload
+from tests.fakes.remnawave_webhook import sign_webhook, user_event_payload
+from tests.modules.subscriptions.factories import create_subscription
+
+_GRACE_SQUAD: Final[UUID] = uuid4()
+_PLAN_SQUAD: Final[UUID] = uuid4()
+_CUSTOMER_EVENTS: Final[tuple[str, ...]] = (
+    "SubscriptionGraceStartedEvent",
+    "SubscriptionExpiredEvent",
+    "SubscriptionExpiringEvent",
+    "SubscriptionExpiredAgoEvent",
+    "SubscriptionTrafficLimitedEvent",
+)
+
+
+class _Grace:
+    def __init__(
+        self,
+        session: AsyncSession,
+        sdk: RemnawaveSDK,
+        uow: UnitOfWork,
+        publisher: EventPublisher,
+        redis: Redis,
+    ) -> None:
+        subscriptions = SubscriptionRepository(session)
+        users = UserRepository(session)
+        self.enter = EnterGraceUseCase(
+            subscriptions,
+            PlanRepository(session),
+            SettingsRepository(session),
+            users,
+            sdk,
+            uow,
+            publisher,
+        )
+        self.end = EndGraceUseCase(subscriptions, users, sdk, uow, publisher)
+        self.sweep = SweepGraceUseCase(
+            subscriptions, SettingsRepository(session), uow, self.enter, self.end
+        )
+        sync = SyncSubscriptionStatusUseCase(
+            subscriptions,
+            uow,
+            publisher,
+            SubscriptionLifecycleService(subscriptions, CreditSegmentRepository(session)),
+        )
+        publish = PublishPanelEventUseCase(subscriptions, users, uow, publisher)
+        self.webhook = ProcessRemnawaveWebhookUseCase(
+            sync, publish, self.enter, self.end, subscriptions, uow, redis
+        )
+
+
+@pytest.fixture
+def grace(
+    session: AsyncSession,
+    remnawave_sdk: RemnawaveSDK,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> _Grace:
+    return _Grace(session, remnawave_sdk, uow, event_publisher, redis)
+
+
+async def _enable_grace(settings_repository: SettingsRepository) -> None:
+    await settings_repository.update_grace_settings(
+        UpdateGraceSettingsDto(
+            enabled=True,
+            internal_squads=[_GRACE_SQUAD],
+            traffic_limit_mb=512,
+            traffic_limit_strategy=TrafficLimitStrategy.DAY,
+            tag="GRACE",
+            duration_days=3,
+            fields_set=frozenset(
+                {
+                    "enabled",
+                    "internal_squads",
+                    "traffic_limit_mb",
+                    "traffic_limit_strategy",
+                    "tag",
+                    "duration_days",
+                }
+            ),
+        )
+    )
+
+
+async def _paid_plan(plan_repository: PlanRepository) -> PlanDto:
+    plan = await plan_repository.create(
+        CreatePlanDto(
+            public_code=f"grace{uuid4().hex[:6]}",
+            name=f"grace{uuid4().hex[:6]}",
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=3,
+        )
+    )
+    await plan_repository.set_durations(
+        SetPlanDurationsDto(
+            plan_id=plan.id,
+            durations=[SetPlanDurationDto(days=30, order_index=0, base_price=Decimal("500.00"))],
+        )
+    )
+    return await plan_repository.update(UpdatePlanDto(plan_id=plan.id, is_active=True))
+
+
+async def _expired(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan: PlanDto,
+    store: FakeUserStore,
+    panel_id: int,
+    *,
+    expire_at: Optional[datetime] = None,
+    is_trial: bool = False,
+) -> SubscriptionDto:
+    expire_at = truncate_to_ms(expire_at or datetime_now() - timedelta(minutes=5))
+    subscription = await create_subscription(
+        subscription_repository,
+        user_repository,
+        telegram_id=panel_id,
+        remnawave_user_id=panel_id,
+        status=SubscriptionStatus.EXPIRED,
+        expire_at=expire_at,
+        is_trial=is_trial,
+        plan_id=plan.id,
+    )
+    await subscription_repository.update_squads(
+        UpdateSubscriptionSquadsDto(
+            subscription_id=subscription.id, internal_squads=[_PLAN_SQUAD], external_squad=None
+        )
+    )
+    subscription = await subscription_repository.set_tag(subscription.id, "PLAN")
+    payload = _user_payload(
+        user_id=panel_id,
+        username=f"rs_{panel_id}",
+        expire_at=expire_at,
+        traffic_limit_bytes=100 * GB_TO_BYTES,
+        hwid_device_limit=3,
+        active_internal_squads=[str(_PLAN_SQUAD)],
+    )
+    payload["status"] = "EXPIRED"
+    payload["tag"] = "PLAN"
+    store[panel_id] = payload
+    return subscription
+
+
+def _webhook(
+    config: AppConfig,
+    event: str,
+    panel_id: int,
+    status: str,
+    expire_at: datetime,
+    meta: Optional[dict[str, Any]] = None,
+    **data: Any,
+) -> ProcessRemnawaveWebhookDto:
+    payload = user_event_payload(event=event, remnawave_user_id=panel_id, status=status)
+    payload["data"]["expireAt"] = expire_at.isoformat()
+    payload["data"].update(data)
+    if meta is not None:
+        payload["meta"] = meta
+    secret = config.remnawave.webhook_secret.get_secret_value()  # type: ignore[union-attr]
+    body, _ = sign_webhook(payload, secret)
+    return ProcessRemnawaveWebhookDto(body=body.decode())
+
+
+async def _events(session: AsyncSession, subscription_id: int) -> list[str]:
+    result = await session.scalars(
+        select(EventOutboxEntry.event_type)
+        .where(EventOutboxEntry.payload["subscription_id"].as_integer() == subscription_id)
+        .where(EventOutboxEntry.event_type.in_(_CUSTOMER_EVENTS))
+        .order_by(EventOutboxEntry.id)
+    )
+    return list(result.all())
+
+
+def _panel_expire_at(store: FakeUserStore, panel_id: int) -> datetime:
+    return datetime.fromisoformat(str(store[panel_id]["expireAt"]).replace("Z", "+00:00"))
+
+
+async def test_expired_webhook_enters_grace(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_001)
+
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_001, "EXPIRED", before.expire_at)
+    )
+
+    after = await subscription_repository.get_by_id(before.id)
+    assert after.status is SubscriptionStatus.EXPIRED
+    assert truncate_to_ms(after.expire_at) == truncate_to_ms(before.expire_at)
+    assert after.grace_until is not None
+    assert after.grace_until > datetime_now() + timedelta(days=2)
+    panel = remnawave_store[94_001]
+    assert panel["status"] == "ACTIVE"
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_001)) == truncate_to_ms(
+        after.grace_until
+    )
+    assert panel["trafficLimitBytes"] == 512 * MB_TO_BYTES
+    assert panel["tag"] == "GRACE"
+    assert panel["lastTrafficResetAt"] is not None
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def test_disabled_grace_keeps_current_path(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_002)
+
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_002, "EXPIRED", before.expire_at)
+    )
+
+    after = await subscription_repository.get_by_id(before.id)
+    assert after.grace_until is None
+    assert remnawave_store[94_002]["status"] == "EXPIRED"
+    assert remnawave_store[94_002]["lastTrafficResetAt"] is None
+    assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_trial_gets_no_grace(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(
+        subscription_repository, user_repository, plan, remnawave_store, 94_003, is_trial=True
+    )
+
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_003, "EXPIRED", before.expire_at)
+    )
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_panel_refusal_clears_claim(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_004)
+    broken = RemnawaveSDK(
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(500, json={"message": "panel down"})
+            ),
+            base_url="http://fake-panel.test/api",
+        )
+    )
+
+    with pytest.raises(RetryableTaskError):
+        await _Grace(session, broken, uow, event_publisher, redis).enter.system(before.id)
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    assert await _events(session, before.id) == []
+
+
+async def test_retry_enters_once(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_005)
+
+    assert await grace.enter.system(before.id) is True
+    first = (await subscription_repository.get_by_id(before.id)).grace_until
+    assert await grace.enter.system(before.id) is True
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until == first
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def test_repeat_expired_during_grace_ignored(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_006)
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_006, "EXPIRED", before.expire_at)
+    )
+    in_grace = await subscription_repository.get_by_id(before.id)
+
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_006, "EXPIRED", before.expire_at)
+    )
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until == (
+        in_grace.grace_until
+    )
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def _grace_ended(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    store: FakeUserStore,
+    panel_id: int,
+) -> tuple[SubscriptionDto, datetime]:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    ended_at = truncate_to_ms(datetime_now() - timedelta(minutes=1))
+    subscription = await _expired(
+        subscription_repository,
+        user_repository,
+        plan,
+        store,
+        panel_id,
+        expire_at=ended_at - timedelta(days=3),
+    )
+    subscription = await subscription_repository.set_grace_until(subscription.id, ended_at)
+    # the panel as the grace push left it, expired by itself at grace_until
+    store[panel_id].update(
+        {
+            "expireAt": ended_at.isoformat(),
+            "trafficLimitBytes": 512 * MB_TO_BYTES,
+            "trafficLimitStrategy": "DAY",
+            "tag": "GRACE",
+            "activeInternalSquads": [{"uuid": str(_GRACE_SQUAD), "name": "grace"}],
+        }
+    )
+    return subscription, ended_at
+
+
+async def test_grace_end_restores_plan_config(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    subscription, ended_at = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_007,
+    )
+
+    await grace.webhook.system(_webhook(config, "user.expired", 94_007, "EXPIRED", ended_at))
+
+    after = await subscription_repository.get_by_id(subscription.id)
+    assert after.grace_until is None
+    assert after.status is SubscriptionStatus.EXPIRED
+    panel = remnawave_store[94_007]
+    assert panel["trafficLimitBytes"] == 100 * GB_TO_BYTES
+    assert panel["trafficLimitStrategy"] == "NO_RESET"
+    assert panel["tag"] == "PLAN"
+    assert panel["status"] == "EXPIRED"
+    assert await _events(session, subscription.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_no_reentry_after_end(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    subscription, ended_at = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_008,
+    )
+    await grace.webhook.system(_webhook(config, "user.expired", 94_008, "EXPIRED", ended_at))
+    # the end push's echo: the panel keeps grace_until as its expiry
+    await grace.webhook.system(
+        _webhook(
+            config,
+            "user.modified",
+            94_008,
+            "EXPIRED",
+            ended_at,
+            trafficLimitBytes=100 * GB_TO_BYTES,
+            tag="PLAN",
+            activeInternalSquads=[{"uuid": str(_PLAN_SQUAD), "name": "plan"}],
+        )
+    )
+    await grace.sweep.system()
+    await grace.webhook.system(_webhook(config, "user.expired", 94_008, "EXPIRED", ended_at))
+
+    after = await subscription_repository.get_by_id(subscription.id)
+    assert after.grace_until is None
+    assert remnawave_store[94_008]["status"] == "EXPIRED"
+    assert await _events(session, subscription.id) == [
+        "SubscriptionExpiredEvent",
+        "SubscriptionExpiredEvent",
+    ]
+
+
+async def test_sweep_picks_missed_webhook(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    ended, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_009,
+    )
+    plan = await _paid_plan(plan_repository)
+    missed = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_010)
+    too_old = await _expired(
+        subscription_repository,
+        user_repository,
+        plan,
+        remnawave_store,
+        94_011,
+        expire_at=datetime_now() - timedelta(days=2),
+    )
+
+    await grace.sweep.system()
+
+    assert (await subscription_repository.get_by_id(missed.id)).grace_until is not None
+    assert await _events(session, missed.id) == ["SubscriptionGraceStartedEvent"]
+    assert (await subscription_repository.get_by_id(ended.id)).grace_until is None
+    assert await _events(session, ended.id) == ["SubscriptionExpiredEvent"]
+    assert (await subscription_repository.get_by_id(too_old.id)).grace_until is None
+    assert await _events(session, too_old.id) == []
+
+
+async def test_expiration_and_limited_muted_in_grace(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_012)
+    assert await grace.enter.system(before.id) is True
+    grace_until = (await subscription_repository.get_by_id(before.id)).grace_until
+    assert grace_until is not None
+    moment = datetime.now(timezone.utc)
+    assert grace_until > moment
+
+    await grace.webhook.system(
+        _webhook(config, "user.expiration", 94_012, "ACTIVE", grace_until, {"expiration": -24})
+    )
+    await grace.webhook.system(_webhook(config, "user.limited", 94_012, "LIMITED", grace_until))
+
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]

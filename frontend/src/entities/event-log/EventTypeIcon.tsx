@@ -197,6 +197,7 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   SubscriptionGrantedEvent: Gift,
   SubscriptionExpiringEvent: Clock,
   SubscriptionExpiredEvent: CalendarX,
+  SubscriptionGraceStartedEvent: Hourglass,
   SubscriptionTrafficLimitedEvent: Gauge,
   SubscriptionTrafficThresholdEvent: GaugeCircle,
   SubscriptionPlanChangedByAdminEvent: ArrowLeftRight,

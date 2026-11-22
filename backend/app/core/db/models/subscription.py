@@ -57,6 +57,9 @@ class Subscription(BaseSql, TimestampMixin):
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
     # set while the grace period holds the panel user active past expiry; cleared on renewal
     grace_until: Mapped[Optional[datetime]]
+    # the last grace's end: the panel keeps it as its expiry, so a sync brings it into
+    # expire_at and the row would look freshly expired again
+    grace_ended_at: Mapped[Optional[datetime]]
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
     # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets

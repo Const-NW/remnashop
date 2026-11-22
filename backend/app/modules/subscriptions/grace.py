@@ -26,6 +26,11 @@ def grace_entry_allowed(
         settings.enabled
         and subscription.status is SubscriptionStatus.EXPIRED
         and subscription.grace_until is None
+        # an expiry no later than the last grace's end is that grace's own
+        and (
+            subscription.grace_ended_at is None
+            or subscription.expire_at > subscription.grace_ended_at
+        )
         and now - subscription.expire_at < GRACE_ENTRY_WINDOW
         and can_renew(subscription, plan)
     )

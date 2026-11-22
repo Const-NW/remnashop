@@ -847,6 +847,7 @@
       "SubscriptionGrantedEvent": "Subscription granted",
       "SubscriptionExpiringEvent": "Subscription expiring",
       "SubscriptionExpiredEvent": "Subscription expired",
+      "SubscriptionGraceStartedEvent": "Grace period started",
       "SubscriptionTrafficLimitedEvent": "Traffic limit reached",
       "SubscriptionTrafficThresholdEvent": "Traffic threshold reached",
       "SubscriptionPlanChangedByAdminEvent": "Subscription plan changed by admin",

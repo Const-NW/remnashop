@@ -111,6 +111,7 @@ class SubscriptionRepository:
             term_anchor_day=row.term_anchor_day,
             paused_by_channel_leave=row.paused_by_channel_leave,
             grace_until=row.grace_until,
+            grace_ended_at=row.grace_ended_at,
             addon_entitlements=entitlements,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -559,6 +560,15 @@ class SubscriptionRepository:
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
 
+    async def end_grace(self, subscription_id: int) -> SubscriptionDto:
+        row = await self._get_or_raise(subscription_id)
+        row.grace_ended_at = row.grace_until
+        row.grace_until = None
+        await self.session.flush()
+        await self.session.refresh(row)
+        entitlements_by_subscription = await self._load_entitlements([row.id])
+        return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
     async def _list_where(self, *conditions: Any, limit: int) -> list[SubscriptionDto]:
         result = await self.session.execute(
             select(Subscription).where(*conditions).order_by(Subscription.id).limit(limit)
@@ -572,11 +582,21 @@ class SubscriptionRepository:
             Subscription.status == SubscriptionStatus.EXPIRED,
             Subscription.grace_until.is_(None),
             Subscription.expire_at > now - GRACE_ENTRY_WINDOW,
+            or_(
+                Subscription.grace_ended_at.is_(None),
+                Subscription.expire_at > Subscription.grace_ended_at,
+            ),
+            # trials never get grace and would crowd the batch out for the whole window
+            Subscription.is_trial.is_(False),
             limit=limit,
         )
 
     async def list_grace_ended(self, now: datetime, limit: int) -> list[SubscriptionDto]:
-        return await self._list_where(Subscription.grace_until <= now, limit=limit)
+        return await self._list_where(
+            Subscription.grace_until <= now,
+            Subscription.status != SubscriptionStatus.DELETED,
+            limit=limit,
+        )
 
     async def set_first_connected_at(self, remnawave_user_id: int, at: datetime) -> None:
         await self.session.execute(
