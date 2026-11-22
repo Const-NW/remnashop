@@ -1,6 +1,7 @@
 import secrets
 from dataclasses import replace
 from datetime import timedelta
+from decimal import Decimal
 from typing import Any, Optional, Union, cast
 
 import pytest
@@ -36,7 +37,7 @@ from app.modules.notifications.dto import PushMessage
 from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
 from app.modules.plans import PlanRepository
-from app.modules.plans.dto import CreatePlanDto
+from app.modules.plans.dto import CreatePlanDto, SetPlanDurationDto, SetPlanDurationsDto
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.subscriptions import SubscriptionRepository
@@ -911,15 +912,32 @@ async def _traffic_subscription(
     return subscription.id
 
 
-async def test_traffic_threshold_names_the_reset_date_and_renewal(fx: _Fixture) -> None:
-    user = await fx.create(name="tt", telegram_id=8401)
-    plan = await PlanRepository(fx.orders.session).create(
+async def _plan(fx: _Fixture, code: str, price: str, *, allow_renewal: bool = True) -> int:
+    plans = PlanRepository(fx.orders.session)
+    plan = await plans.create(
         CreatePlanDto(
-            public_code="tt-plan", name="TT", type=PlanType.BOTH, traffic_limit=100, device_limit=1
+            public_code=code,
+            name=code,
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=1,
+            allow_renewal=allow_renewal,
         )
     )
+    await plans.set_durations(
+        SetPlanDurationsDto(
+            plan_id=plan.id,
+            durations=[SetPlanDurationDto(days=30, order_index=0, base_price=Decimal(price))],
+        )
+    )
+    return plan.id
+
+
+async def test_traffic_threshold_names_the_reset_date_and_renewal(fx: _Fixture) -> None:
+    user = await fx.create(name="tt", telegram_id=8401)
+    plan_id = await _plan(fx, "tt-plan", "5")
     subscription_id = await _traffic_subscription(
-        fx, user, 880_401, strategy=TrafficLimitStrategy.DAY, plan_id=plan.id
+        fx, user, 880_401, strategy=TrafficLimitStrategy.DAY, plan_id=plan_id
     )
 
     await fx.notify(
@@ -939,19 +957,15 @@ async def test_traffic_threshold_names_the_reset_date_and_renewal(fx: _Fixture) 
     }
 
 
-async def test_traffic_threshold_offers_no_renewal_a_plan_closes(fx: _Fixture) -> None:
+@pytest.mark.parametrize(
+    ("price", "allow_renewal"), [("5", False), ("0", True)], ids=["closed", "free"]
+)
+async def test_traffic_threshold_offers_no_renewal_a_plan_cant_give(
+    price: str, allow_renewal: bool, fx: _Fixture
+) -> None:
     user = await fx.create(name="tn", telegram_id=8402)
-    plan = await PlanRepository(fx.orders.session).create(
-        CreatePlanDto(
-            public_code="tn-plan",
-            name="TN",
-            type=PlanType.BOTH,
-            traffic_limit=100,
-            device_limit=1,
-            allow_renewal=False,
-        )
-    )
-    subscription_id = await _traffic_subscription(fx, user, 880_402, plan_id=plan.id)
+    plan_id = await _plan(fx, f"tn-{price}", price, allow_renewal=allow_renewal)
+    subscription_id = await _traffic_subscription(fx, user, 880_402, plan_id=plan_id)
 
     await fx.notify(
         user,
@@ -963,6 +977,27 @@ async def test_traffic_threshold_offers_no_renewal_a_plan_closes(fx: _Fixture) -
     (row,) = await fx.feed_rows(user)
     # NO_RESET: the counter never comes back on its own
     assert (row.args["reset_date"], row.args["can_renew"]) == ("none", "no")
+    # and no "Renew" button under a text that doesn't suggest it
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Close"]
+
+
+async def test_traffic_threshold_gets_a_renew_button_where_it_suggests_renewing(
+    fx: _Fixture,
+) -> None:
+    user = await fx.create(name="tb", telegram_id=8404)
+    plan_id = await _plan(fx, "tb-plan", "5")
+    subscription_id = await _traffic_subscription(fx, user, 880_404, plan_id=plan_id)
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Renew", "Close"]
 
 
 async def test_traffic_threshold_is_dropped_once_the_subscription_is_limited(fx: _Fixture) -> None:

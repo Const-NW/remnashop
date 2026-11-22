@@ -382,7 +382,12 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
     ) -> list[dict[str, str]]:
         # (label key, "callback_data" or "url", value)
         buttons: list[tuple[str, str, str]] = []
-        if data.event_type in _RENEWABLE and data.subscription_id is not None:
+        # the traffic warning offers it only where its text does
+        renewable = data.event_type in _RENEWABLE or (
+            data.event_type == SubscriptionTrafficThresholdEvent.__name__
+            and (data.args.get("is_trial") == "yes" or data.args.get("can_renew") == "yes")
+        )
+        if renewable and data.subscription_id is not None:
             # a trial isn't renewed: a purchase replaces it and keeps its link
             if subscription is not None and subscription.is_trial:
                 buttons.append(
@@ -438,8 +443,8 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         if data.event_type == SubscriptionTrafficLimitedEvent.__name__ and subscription:
             args["traffic_strategy"] = subscription.traffic_limit_strategy.value
         if data.event_type == SubscriptionTrafficThresholdEvent.__name__:
-            # limited since the panel sent it: "used up" was or will be said instead
-            if subscription is None or subscription.status is SubscriptionStatus.LIMITED:
+            # limited, expired or gone since the panel sent it: nothing left to warn about
+            if subscription is None or subscription.status is not SubscriptionStatus.ACTIVE:
                 return None
             args |= await self._traffic_threshold_args(subscription)
         return replace(data, args=args)
@@ -455,7 +460,8 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
                     plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
                 except NotFoundError:
                     plan = None
-            can_renew = plan is not None and plan.allow_renewal
+            # a free duration isn't renewed either: the renewal catalog would come up empty
+            can_renew = plan is not None and plan.allow_renewal and bool(plan.renewable_durations())
         return {
             "reset_date": reset.strftime(DATE_FORMAT) if reset is not None else "none",
             "can_renew": "yes" if can_renew else "no",

@@ -17,6 +17,14 @@ _ORDER = {"order_id": 42}
         ("SubscriptionPurchasedEvent", None, {}, "/"),
         *[(f"Subscription{n}Event", 7, {}, "/?sub=7&renew=1") for n in _RENEW],
         ("SubscriptionExpiringEvent", None, {}, "/"),
+        # a traffic warning with no renewal to offer opens the subscription
+        ("SubscriptionTrafficThresholdEvent", 7, {"can_renew": "no"}, "/?sub=7"),
+        (
+            "SubscriptionTrafficThresholdEvent",
+            7,
+            {"can_renew": "no", "is_trial": "yes"},
+            "/?sub=7&renew=1",
+        ),
         ("TransactionRefundedEvent", None, _ORDER, "/profile/payments?id=42"),
         ("TransactionPartiallyRefundedEvent", None, _ORDER, "/profile/payments?id=42"),
         ("TransactionRefundedEvent", None, {}, "/profile/payments"),

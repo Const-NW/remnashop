@@ -140,7 +140,7 @@ def test_changed_template_renders(locale: Locale, event_type: str) -> None:
             "SubscriptionTrafficThresholdEvent",
             {"percent": 80, "reset_date": "01.12.2026", "is_trial": "no", "can_renew": "yes"},
             "You've used 80% of your traffic. It resets on 01.12.2026. Renew your subscription "
-            "to reset it now.",
+            "to restore it now.",
         ),
         (
             Locale.RU,
@@ -153,7 +153,7 @@ def test_changed_template_renders(locale: Locale, event_type: str) -> None:
             "SubscriptionTrafficThresholdEvent",
             # a feed row stored before percent and the reset date were
             {"is_trial": "no"},
-            "Трафик подходит к концу. Продлите подписку, чтобы сбросить его сейчас.",
+            "Трафик подходит к концу. Продлите подписку, чтобы восстановить его сейчас.",
         ),
         (
             Locale.EN,

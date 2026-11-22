@@ -177,7 +177,7 @@ ntf-customer-subscription-traffic-threshold = { $percent ->
     }{ $is_trial ->
         [yes] {" "}Get a subscription to keep your access.
        *[no] { $can_renew ->
-            [yes] {" "}Renew your subscription to reset it now.
+            [yes] {" "}Renew your subscription to restore it now.
            *[no] {""}
         }
     }

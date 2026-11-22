@@ -114,7 +114,7 @@ def _traffic_threshold_event(
     percent = 0
     if isinstance(data, WebhookUserDto):
         # a limited subscription already got "traffic used up": nothing left to warn about
-        if data.status == "LIMITED":
+        if data.status == SubscriptionStatus.LIMITED:
             return None
         percent = data.last_triggered_threshold
     return SubscriptionTrafficThresholdEvent(
