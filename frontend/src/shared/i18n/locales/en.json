@@ -1370,7 +1370,7 @@
     },
     "botMenu": {
       "action": "Reset the bot menu",
-      "done": "The customer got a fresh main menu."
+      "done": "The main menu was sent to the customer."
     },
     "emailUndeliverable": {
       "badge": "Undeliverable",
