@@ -33,7 +33,13 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_date, format_expiry, format_expiry_tag, get_translator
+from app.telegram.i18n import (
+    format_date,
+    format_date_tag,
+    format_expiry,
+    format_expiry_tag,
+    get_translator,
+)
 from app.telegram.routers.subscriptions.handlers import SELECTED_HWID_KEY
 
 # the open device card's title and whether the customer named it, for the rename window
@@ -286,6 +292,7 @@ async def device_getter(
             device_system=" ".join(filter(None, (device.platform, device.os_version))),
             device_app=device.app or "",
             device_created_at=format_date(device.created_at),
+            device_created_at_unix=format_date_tag(device.created_at),
             **resolve_variable_kwargs({}),
         )
     data: dict[str, Any] = {

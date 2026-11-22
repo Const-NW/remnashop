@@ -85,7 +85,7 @@ msg-menu-device =
     Модель: { $device_model }
     Система: { $device_system }
     Приложение: { $device_app }
-    Подключено: { $device_created_at }
+    Подключено: { $device_created_at_unix }
 msg-menu-device-rename = Отправьте новое имя для «{ $device_name }» — до { $device_name_max_length } символов.
 msg-menu-devices-confirm-delete = Удалить это устройство?
 msg-menu-devices-confirm-delete-all = Удалить все устройства? Ссылка подключения сменится, все устройства потеряют доступ — каждое придётся подключать заново по новой ссылке.

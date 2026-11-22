@@ -86,18 +86,22 @@ def format_expiry(runner: TranslatorRunner, value: datetime, *, with_time: bool 
     return format_datetime(value) if with_time else format_date(value)
 
 
-def format_expiry_tag(
-    runner: TranslatorRunner, value: datetime, *, with_time: bool = False
-) -> TrustedHtml:
-    """The expiry as <tg-time>, shown in the reader's own time zone; the inner
+def format_date_tag(value: datetime, *, with_time: bool = False) -> TrustedHtml:
+    """The date as <tg-time>, shown in the reader's own time zone; the inner
     text is for clients that don't know the tag."""
-    text = html.escape(format_expiry(runner, value, with_time=with_time))
-    if is_unlimited_expiry(value):
-        return TrustedHtml(text)
+    text = format_datetime(value) if with_time else format_date(value)
     tg_format = _TG_DATETIME_FORMAT if with_time else _TG_DATE_FORMAT
     return TrustedHtml(
         f'<tg-time unix="{int(value.timestamp())}" format="{tg_format}">{text}</tg-time>'
     )
+
+
+def format_expiry_tag(
+    runner: TranslatorRunner, value: datetime, *, with_time: bool = False
+) -> TrustedHtml:
+    if is_unlimited_expiry(value):
+        return TrustedHtml(html.escape(runner.get("time-unit.no-expiry")))
+    return format_date_tag(value, with_time=with_time)
 
 
 def format_period(runner: TranslatorRunner, days: int) -> str:

@@ -3030,6 +3030,7 @@
       "device_system": "Система устройства",
       "device_app": "Приложение и его версия",
       "device_created_at": "Дата подключения устройства",
+      "device_created_at_unix": "Дата подключения устройства (в часовом поясе клиента)",
       "device_name_max_length": "Наибольшая длина имени",
       "name": "Имя",
       "username": "Username",

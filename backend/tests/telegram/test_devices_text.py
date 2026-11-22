@@ -70,6 +70,7 @@ def test_device_card_drops_the_lines_it_has_nothing_for(
         "device_system": "iOS 18.1",
         "device_app": "Happ 2.1.0",
         "device_created_at": "12.11.2026",
+        "device_created_at_unix": "12.11.2026",
     }
     bare = {**full, "device_name": "iPhone 15", "device_model": "", "device_system": "iOS"}
     bare["device_app"] = ""

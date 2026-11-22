@@ -299,6 +299,7 @@ def register_menu_metadata() -> None:
                 "device_system",
                 "device_app",
                 "device_created_at",
+                "device_created_at_unix",
             ),
             buttons=(
                 catalog.CatalogButton(

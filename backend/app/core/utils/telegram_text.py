@@ -109,9 +109,9 @@ class _TagChecker(HTMLParser):
                 raise self.invalid("link must start with https://, http:// or tg://")
         if tag == "tg-time":
             values = dict(attrs)
-            # a template holds a variable here, so only presence is checked
-            if not values.get("unix"):
-                raise self.invalid("<tg-time> needs a unix attribute")
+            # no variable holds a bare timestamp, so one in a template can only be a number
+            if not (values.get("unix") or "").isdigit():
+                raise self.invalid("<tg-time> unix must be a timestamp")
             if not _TG_TIME_FORMAT_RE.fullmatch(values.get("format") or ""):
                 raise self.invalid("<tg-time> format must match r|w?[dD]?[tT]?")
         self.stack.append(tag)

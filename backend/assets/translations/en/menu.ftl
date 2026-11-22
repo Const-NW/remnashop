@@ -85,7 +85,7 @@ msg-menu-device =
     Model: { $device_model }
     System: { $device_system }
     App: { $device_app }
-    Connected: { $device_created_at }
+    Connected: { $device_created_at_unix }
 msg-menu-device-rename = Send a new name for “{ $device_name }”, up to { $device_name_max_length } characters.
 msg-menu-devices-confirm-delete = Delete this device?
 msg-menu-devices-confirm-delete-all = Delete every device? The connection link changes and every device loses access — each one has to be connected again with the new link.
