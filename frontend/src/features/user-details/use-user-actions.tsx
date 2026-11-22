@@ -10,6 +10,7 @@ import {
   blockUser,
   clearEmailUndeliverable,
   deleteUser,
+  resetUserBotMenu,
   setUserTrialAvailability,
   unbindUserTelegram,
   unblockUser,
@@ -36,6 +37,7 @@ export type UserAction =
   | "unblock"
   | "resetReferralCode"
   | "clearEmailUndeliverable"
+  | "resetBotMenu"
   | "toggleTrial"
   | "merge"
   | "deleteSubscriptions"
@@ -146,6 +148,9 @@ export function useUserActions({
       ...(user.email_undeliverable_at && (canManage || isSelf) && permissions.includes("USERS_EMAIL_UNDELIVERABLE_CLEAR")
         ? ["clearEmailUndeliverable" as const]
         : []),
+      ...(user.telegram_id !== null && !user.is_blocked && canManage && permissions.includes("USERS_BOT_RESTART")
+        ? ["resetBotMenu" as const]
+        : []),
       ...(canManageOwn && permissions.includes("USERS_TRIAL_MANAGE") ? ["toggleTrial" as const] : []),
       ...(canTouchStaff &&
       permissions.includes("USERS_MERGE") &&
@@ -200,6 +205,15 @@ export function useUserActions({
     }
   };
 
+  const resetBotMenu = async (user: UserBase) => {
+    try {
+      await resetUserBotMenu(user.id);
+      toast.success(t("users.botMenu.done"));
+    } catch (err) {
+      toast.error(getErrorMessage(err, t("common.errors.generic")));
+    }
+  };
+
   const toggleTrial = async (user: UserBase) => {
     const allow = !user.is_trial_available;
     try {
@@ -234,6 +248,7 @@ export function useUserActions({
   const run = (action: UserAction, user: UserBase) => {
     if (action === "unblock") void setBlocked(user, false);
     else if (action === "clearEmailUndeliverable") void clearUndeliverable(user);
+    else if (action === "resetBotMenu") void resetBotMenu(user);
     else if (action === "toggleTrial") void toggleTrial(user);
     // blocking an admin also demotes them and drops their sessions, so confirm first
     else if (action === "block") {

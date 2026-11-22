@@ -272,6 +272,9 @@ function UserDetailsDialogBody({
                 ...(available.includes("unbindTelegram")
                   ? [{ label: t("users.telegram.unbind"), icon: Unlink, onClick: () => actions.run("unbindTelegram", user) }]
                   : []),
+                ...(available.includes("resetBotMenu")
+                  ? [{ label: t("users.botMenu.action"), icon: RotateCcw, onClick: () => actions.run("resetBotMenu", user) }]
+                  : []),
                 ...(available.includes("clearEmailUndeliverable")
                   ? [{ label: t("users.emailUndeliverable.clear"), icon: MailCheck, onClick: () => actions.run("clearEmailUndeliverable", user) }]
                   : []),

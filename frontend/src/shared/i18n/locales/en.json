@@ -816,6 +816,7 @@
       "UserPersonalDiscountChangedEvent": "Personal discount changed",
       "UserPurchaseDiscountChangedEvent": "Purchase discount changed",
       "UserUnblockedEvent": "User unblocked",
+      "UserBotMenuResetEvent": "Customer's bot restarted",
       "UserEmailUndeliverableClearedEvent": "Undeliverable email mark cleared",
       "UserTrialAvailabilityChangedEvent": "Trial availability changed",
       "UsersBulkUnblockedEvent": "Users bulk unblocked",
@@ -1366,6 +1367,10 @@
     },
     "botBlocked": {
       "badge": "Bot blocked"
+    },
+    "botMenu": {
+      "action": "Restart the bot",
+      "done": "The customer got a fresh main menu."
     },
     "emailUndeliverable": {
       "badge": "Undeliverable",
@@ -2391,6 +2396,7 @@
     "BLACKLIST_SYNC": "Sync blacklist sources",
     "BLACKLIST_MATCHES_VIEW": "View users matched by the blacklist",
     "USERS_BLOCK": "Block users",
+    "USERS_BOT_RESTART": "Restart a customer's bot",
     "USERS_EMAIL_UNDELIVERABLE_CLEAR": "Clear the undeliverable email mark",
     "USERS_TRIAL_MANAGE": "Allow or revoke the trial",
     "USERS_UNBLOCK": "Unblock users",
@@ -4682,11 +4688,13 @@
     "USER_BLOCKED": "Your account is blocked.",
     "USER_NOT_DELETABLE": "This user can’t be deleted.",
     "USER_NOT_FOUND": "User not found.",
+    "USER_NO_TELEGRAM": "The user has no Telegram account.",
     "WEBHOOK_MALFORMED": "Malformed webhook.",
     "WEBHOOK_NOT_CONFIGURED": "The webhook secret isn’t configured.",
     "WEBHOOK_SIGNATURE_INVALID": "Invalid webhook signature.",
     "WEBHOOK_SOURCE_UNTRUSTED": "The webhook source isn’t trusted.",
     "WEBHOOK_STALE": "The webhook is outdated.",
+    "BOT_NOT_RUNNING": "The bot isn't running.",
     "BOT_PROXY_URL_INVALID": "Invalid proxy address: use socks5, socks5h or http with a host and a port.",
     "TRANSLATION_VARIABLE_NOT_ALLOWED": "The text uses a variable or expression the original text doesn’t have."
   },

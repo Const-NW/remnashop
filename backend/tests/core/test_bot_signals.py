@@ -2,6 +2,7 @@ import json
 
 from app.core.bot_signals import RedisBotSignals
 from app.core.constants import (
+    CUSTOMER_MENU_RESET_CHANNEL,
     DIALOG_CONFIG_CHANGED_CHANNEL,
     PAYMENT_OUTCOME_CHANNEL,
     TRANSLATION_CHANGED_CHANNEL,
@@ -57,4 +58,20 @@ async def test_payment_outcome_reports_receivers(redis) -> None:
     assert json.loads(message["data"]) == {"telegram_id": 5, "order_id": 7, "outcome": "CANCELED"}
 
     await pubsub.unsubscribe(PAYMENT_OUTCOME_CHANNEL)
+    await pubsub.aclose()
+
+
+async def test_customer_menu_reset_reports_receivers(redis) -> None:
+    signals = RedisBotSignals(redis)
+    assert await signals.reset_customer_menu(5) == 0
+
+    pubsub = redis.pubsub()
+    await pubsub.subscribe(CUSTOMER_MENU_RESET_CHANNEL)
+    await pubsub.get_message(timeout=1)
+
+    assert await signals.reset_customer_menu(5) == 1
+    message = await pubsub.get_message(timeout=1)
+    assert json.loads(message["data"]) == {"telegram_id": 5}
+
+    await pubsub.unsubscribe(CUSTOMER_MENU_RESET_CHANNEL)
     await pubsub.aclose()

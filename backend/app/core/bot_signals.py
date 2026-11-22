@@ -3,6 +3,7 @@ import json
 from redis.asyncio import Redis
 
 from app.core.constants import (
+    CUSTOMER_MENU_RESET_CHANNEL,
     DIALOG_CONFIG_CHANGED_CHANNEL,
     PAYMENT_OUTCOME_CHANNEL,
     TELEGRAM_RESTART_CHANNEL,
@@ -43,3 +44,7 @@ class RedisBotSignals:
             {"telegram_id": telegram_id, "order_id": order_id, "outcome": outcome.value}
         )
         return int(await self._redis.publish(PAYMENT_OUTCOME_CHANNEL, payload))
+
+    async def reset_customer_menu(self, telegram_id: int) -> int:
+        payload = json.dumps({"telegram_id": telegram_id})
+        return int(await self._redis.publish(CUSTOMER_MENU_RESET_CHANNEL, payload))

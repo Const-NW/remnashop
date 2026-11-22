@@ -211,6 +211,9 @@ class _RecordingSignals:
     ) -> int:
         return 0
 
+    async def reset_customer_menu(self, telegram_id: int) -> int:
+        return 0
+
 
 class _RecordingBanner:
     def __init__(self) -> None:

@@ -295,6 +295,7 @@ def test_role_permissions_admin_matches_expected_defaults() -> None:
         Permission.USERS_REGISTRATION_VIEW,
         Permission.USERS_DISCOUNT_MANAGE,
         Permission.USERS_EMAIL_UNDELIVERABLE_CLEAR,
+        Permission.USERS_BOT_RESTART,
         Permission.USERS_TRIAL_MANAGE,
         Permission.USERS_LOYALTY_VIEW,
         Permission.USERS_LOYALTY_MANAGE,

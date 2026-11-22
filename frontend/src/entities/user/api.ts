@@ -142,6 +142,11 @@ export function setUserTrialAvailability(userId: number, isTrialAvailable: boole
   });
 }
 
+/** drops the customer's bot dialog and sends them a fresh main menu */
+export function resetUserBotMenu(userId: number): Promise<void> {
+  return apiPost<void, Record<string, never>>(`/users/${userId}/actions/reset-bot-menu`, {});
+}
+
 export function clearEmailUndeliverable(userId: number): Promise<UserListItem> {
   return apiPost<UserListItem, Record<string, never>>(`/users/${userId}/actions/clear-email-undeliverable`, {});
 }

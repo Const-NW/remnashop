@@ -27,6 +27,9 @@ class BotSignals(Protocol):
         self, telegram_id: int, order_id: int, outcome: PaymentOutcome
     ) -> int: ...
 
+    # drops the customer's dialog stack and sends a fresh main menu; returns receivers as above
+    async def reset_customer_menu(self, telegram_id: int) -> int: ...
+
 
 class TranslatorRunner(Protocol):
     def get(self, key: str, obj: Any = None, **kwargs: Any) -> str: ...

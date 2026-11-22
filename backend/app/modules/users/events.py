@@ -81,6 +81,11 @@ class UserEmailUndeliverableClearedEvent(ActorTargetEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class UserBotMenuResetEvent(ActorTargetEvent):
+    category: ClassVar[EventCategory] = EventCategory.USER
+
+
+@dataclass(frozen=True, kw_only=True)
 class UserTrialAvailabilityChangedEvent(ActorTargetEvent):
     category: ClassVar[EventCategory] = EventCategory.USER
     is_trial_available: bool

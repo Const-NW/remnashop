@@ -161,6 +161,7 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   UserPurchaseDiscountChangedEvent: Percent,
   UserUnblockedEvent: LockOpen,
   UserEmailUndeliverableClearedEvent: MailCheck,
+  UserBotMenuResetEvent: RotateCcw,
   UserTrialAvailabilityChangedEvent: Gift,
   UsersBulkUnblockedEvent: LockOpen,
   TransactionRefundedEvent: Undo2,
