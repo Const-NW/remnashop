@@ -4,6 +4,7 @@ from dishka import Provider, Scope, alias, provide, provide_all
 
 from app.modules.subscriptions.change_credit import ChangeCreditCalculator
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
+from app.modules.subscriptions.device_name_repository import DeviceNameRepository
 from app.modules.subscriptions.dispatch import (
     GrantAddOnDispatch,
     PanelSyncDispatch,
@@ -62,6 +63,7 @@ from app.modules.subscriptions.usecases import (
     PurchaseSubscriptionUseCase,
     PushSubscriptionToPanelUseCase,
     ReissueSubscriptionUseCase,
+    RenameDeviceUseCase,
     ResetSubscriptionTrafficUseCase,
     SetSubscriptionEnabledUseCase,
     StartPanelSyncFromUseCase,
@@ -81,6 +83,7 @@ class SubscriptionsProvider(Provider):
     services = provide_all(
         SubscriptionRepository,
         CreditSegmentRepository,
+        DeviceNameRepository,
         SubscriptionStatsRepository,
         PurchaseIdempotencyRepository,
         SubscriptionLifecycleService,
@@ -111,6 +114,7 @@ class SubscriptionsProvider(Provider):
         ActivateTrialSubscriptionUseCase,
         ApplyChannelMembershipUseCase,
         ListDevicesUseCase,
+        RenameDeviceUseCase,
         DeleteDeviceUseCase,
         DeleteAllDevicesUseCase,
         GrantAddOnUseCase,

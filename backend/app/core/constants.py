@@ -104,6 +104,9 @@ CABINET_OAUTH_PROVIDERS: Final[frozenset[OAuthProvider]] = frozenset(
 CONTAINER_KEY: Final[str] = "dishka_container"
 USER_KEY: Final[str] = "user"
 
+# a customer's own device name, shown on one Telegram button
+DEVICE_NAME_MAX_LENGTH: Final[int] = 32
+
 INT32_MAX: Final[int] = 2_147_483_647
 # users.points is Numeric(12, 0)
 MAX_POINTS_BALANCE: Final[Decimal] = Decimal(10**12 - 1)

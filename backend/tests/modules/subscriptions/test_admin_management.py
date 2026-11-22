@@ -38,6 +38,7 @@ from app.modules.pricing.repository import PricingRepository
 from app.modules.settings.dto import UpdateBotRequirementsDto, UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
+from app.modules.subscriptions.device_name_repository import DeviceNameRepository
 from app.modules.subscriptions.dto import (
     AdminDeleteDeviceDto,
     ChangeSubscriptionPlanDto,
@@ -627,7 +628,11 @@ async def test_admin_device_list_and_delete(
     panel_id = granted.remnawave_user_id
     remnawave_hwid_store[panel_id] = [_device(h, panel_id) for h in ("a", "b", "c")]
     list_devices = AdminListDevicesUseCase(
-        subscription_repository, UserRepository(subscription_repository.session), remnawave_sdk, uow
+        subscription_repository,
+        UserRepository(subscription_repository.session),
+        DeviceNameRepository(subscription_repository.session),
+        remnawave_sdk,
+        uow,
     )
     delete_one = AdminDeleteDeviceUseCase(
         subscription_repository,

@@ -12,9 +12,11 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
 from app.telegram.routers.subscriptions.handlers import (
     DEVICES_FROM_MENU_KEY,
-    SINGLE_RESET_KEY,
+    SELECTED_HWID_KEY,
     on_device_delete_confirm,
-    on_device_delete_request,
+    on_device_name_clear,
+    on_device_name_input,
+    on_device_selected,
     on_devices_back,
     on_reissue_subscription_confirm,
     on_subscription_card_back,
@@ -275,13 +277,68 @@ def test_gone_notification_exists_in_each_locale() -> None:
         assert "    .failed =" in text, menu
 
 
-@pytest.mark.parametrize(("enabled", "opened"), [(True, True), (False, False)])
-async def test_device_tap_opens_the_confirm_only_while_single_resets_are_on(
-    enabled: bool, opened: bool
-) -> None:
-    manager = _manager({"hwid_map": [{"hwid": "hw"}], SINGLE_RESET_KEY: enabled})
+async def test_device_tap_opens_its_card() -> None:
+    # the card holds both rename and delete, so it opens even with removal off
+    manager = _manager({"hwid_map": [{"hwid": "hw"}]})
     manager.item_id = "0"
 
-    await on_device_delete_request(MagicMock(), MagicMock(), manager)
+    await on_device_selected(MagicMock(), MagicMock(), manager)
 
-    assert (manager.switch_to.await_count == 1) is opened
+    assert manager.dialog_data[SELECTED_HWID_KEY] == "hw"
+    manager.switch_to.assert_awaited_once_with(state=Subscriptions.DEVICE)
+
+
+async def test_device_name_input_renames_the_selected_device() -> None:
+    manager = _manager({SELECTED_HWID_KEY: "hw", SELECTED_SUBSCRIPTION_KEY: 7})
+    message = AsyncMock(text="  Phone  ")
+    rename_device = AsyncMock()
+
+    await on_device_name_input.__dishka_orig_func__(
+        message,
+        MagicMock(),
+        manager,
+        rename_device=rename_device,
+        list_own_subscriptions=AsyncMock(),
+        i18n=_i18n(),
+    )
+
+    data = rename_device.await_args.args[1]
+    assert (data.subscription_id, data.hwid, data.name) == (7, "hw", "Phone")
+    manager.switch_to.assert_awaited_once_with(state=Subscriptions.DEVICE)
+
+
+async def test_a_too_long_device_name_stays_on_the_input() -> None:
+    manager = _manager({SELECTED_HWID_KEY: "hw", SELECTED_SUBSCRIPTION_KEY: 7})
+    message = AsyncMock(text="x" * 40)
+    error = ValidationError("long", code=ErrorCode.DEVICE_NAME_TOO_LONG)
+
+    await on_device_name_input.__dishka_orig_func__(
+        message,
+        MagicMock(),
+        manager,
+        rename_device=AsyncMock(side_effect=error),
+        list_own_subscriptions=AsyncMock(),
+        i18n=_i18n(),
+    )
+
+    message.answer.assert_awaited_once()
+    manager.switch_to.assert_not_awaited()
+
+
+async def test_clearing_the_name_of_a_removed_device_returns_to_the_list() -> None:
+    manager = _manager({SELECTED_HWID_KEY: "hw", SELECTED_SUBSCRIPTION_KEY: 7})
+    callback = AsyncMock()
+    rename_device = AsyncMock(side_effect=NotFoundError("gone", code=ErrorCode.DEVICE_NOT_FOUND))
+
+    await on_device_name_clear.__dishka_orig_func__(
+        callback,
+        MagicMock(),
+        manager,
+        rename_device=rename_device,
+        list_own_subscriptions=AsyncMock(),
+        i18n=_i18n(),
+    )
+
+    assert rename_device.await_args.args[1].name is None
+    callback.answer.assert_awaited_once_with("ntf-devices.gone")
+    manager.switch_to.assert_awaited_once_with(state=Subscriptions.DEVICES)

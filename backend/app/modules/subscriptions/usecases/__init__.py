@@ -66,6 +66,7 @@ from app.modules.subscriptions.usecases.push_subscription_to_panel import (
     PushSubscriptionToPanelUseCase,
 )
 from app.modules.subscriptions.usecases.reissue_subscription import ReissueSubscriptionUseCase
+from app.modules.subscriptions.usecases.rename_device import RenameDeviceUseCase
 from app.modules.subscriptions.usecases.reset_subscription_traffic import (
     ResetSubscriptionTrafficUseCase,
 )
@@ -121,6 +122,7 @@ __all__ = [
     "PurchaseSubscriptionUseCase",
     "PushSubscriptionToPanelUseCase",
     "ReissueSubscriptionUseCase",
+    "RenameDeviceUseCase",
     "ResetSubscriptionTrafficUseCase",
     "SetSubscriptionEnabledUseCase",
     "StartPanelSyncFromUseCase",

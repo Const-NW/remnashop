@@ -4559,6 +4559,8 @@
     "CSRF_FAILED": "Проверка безопасности не пройдена — обновите страницу.",
     "CURRENCY_RATE_MISSING": "Для этой валюты не задан курс.",
     "CURRENT_PASSWORD_INCORRECT": "Текущий пароль неверный.",
+    "DEVICE_NAME_TOO_LONG": "Слишком длинное имя устройства.",
+    "DEVICE_NOT_FOUND": "Устройство не найдено.",
     "DEVICE_RESET_DISABLED": "Сброс устройств отключён.",
     "DIALOG_ACTION_NOT_IN_WINDOW": "Это действие не относится к этому окну.",
     "DIALOG_ACTION_UNKNOWN": "Неизвестное действие кнопки.",

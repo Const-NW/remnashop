@@ -14,6 +14,7 @@ from app.modules.subscriptions.dto import (
     PlanSnapshot,
     PurchaseRollbackDto,
     PurchaseSubscriptionDto,
+    RenameDeviceDto,
     RollbackPreviewDto,
     SubscriptionDto,
     SubscriptionRefDto,
@@ -70,6 +71,7 @@ from app.modules.subscriptions.usecases import (
     ListOwnSubscriptionsUseCase,
     PurchaseSubscriptionUseCase,
     ReissueSubscriptionUseCase,
+    RenameDeviceUseCase,
 )
 
 __all__ = [
@@ -113,6 +115,8 @@ __all__ = [
     "PurchaseSubscriptionUseCase",
     "ReferrerLookup",
     "ReissueSubscriptionUseCase",
+    "RenameDeviceDto",
+    "RenameDeviceUseCase",
     "RollbackPreviewDto",
     "SpentPurchaseDiscount",
     "SubscriptionAddOnGrantedEvent",

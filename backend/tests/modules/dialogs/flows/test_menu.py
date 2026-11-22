@@ -35,6 +35,8 @@ def test_register_menu_metadata_populates_full_catalog() -> None:
     assert keys == {
         "menu.main",
         "menu.devices",
+        "menu.device",
+        "menu.device_rename",
         "menu.device_confirm_delete",
         "menu.device_confirm_delete_all",
         "menu.device_confirm_reissue",
@@ -61,7 +63,7 @@ def test_register_menu_metadata_is_idempotent() -> None:
 
     register_menu_metadata()
     register_menu_metadata()
-    assert len(catalog.all_windows()) == 5
+    assert len(catalog.all_windows()) == 7
 
 
 def test_register_all_flow_metadata_calls_menu() -> None:

@@ -3,6 +3,8 @@ from remnapy import RemnawaveSDK
 from app.core.db.uow import UnitOfWork
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.modules.subscriptions.device_name_repository import DeviceNameRepository
+from app.modules.subscriptions.devices import list_devices
 from app.modules.subscriptions.dto import DeviceDto, SubscriptionRefDto
 from app.modules.subscriptions.eligibility import get_owned_live_target
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -15,9 +17,11 @@ class ListDevicesUseCase(UseCase[SubscriptionRefDto, list[DeviceDto], UserDto]):
     def __init__(
         self,
         subscription_repository: SubscriptionRepository,
+        device_name_repository: DeviceNameRepository,
         remnawave_sdk: RemnawaveSDK,
         uow: UnitOfWork,
     ) -> None:
+        self._device_name_repository = device_name_repository
         self._subscription_repository = subscription_repository
         self._remnawave_sdk = remnawave_sdk
         self._uow = uow
@@ -27,7 +31,6 @@ class ListDevicesUseCase(UseCase[SubscriptionRefDto, list[DeviceDto], UserDto]):
             subscription = await get_owned_live_target(
                 self._subscription_repository, data.subscription_id, actor.id
             )
-        response = await self._remnawave_sdk.hwid.get_hwid_user(subscription.remnawave_user_id)
-        return [
-            DeviceDto.model_validate(device, from_attributes=True) for device in response.devices
-        ]
+        return await list_devices(
+            self._remnawave_sdk, self._device_name_repository, self._uow, subscription
+        )

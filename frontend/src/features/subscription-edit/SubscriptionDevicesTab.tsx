@@ -60,7 +60,11 @@ export function SubscriptionDevicesTab({ subscriptionId, userId }: { subscriptio
               key={device.hwid}
               size="sm"
               icon={Smartphone}
-              label={[device.device_model, device.platform].filter(Boolean).join(" · ") || t("common.none")}
+              label={
+                [device.name, device.device_model, [device.platform, device.os_version].filter(Boolean).join(" "), device.app]
+                  .filter(Boolean)
+                  .join(" · ") || t("common.none")
+              }
               description={<span className="font-mono">{device.hwid}</span>}
             >
               <span className="text-xs tabular-nums text-muted-foreground">{formatDate(device.created_at, i18n.language)}</span>

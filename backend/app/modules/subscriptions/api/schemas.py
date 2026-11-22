@@ -139,10 +139,17 @@ class ChangeSubscriptionPlanRequest(BaseModel):
 
 class DeviceResponse(BaseModel):
     hwid: str
+    name: Optional[str] = None
     platform: Optional[str] = None
+    os_version: Optional[str] = None
     device_model: Optional[str] = None
+    app: Optional[str] = None
     user_agent: Optional[str] = None
     created_at: datetime
+
+
+class RenameDeviceRequest(BaseModel):
+    name: str
 
 
 class DeviceListResponse(BaseModel):

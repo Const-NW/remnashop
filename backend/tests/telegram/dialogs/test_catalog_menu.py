@@ -25,6 +25,8 @@ def test_registers_all_windows() -> None:
     assert keys == {
         "menu.main",
         "menu.devices",
+        "menu.device",
+        "menu.device_rename",
         "menu.device_confirm_delete",
         "menu.device_confirm_delete_all",
         "menu.device_confirm_reissue",
@@ -129,6 +131,8 @@ def test_calling_twice_is_idempotent() -> None:
     assert {w.key for w in catalog.all_windows()} == {
         "menu.main",
         "menu.devices",
+        "menu.device",
+        "menu.device_rename",
         "menu.device_confirm_delete",
         "menu.device_confirm_delete_all",
         "menu.device_confirm_reissue",

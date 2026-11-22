@@ -80,6 +80,13 @@ msg-menu-devices = Ваши устройства ({ $devices_max ->
     [0] { $devices_current }
    *[other] { $devices_current }/{ $devices_max }
 })
+msg-menu-device =
+    <b>{ $device_name }</b>
+    Модель: { $device_model }
+    Система: { $device_system }
+    Приложение: { $device_app }
+    Подключено: { $device_created_at }
+msg-menu-device-rename = Отправьте новое имя для «{ $device_name }» — до { $device_name_max_length } символов.
 msg-menu-devices-confirm-delete = Удалить это устройство?
 msg-menu-devices-confirm-delete-all = Удалить все устройства? Ссылка подключения сменится, все устройства потеряют доступ — каждое придётся подключать заново по новой ссылке.
 msg-menu-devices-confirm-reissue = Перевыпустить ссылку подключения? Старая ссылка перестанет работать.
@@ -133,7 +140,13 @@ btn-legal-gate =
     .accept = ✅ Принимаю
 
 btn-devices =
-    .item = { $platform_icon } { $platform } ({ $device_model }) — { $created_at }
+    .item = { $platform_icon } { $device_name } — { $created_at }
+    .rename = Переименовать
+    .rename-icon = ✏️
+    .delete = Удалить
+    .delete-icon = 🗑
+    .clear-name = Сбросить имя
+    .clear-name-icon = ↩️
     .delete-all = Удалить все устройства
     .delete-all-icon = 🗑
     .reissue = Перевыпустить ссылку
@@ -322,6 +335,10 @@ ntf-devices =
     .delete-cooldown = ⏳ Удалить устройство можно будет через { $wait }.
     .delete-all-cooldown = ⏳ Удалить все устройства можно будет через { $wait }.
     .reissue-cooldown = ⏳ Перевыпустить ссылку подключения можно будет через { $wait }.
+    .renamed = ✅ Имя устройства сохранено.
+    .name-cleared = ✅ Имя устройства сброшено.
+    .name-too-long = ⚠️ Имя должно быть не длиннее { $max } символов.
+    .gone = ❌ Это устройство уже отключено.
 
 ntf-access =
     .restricted = 🚧 Технические работы. Попробуйте позже.

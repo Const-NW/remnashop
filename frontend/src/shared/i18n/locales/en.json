@@ -4441,6 +4441,8 @@
     "CSRF_FAILED": "Security check failed — reload the page.",
     "CURRENCY_RATE_MISSING": "No rate is set for this currency.",
     "CURRENT_PASSWORD_INCORRECT": "Current password is incorrect.",
+    "DEVICE_NAME_TOO_LONG": "The device name is too long.",
+    "DEVICE_NOT_FOUND": "Device not found.",
     "DEVICE_RESET_DISABLED": "Device reset is disabled.",
     "DIALOG_ACTION_NOT_IN_WINDOW": "This action doesn’t belong to this window.",
     "DIALOG_ACTION_UNKNOWN": "Unknown button action.",

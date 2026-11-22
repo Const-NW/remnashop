@@ -9,6 +9,8 @@ class Subscriptions(StatesGroup):
     LIST = State()
     CARD = State()
     DEVICES = State()
+    DEVICE = State()
+    DEVICE_RENAME = State()
     DEVICE_CONFIRM_DELETE = State()
     DEVICE_CONFIRM_DELETE_ALL = State()
     DEVICE_CONFIRM_REISSUE = State()

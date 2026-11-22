@@ -233,8 +233,12 @@ export const reissueSubscriptionLink = (subscriptionId: number) => subscriptionA
 
 export interface SubscriptionDevice {
   hwid: string;
+  // the customer's own name for it
+  name: string | null;
   platform: string | null;
+  os_version: string | null;
   device_model: string | null;
+  app: string | null;
   user_agent: string | null;
   created_at: string;
 }
