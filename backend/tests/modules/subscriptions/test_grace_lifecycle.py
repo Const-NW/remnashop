@@ -690,3 +690,54 @@ async def test_renewal_landing_before_the_grace_push_wins(
     assert panel["tag"] == "PLAN"
     assert panel["activeInternalSquads"][0]["uuid"] == str(_PLAN_SQUAD)
     assert await _events(session, before.id) == []
+
+
+async def test_sweep_reaches_an_eligible_row_past_a_batch_of_free_and_closed_plans(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _enable_grace(settings_repository)
+    free = await plan_repository.create(
+        CreatePlanDto(
+            public_code=f"free{uuid4().hex[:6]}",
+            name=f"free{uuid4().hex[:6]}",
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=3,
+        )
+    )
+    await plan_repository.set_durations(
+        SetPlanDurationsDto(
+            plan_id=free.id,
+            durations=[SetPlanDurationDto(days=30, order_index=0, base_price=Decimal("0"))],
+        )
+    )
+    closed = await _paid_plan(plan_repository)
+    closed = await plan_repository.update(UpdatePlanDto(plan_id=closed.id, allow_renewal=False))
+    expire_at = datetime_now() - timedelta(minutes=5)
+    for offset in range(101):
+        await create_subscription(
+            subscription_repository,
+            user_repository,
+            telegram_id=94_200 + offset,
+            remnawave_user_id=94_200 + offset,
+            status=SubscriptionStatus.EXPIRED,
+            expire_at=expire_at,
+            plan_id=(free if offset % 2 else closed).id,
+        )
+    eligible = await _expired(
+        subscription_repository,
+        user_repository,
+        await _paid_plan(plan_repository),
+        remnawave_store,
+        94_400,
+    )
+
+    await grace.sweep.system()
+
+    assert (await subscription_repository.get_by_id(eligible.id)).grace_until is not None

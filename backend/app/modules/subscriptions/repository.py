@@ -20,6 +20,8 @@ from app.core.constants import DEFAULT_PAGE_SIZE, GRACE_ENTRY_WINDOW, INT32_MAX
 from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.addon_entitlement import AddOnEntitlement
 from app.core.db.models.addon_grant_idempotency import AddOnGrantIdempotency
+from app.core.db.models.plan import Plan
+from app.core.db.models.plan_duration import PlanDuration
 from app.core.db.models.subscription import Subscription
 from app.core.db.partial_update import apply_partial_update
 from app.core.enums import AddOnType, SubscriptionStatus
@@ -588,6 +590,19 @@ class SubscriptionRepository:
             ),
             # trials never get grace and would crowd the batch out for the whole window
             Subscription.is_trial.is_(False),
+            # nor plans closed to renewal or with no paid duration (`grace.can_renew`)
+            select(Plan.id)
+            .where(
+                Plan.id == Subscription.plan_snapshot["plan_id"].as_integer(),
+                Plan.allow_renewal.is_(True),
+                or_(
+                    Plan.is_trial.is_(True),
+                    select(PlanDuration.id)
+                    .where(PlanDuration.plan_id == Plan.id, PlanDuration.base_price > 0)
+                    .exists(),
+                ),
+            )
+            .exists(),
             limit=limit,
         )
 

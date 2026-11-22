@@ -6,7 +6,14 @@ from uuid import uuid4
 from remnapy.enums import TrafficLimitStrategy, UserStatus
 
 from app.core.enums import PlanType, SubscriptionStatus
-from app.modules.plans.dto import PlanDto, PlanDurationDto
+from app.modules.plans.dto import (
+    CreatePlanDto,
+    PlanDto,
+    PlanDurationDto,
+    SetPlanDurationDto,
+    SetPlanDurationsDto,
+)
+from app.modules.plans.repository import PlanRepository
 from app.modules.settings.dto import GraceSettingsDto
 from app.modules.subscriptions.dto import CreateSubscriptionDto
 from app.modules.subscriptions.grace import (
@@ -154,15 +161,34 @@ async def test_set_grace_until_round_trip(
 
 
 async def test_grace_candidates_and_ended(
-    subscription_repository: SubscriptionRepository, user_repository: UserRepository
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
 ) -> None:
     now = datetime.now(timezone.utc)
-    fresh = await _create(subscription_repository, user_repository, 9002)
+    plan = await plan_repository.create(
+        CreatePlanDto(
+            public_code="gracepaid",
+            name="gracepaid",
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=3,
+        )
+    )
+    await plan_repository.set_durations(
+        SetPlanDurationsDto(
+            plan_id=plan.id,
+            durations=[SetPlanDurationDto(days=30, order_index=0, base_price=Decimal("500"))],
+        )
+    )
+    snapshot = make_plan_snapshot(plan_id=plan.id)
+    fresh = await _create(subscription_repository, user_repository, 9002, plan_snapshot=snapshot)
     await _create(
         subscription_repository,
         user_repository,
         9003,
         expire_at=now - timedelta(days=2),
+        plan_snapshot=snapshot,
     )
     ended = await _create(subscription_repository, user_repository, 9004)
     await subscription_repository.set_grace_until(ended, now - timedelta(minutes=1))
