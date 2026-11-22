@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
+from uuid import UUID
 
 from app.cli.legacy.panel import PanelIndex
 from app.cli.legacy.report import MigrationReport
@@ -64,13 +65,18 @@ def _row(sub_id: int, status: str = "ACTIVE", user_id: int = 1, **extra: Any) ->
 
 
 def _run(
-    rows: list[dict[str, Any]], current: set[int], report: MigrationReport
+    rows: list[dict[str, Any]],
+    current: set[int],
+    report: MigrationReport,
+    index: PanelIndex = INDEX,
+    grace_days: int = 3,
 ) -> list[dict[str, Any]]:
     return transform_subscriptions(
         rows,
         users=USERS,
         current_subscription_ids=current,
-        index=INDEX,
+        index=index,
+        grace_days=grace_days,
         plan_codes={3: "pro"},
         last_payments={(1, 3): (Decimal("199"), Currency.RUB)},
         anchor_currency=Currency.USD,
@@ -148,6 +154,7 @@ def test_live_unique_per_panel_user() -> None:
         users=users,
         current_subscription_ids={1, 2},
         index=INDEX,
+        grace_days=0,
         plan_codes={3: "pro"},
         last_payments={},
         anchor_currency=Currency.USD,
@@ -186,6 +193,7 @@ def test_live_subscription_takes_panel_state() -> None:
         users=USERS,
         current_subscription_ids={2},
         index=index,
+        grace_days=0,
         plan_codes={3: "pro"},
         last_payments={},
         anchor_currency=Currency.USD,
@@ -205,6 +213,7 @@ def test_subscription_takes_panel_link() -> None:
         users=USERS,
         current_subscription_ids={1},
         index=index,
+        grace_days=0,
         plan_codes={3: "pro"},
         last_payments={},
         anchor_currency=Currency.USD,
@@ -254,3 +263,65 @@ def test_an_old_unlimited_plan_gets_an_endless_segment() -> None:
 
     assert segment["seconds"] == 0
     assert segment["ends_at"] is None
+
+
+GRACE_UNTIL = datetime(2026, 1, 4, tzinfo=timezone.utc)
+GRACE_INDEX = PanelIndex(
+    by_username={"rs_1001": 55},
+    status={55: SubscriptionStatus.ACTIVE},
+    expire_at={55: GRACE_UNTIL},
+)
+GRACE_CONFIG: dict[str, Any] = {
+    "traffic_limit": 1,
+    "traffic_limit_strategy": "DAY",
+    "tag": "GRACE",
+    "internal_squads": [UUID("33333333-3333-3333-3333-333333333333")],
+    "status": "ACTIVE",
+}
+
+
+def test_subscription_in_grace_keeps_real_expiry() -> None:
+    report = MigrationReport()
+    row = _row(1, "EXPIRED", grace_until=GRACE_UNTIL)
+    [item] = _run([row], {1}, report, index=GRACE_INDEX)
+    assert item["status"] is SubscriptionStatus.EXPIRED
+    assert item["expire_at"] == NOW
+    assert item["grace_until"] == GRACE_UNTIL
+    assert "subscriptions: 1 in grace" in report.notes
+
+
+def test_grace_overwritten_row_gets_expiry_and_plan_config_back() -> None:
+    row = _row(1, grace_until=GRACE_UNTIL, **{**GRACE_CONFIG, "expire_at": GRACE_UNTIL})
+    [item] = _run([row], {1}, MigrationReport(), index=GRACE_INDEX)
+    assert item["status"] is SubscriptionStatus.EXPIRED
+    assert item["expire_at"] == GRACE_UNTIL - timedelta(days=3)
+    assert item["grace_until"] == GRACE_UNTIL
+    assert item["traffic_limit"] == 100
+    assert item["traffic_limit_strategy"] == "MONTH"
+    assert item["tag"] == "PRO"
+    assert item["internal_squads"] == [UUID("11111111-1111-1111-1111-111111111111")]
+    assert item["external_squad"] is None
+
+
+def test_indefinite_grace_overwritten_row_falls_back_to_last_update() -> None:
+    forever = datetime(2099, 1, 1, tzinfo=timezone.utc)
+    updated = datetime(2025, 12, 20, tzinfo=timezone.utc)
+    report = MigrationReport()
+    row = _row(1, grace_until=forever, expire_at=forever, updated_at=updated)
+    [item] = _run([row], {1}, report, grace_days=0)
+    assert item["expire_at"] == updated
+    assert item["grace_until"] == forever
+    assert any("#1: real expiry unknown" in note for note in report.notes)
+
+
+def test_deleted_subscription_drops_grace() -> None:
+    report = MigrationReport()
+    [item] = _run([_row(1, "DELETED", grace_until=GRACE_UNTIL)], set(), report)
+    assert item["status"] is SubscriptionStatus.DELETED
+    assert item["grace_until"] is None
+    assert not any("in grace" in note for note in report.notes)
+
+
+def test_row_without_grace_column() -> None:
+    [item] = _run([_row(1)], {1}, MigrationReport())
+    assert item["grace_until"] is None

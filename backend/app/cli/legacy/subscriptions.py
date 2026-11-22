@@ -1,12 +1,15 @@
 from collections.abc import Mapping, Sequence
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Final
+from uuid import UUID
 
 from app.cli.legacy.panel import PanelIndex, resolve_panel_id
 from app.cli.legacy.plans import strip_leading_emoji
 from app.cli.legacy.report import MigrationReport
 from app.core.constants import TIME_1D
 from app.core.enums import CreditSegmentKind, Currency, SubscriptionStatus
+from app.modules.subscriptions import is_unlimited_expiry
 
 _TABLE: Final[str] = "subscriptions"
 _COPIED: Final[tuple[str, ...]] = (
@@ -25,6 +28,7 @@ _COPIED: Final[tuple[str, ...]] = (
     "device_single_reset_at",
     "device_all_reset_at",
     "link_reset_at",
+    "grace_until",
     "created_at",
     "updated_at",
 )
@@ -93,8 +97,40 @@ def _claim_live(
     return status
 
 
+def _grace_terms(
+    row: Mapping[str, Any], status: SubscriptionStatus, grace_days: int, report: MigrationReport
+) -> dict[str, Any]:
+    """The old app's sync copied the panel's grace config, expiry included, into the
+    row; the expiry is rebuilt from the grace length and the rest from the plan snapshot."""
+    grace_until = row.get("grace_until")
+    if grace_until is None or status is SubscriptionStatus.DELETED:
+        return {"grace_until": None}
+    # the panel holds the grace config and the grace end, never the row's
+    terms = {"status": SubscriptionStatus.EXPIRED, "grace_until": grace_until}
+    if row["expire_at"] < grace_until:
+        return {**terms, "expire_at": row["expire_at"]}
+    if grace_days > 0 and not is_unlimited_expiry(grace_until):
+        expire_at = grace_until - timedelta(days=grace_days)
+    else:
+        expire_at = row["updated_at"]
+        report.notes.append(
+            f"subscriptions #{row['id']}: real expiry unknown, set to the last update {expire_at}"
+        )
+    snapshot = row["plan_snapshot"]
+    external_squad = snapshot.get("external_squad")
+    return {
+        **terms,
+        "expire_at": expire_at,
+        "traffic_limit": snapshot["traffic_limit"],
+        "traffic_limit_strategy": snapshot["traffic_limit_strategy"],
+        "tag": snapshot.get("tag"),
+        "internal_squads": [UUID(str(squad)) for squad in snapshot.get("internal_squads") or []],
+        "external_squad": UUID(str(external_squad)) if external_squad else None,
+    }
+
+
 def _add_notes(
-    report: MigrationReport, demoted: int, unpriced: int, unknown_plans: set[int]
+    report: MigrationReport, demoted: int, unpriced: int, unknown_plans: set[int], in_grace: int
 ) -> None:
     if demoted:
         report.notes.append(f"subscriptions: {demoted} non-current subscriptions set to DELETED")
@@ -106,6 +142,8 @@ def _add_notes(
         report.notes.append(
             f"subscriptions: snapshot plans {sorted(unknown_plans)} not migrated, empty public code"
         )
+    if in_grace:
+        report.notes.append(f"subscriptions: {in_grace} in grace")
 
 
 def transform_subscriptions(
@@ -114,6 +152,7 @@ def transform_subscriptions(
     users: Mapping[int, Mapping[str, Any]],
     current_subscription_ids: set[int],
     index: PanelIndex,
+    grace_days: int,
     plan_codes: Mapping[int, str],
     last_payments: Mapping[tuple[int, int], tuple[Decimal, Currency]],
     anchor_currency: Currency,
@@ -124,6 +163,7 @@ def transform_subscriptions(
     demoted = 0
     unpriced = 0
     unknown_plans: set[int] = set()
+    in_grace = 0
 
     for row in sorted(rows, key=lambda r: int(r["id"])):
         sub_id = int(row["id"])
@@ -173,8 +213,10 @@ def transform_subscriptions(
             item.update(url=index.url[panel_id])
         if status is not SubscriptionStatus.DELETED and panel_id in index.status:
             item.update(status=index.status[panel_id], expire_at=index.expire_at[panel_id])
+        item.update(_grace_terms(row, status, grace_days, report))
+        in_grace += item["grace_until"] is not None
         result.append(item)
 
     report.count(_TABLE, len(rows), len(result))
-    _add_notes(report, demoted, unpriced, unknown_plans)
+    _add_notes(report, demoted, unpriced, unknown_plans, in_grace)
     return result
