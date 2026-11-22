@@ -37,6 +37,7 @@ def _subscription(status: str, **overrides: Any) -> Optional[SimpleNamespace]:
         "effective_traffic_limit": 100,
         "effective_device_limit": 3,
         "expire_at": datetime(2027, 1, 1, 12, 0, tzinfo=timezone.utc),
+        "is_unlimited": False,
     }
     return SimpleNamespace(**{**values, **overrides})
 

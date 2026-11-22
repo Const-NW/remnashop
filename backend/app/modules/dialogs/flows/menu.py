@@ -122,6 +122,8 @@ def register_menu_metadata() -> None:
                 "subscription_device_limit",
                 "subscription_expire_at",
                 "subscription_expire_at_local",
+                "subscription_expire_at_unix",
+                "subscription_is_unlimited",
                 "subscription_block",
             ),
             buttons=(
@@ -300,6 +302,7 @@ def register_menu_metadata() -> None:
                 "device_app",
                 "device_created_at",
                 "device_created_at_local",
+                "device_created_at_unix",
             ),
             buttons=(
                 catalog.CatalogButton(

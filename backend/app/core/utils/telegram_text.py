@@ -31,6 +31,8 @@ _ALLOWED_TAGS: Final[frozenset[str]] = frozenset(
 _URL_SCHEMES: Final[tuple[str, ...]] = ("https://", "http://", "tg://")
 _TAG_RE: Final[re.Pattern[str]] = re.compile(r"<[^<>]*>")
 # Bot API date_time entity format
+# a number, or a template's *_unix variable: the *_local ones hold a whole tag
+_TG_TIME_UNIX_RE: Final[re.Pattern[str]] = re.compile(r"\d+|\{\s*\$[A-Za-z][\w-]*_unix\s*\}")
 _TG_TIME_FORMAT_RE: Final[re.Pattern[str]] = re.compile(r"r|w?[dD]?[tT]?")
 
 
@@ -109,9 +111,8 @@ class _TagChecker(HTMLParser):
                 raise self.invalid("link must start with https://, http:// or tg://")
         if tag == "tg-time":
             values = dict(attrs)
-            # no variable holds a bare timestamp, so one in a template can only be a number
-            if not (values.get("unix") or "").isdigit():
-                raise self.invalid("<tg-time> unix must be a timestamp")
+            if not _TG_TIME_UNIX_RE.fullmatch(values.get("unix") or ""):
+                raise self.invalid("<tg-time> unix must be a timestamp or a *_unix variable")
             if not _TG_TIME_FORMAT_RE.fullmatch(values.get("format") or ""):
                 raise self.invalid("<tg-time> format must match r|w?[dD]?[tT]?")
         self.stack.append(tag)

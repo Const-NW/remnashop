@@ -34,11 +34,13 @@ from app.telegram.dialogs.rendering import (
     resolve_variable_kwargs,
 )
 from app.telegram.i18n import (
+    expiry_unix_time,
     format_date,
     format_date_tag,
     format_expiry,
     format_expiry_tag,
     get_translator,
+    unix_time,
 )
 from app.telegram.routers.subscriptions.handlers import SELECTED_HWID_KEY
 
@@ -172,6 +174,8 @@ async def subscription_card_getter(
             is_trial=int(subscription.is_trial),
             expire_at=format_expiry(runner, subscription.expire_at),
             expire_at_local=format_expiry_tag(runner, subscription.expire_at),
+            expire_at_unix=expiry_unix_time(subscription.expire_at),
+            is_unlimited=int(subscription.is_unlimited),
             traffic_limit=subscription.effective_traffic_limit,
             device_limit=subscription.effective_device_limit,
             **resolve_variable_kwargs(data),
@@ -293,6 +297,7 @@ async def device_getter(
             device_app=device.app or "",
             device_created_at=format_date(device.created_at),
             device_created_at_local=format_date_tag(device.created_at),
+            device_created_at_unix=unix_time(device.created_at),
             **resolve_variable_kwargs({}),
         )
     data: dict[str, Any] = {
