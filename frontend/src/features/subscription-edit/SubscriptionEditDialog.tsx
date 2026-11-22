@@ -85,8 +85,6 @@ import { Badge } from "@shared/ui/Badge";
 import { ConfirmDialog } from "@shared/ui/ConfirmDialog";
 
 const STRATEGIES: TrafficLimitStrategy[] = ["NO_RESET", "DAY", "WEEK", "MONTH", "MONTH_ROLLING"];
-// the backend stores a grace with no end as a far-future date
-const INDEFINITE_YEAR = 2099;
 const QUICK_EXTEND_DAYS = [7, 30, 90] as const;
 const GB_BYTES = 1024 ** 3;
 const TRAFFIC_WARNING_RATIO = 0.6;
@@ -243,7 +241,7 @@ function SubscriptionEditDialogBody({
             )}
             {current.grace_until && (
               <Badge tone="warning">
-                {new Date(current.grace_until).getUTCFullYear() >= INDEFINITE_YEAR
+                {isUnlimitedExpiry(current.grace_until)
                   ? t("subscriptions.grace")
                   : t("subscriptions.graceUntil", { date: formatDate(current.grace_until, i18n.language) })}
               </Badge>
