@@ -1,7 +1,7 @@
 from typing import Optional
 
 from app.core.db.uow import UnitOfWork
-from app.core.security.permissions import Permission
+from app.core.security.permissions import Permission, PermissionPolicy
 from app.core.usecase import UseCase
 from app.modules.broadcasts.recipient_repository import BroadcastRecipientRepository
 from app.modules.broadcasts.repository import BroadcastRepository
@@ -28,9 +28,13 @@ class GetBroadcastPromocodeUseCase(UseCase[int, Optional[str], UserDto]):
     async def _execute(self, actor: UserDto, data: int) -> Optional[str]:
         async with self._uow:
             broadcast = await self._broadcast_repository.find_by_id(data)
-            if broadcast is None or broadcast.started_at is None or broadcast.promocode_id is None:
+            if broadcast is None or broadcast.promocode_id is None:
                 return None
-            if (
+            if broadcast.started_at is None:
+                # a test send reaches staff before the broadcast starts
+                if not PermissionPolicy.has_permission(actor, Permission.BROADCASTS_TEST_SEND):
+                    return None
+            elif (
                 broadcast.channel_message_id is None
                 and not await self._recipient_repository.is_recipient(data, actor.id)
             ):
