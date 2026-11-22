@@ -333,3 +333,12 @@ async def test_panel_deletion_in_grace_deletes_the_row(
     assert after is not None
     assert after.status is SubscriptionStatus.DELETED
     assert after.grace_until is None
+
+
+def test_restore_after_the_grace_end_leaves_out_the_past_expiry() -> None:
+    settings = GraceSettingsDto(enabled=True, traffic_limit_mb=512)
+    lapsed = make_subscription_dto(
+        status=SubscriptionStatus.EXPIRED, grace_until=datetime_now() - timedelta(minutes=1)
+    )
+
+    assert restore(lapsed, grace=settings).expire_at is None
