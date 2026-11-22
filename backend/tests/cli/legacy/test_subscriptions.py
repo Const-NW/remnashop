@@ -280,6 +280,41 @@ GRACE_CONFIG: dict[str, Any] = {
 }
 
 
+def _panel_at(expire_at: datetime) -> PanelIndex:
+    return PanelIndex(
+        by_username={"rs_1001": 55},
+        status={55: SubscriptionStatus.ACTIVE},
+        expire_at={55: expire_at},
+    )
+
+
+def test_stale_grace_mark_on_a_renewed_row_is_dropped() -> None:
+    # the old app left grace_until behind on admin, promocode and referral day grants
+    renewed = datetime(2026, 2, 1, tzinfo=timezone.utc)
+    report = MigrationReport()
+    row = _row(1, grace_until=GRACE_UNTIL, expire_at=renewed, tag="PRO")
+    [item] = _run([row], {1}, report, index=_panel_at(renewed))
+    assert item["grace_until"] is None
+    assert item["status"] is SubscriptionStatus.ACTIVE
+    assert item["expire_at"] == renewed
+    assert item["tag"] == "PRO"
+    assert "subscriptions: 1 stale grace marks dropped" in report.notes
+    assert not any("in grace" in note for note in report.notes)
+
+
+def test_stale_past_grace_mark_is_dropped() -> None:
+    renewed = datetime(2026, 2, 1, tzinfo=timezone.utc)
+    stale = datetime(2025, 11, 1, tzinfo=timezone.utc)
+    [item] = _run(
+        [_row(1, grace_until=stale, expire_at=renewed)],
+        {1},
+        MigrationReport(),
+        index=_panel_at(renewed),
+    )
+    assert item["grace_until"] is None
+    assert item["expire_at"] == renewed
+
+
 def test_subscription_in_grace_keeps_real_expiry() -> None:
     report = MigrationReport()
     row = _row(1, "EXPIRED", grace_until=GRACE_UNTIL)
@@ -308,7 +343,7 @@ def test_indefinite_grace_overwritten_row_falls_back_to_last_update() -> None:
     updated = datetime(2025, 12, 20, tzinfo=timezone.utc)
     report = MigrationReport()
     row = _row(1, grace_until=forever, expire_at=forever, updated_at=updated)
-    [item] = _run([row], {1}, report, grace_days=0)
+    [item] = _run([row], {1}, report, index=_panel_at(forever), grace_days=0)
     assert item["expire_at"] == updated
     assert item["grace_until"] == forever
     assert any("#1: real expiry unknown" in note for note in report.notes)
@@ -342,11 +377,11 @@ def test_indefinite_grace_overwritten_row_with_panel_milliseconds() -> None:
     row = _row(
         1, grace_until=forever, expire_at=forever.replace(microsecond=654000), updated_at=updated
     )
-    [item] = _run([row], {1}, MigrationReport(), grace_days=0)
+    [item] = _run([row], {1}, MigrationReport(), index=_panel_at(forever), grace_days=0)
     assert item["expire_at"] == updated
 
 
 def test_grace_row_with_an_unexpected_status_is_reported() -> None:
     report = MigrationReport()
-    _run([_row(1, "LIMITED", grace_until=GRACE_UNTIL)], {1}, report)
+    _run([_row(1, "LIMITED", grace_until=GRACE_UNTIL)], {1}, report, index=GRACE_INDEX)
     assert any("#1: in grace with status LIMITED" in note for note in report.notes)
