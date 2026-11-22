@@ -15,6 +15,7 @@ from app.telegram.routers.broadcasts import handlers as broadcasts_handlers
 from app.telegram.routers.cabinet_auth import handlers as cabinet_auth_handlers
 from app.telegram.routers.customer_notifications import handlers as customer_notifications_handlers
 from app.telegram.routers.legal import handlers as legal_handlers
+from app.telegram.routers.menu import section_links
 from app.telegram.routers.payments import handlers as payments_handlers
 from app.telegram.routers.promocode import deeplink as promocode_link
 from app.telegram.routers.purchase import deeplink as plan_link
@@ -33,6 +34,7 @@ def setup_routers(router: Router) -> None:
         customer_notifications_handlers.router,
         plan_link.router,
         promocode_link.router,
+        section_links.router,
         legal_handlers.router,
         referral_inline.router,
         menu.handlers.router,
