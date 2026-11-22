@@ -224,6 +224,8 @@ class RenewPurchase:
                     "Subscription was deleted while this renewal was in flight",
                     code=ErrorCode.SUBSCRIPTION_DELETED,
                 )
+            # grace entered while the panel call ran: the grace config may sit on the panel
+            graced_mid_flight = target.grace_until is None and locked.grace_until is not None
             subscription = await self._lifecycle_service.renew(
                 locked.id,
                 expire_at,
@@ -260,6 +262,14 @@ class RenewPurchase:
                     payment_key=data.idempotency_key,
                 )
             )
+
+        if graced_mid_flight:
+            # known gap: the days may still count from the grace end the panel showed.
+            # The renewal is committed, so a failed push is left to the next sync
+            try:
+                await self._remnawave_sdk.users.update_user(restore(subscription))
+            except Exception:
+                logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
 
         logger.info(
             f"{actor.log} Renewed subscription '{subscription.id}' by {data.duration_days}d"

@@ -1,4 +1,5 @@
 from contextlib import suppress
+from datetime import datetime
 from typing import Optional
 
 from loguru import logger
@@ -6,16 +7,17 @@ from remnapy import RemnawaveSDK
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
+from app.core.enums import SubscriptionStatus
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.plans import PlanDto, PlanRepository
-from app.modules.settings import SettingsRepository
+from app.modules.settings import GraceSettingsDto, SettingsRepository
 from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import SubscriptionGraceStartedEvent
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
-from app.modules.subscriptions.panel import grace_panel_update
+from app.modules.subscriptions.panel import grace_panel_update, restore
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
@@ -80,15 +82,27 @@ class EnterGraceUseCase(UseCase[int, bool]):
                 async with self._uow:
                     await self._subscription_repository.set_grace_until(data, None)
             raise RetryableTaskError(f"Grace push of subscription '{data}' failed") from error
+
+        if not await self._still_in_grace(data, grace_until, settings, claimed=claimed):
+            return False
+
         # grace traffic counts from zero; a failed reset leaves the old counter running
         try:
             await self._remnawave_sdk.users.reset_user_traffic(subscription.remnawave_user_id)
         except Exception:
             logger.exception(f"Failed to reset traffic of subscription '{data}' entering grace")
-
         if claimed:
-            async with self._uow:
-                owner = await subscription_owner(self._user_repository, subscription)
+            logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
+        return True
+
+    async def _still_in_grace(
+        self, data: int, grace_until: datetime, settings: GraceSettingsDto, *, claimed: bool
+    ) -> bool:
+        """A renewal or an admin may have left grace while the push ran: the row wins."""
+        async with self._uow:
+            current = await self._subscription_repository.get_by_id_for_update(data)
+            if current.grace_until == grace_until and claimed:
+                owner = await subscription_owner(self._user_repository, current)
                 await self._event_publisher.publish(
                     SubscriptionGraceStartedEvent(
                         user=owner,
@@ -97,5 +111,9 @@ class EnterGraceUseCase(UseCase[int, bool]):
                         traffic_limit_mb=settings.traffic_limit_mb,
                     )
                 )
-            logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
-        return True
+        if current.grace_until == grace_until:
+            return True
+        if current.status is not SubscriptionStatus.DELETED:
+            await self._remnawave_sdk.users.update_user(restore(current, grace=settings))
+        logger.info(f"Subscription '{data}' left grace while it was being pushed")
+        return False

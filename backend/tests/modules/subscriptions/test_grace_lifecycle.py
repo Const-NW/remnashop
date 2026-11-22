@@ -643,3 +643,50 @@ async def test_enable_in_grace_keeps_the_row_expired_on_the_grace_config(
     assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_101)) == truncate_to_ms(
         enabled.grace_until
     )
+
+
+async def test_renewal_landing_before_the_grace_push_wins(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_102)
+    renewed_until = truncate_to_ms(datetime_now() + timedelta(days=30))
+    lifecycle = SubscriptionLifecycleService(
+        subscription_repository, CreditSegmentRepository(session)
+    )
+    real_update_user = remnawave_sdk.users.update_user
+    calls = 0
+
+    async def renewal_then_push(request: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            # a renewal reads the claim, pushes its plan config and clears grace first
+            async with uow:
+                await lifecycle.sync_expire_at(before.id, renewed_until)
+                await lifecycle.sync_status(before.id, SubscriptionStatus.ACTIVE)
+                await subscription_repository.set_grace_until(before.id, None)
+            remnawave_store[94_102]["expireAt"] = renewed_until.isoformat()
+        return await real_update_user(request)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", renewal_then_push)
+
+    assert await grace.enter.system(before.id) is False
+
+    row = await subscription_repository.get_by_id(before.id)
+    assert row.grace_until is None
+    panel = remnawave_store[94_102]
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_102)) == renewed_until
+    assert panel["tag"] == "PLAN"
+    assert panel["activeInternalSquads"][0]["uuid"] == str(_PLAN_SQUAD)
+    assert await _events(session, before.id) == []

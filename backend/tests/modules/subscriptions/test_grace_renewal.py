@@ -51,6 +51,7 @@ from app.modules.subscriptions.panel_sync import from_panel
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.unlimited import expiry_after
 from app.modules.subscriptions.usecases import (
+    EnterGraceUseCase,
     PurchaseSubscriptionUseCase,
     SyncSubscriptionStatusUseCase,
     UpdateSubscriptionUseCase,
@@ -729,3 +730,62 @@ async def test_renewal_in_grace_to_a_plan_without_squads_clears_the_grace_squads
     assert renewed.grace_until is None
     assert renewed.internal_squads == []
     assert remnawave_store[95_013]["activeInternalSquads"] == []
+
+
+async def test_grace_entered_mid_renewal_leaves_the_panel_on_the_plan_config(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    graced = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_020,
+        expired_ago=timedelta(minutes=5),
+    )
+    target = await subscription_repository.set_grace_until(graced.id, None)
+    remnawave_store[95_020].update(
+        status="EXPIRED",
+        expireAt=target.expire_at.isoformat(),
+        tag="PLAN",
+        activeInternalSquads=[{"uuid": str(_PLAN_SQUAD), "name": "plan"}],
+        trafficLimitBytes=100 * GB_TO_BYTES,
+    )
+    session = subscription_repository.session
+    enter = EnterGraceUseCase(
+        subscription_repository,
+        plan_repository,
+        settings_repository,
+        UserRepository(session),
+        remnawave_sdk,
+        uow,
+        event_publisher,
+    )
+    real_get_user_by_id = remnawave_sdk.users.get_user_by_id
+
+    async def grace_first(user_id: int) -> UserResponseDto:
+        # the expiry webhook's grace entry runs while the renewal reads the panel
+        assert await enter.system(target.id)
+        return await real_get_user_by_id(user_id)
+
+    monkeypatch.setattr(remnawave_sdk.users, "get_user_by_id", grace_first)
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
+
+    renewed = await use_case(await _buyer(user_repository, target), _paid_renewal(target, plan))
+
+    assert renewed.grace_until is None
+    assert renewed.status is SubscriptionStatus.ACTIVE
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 95_020)) == truncate_to_ms(
+        renewed.expire_at
+    )
+    _assert_plan_config(remnawave_store, 95_020, _PLAN_SQUAD, "PLAN")
