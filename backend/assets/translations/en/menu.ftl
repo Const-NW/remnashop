@@ -17,7 +17,7 @@ frg-menu-subscription =
             <blockquote>
             • <b>Traffic limit</b>: { $traffic_limit }
             • <b>Device limit</b>: { $device_limit }
-            • <b>Expires</b>: { $expire_at }
+            • <b>Expires</b>: { $expire_at_local }
             </blockquote>
         [EXPIRED]
             <blockquote>
@@ -85,7 +85,7 @@ msg-menu-device =
     Model: { $device_model }
     System: { $device_system }
     App: { $device_app }
-    Connected: { $device_created_at }
+    Connected: { $device_created_at_local }
 msg-menu-device-rename = Send a new name for “{ $device_name }”, up to { $device_name_max_length } characters.
 msg-menu-devices-confirm-delete = Delete this device?
 msg-menu-devices-confirm-delete-all = Delete every device? The connection link changes and every device loses access — each one has to be connected again with the new link.
@@ -186,7 +186,7 @@ msg-subscription-card =
         [0] Unlimited
        *[other] { $device_limit }
     }
-    • <b>Valid until</b>: { $expire_at }
+    • <b>Expires</b>: { $expire_at_local }
     </blockquote>
 msg-referrals =
     <b>👥 Invite friends</b>
@@ -205,8 +205,8 @@ btn-subscriptions =
     .purchase = Buy a subscription
     .purchase-icon = 💸
     .item = { $status ->
-        [ACTIVE] 🟢 { $plan_name } · until { $expire_at }
-        [UNLIMITED] 🟢 { $plan_name } · no end date
+        [ACTIVE] 🟢 { $plan_name } · expires { $expire_at }
+        [UNLIMITED] 🟢 { $plan_name } · unlimited
         [LIMITED] 🟡 { $plan_name } · traffic used up
         [EXPIRED] 🔴 { $plan_name } · expired { $expire_at }
         [DISABLED] ⚫ { $plan_name } · disabled
@@ -656,7 +656,7 @@ time-unit =
     .hour = { $value } h
     .minute = { $value } min
     .unlimited = Forever
-    .no-expiry = no end date
+    .no-expiry = unlimited
 
 inline-invite =
     .title = Invite a friend

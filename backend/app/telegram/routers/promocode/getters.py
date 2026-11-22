@@ -50,7 +50,7 @@ async def promocode_target_getter(
             "id": sub.id,
             "label": (
                 f"{sub.plan_snapshot.display_name(user.language)} — "
-                f"{format_expiry(runner, sub.expire_at, with_time=True)}"
+                f"{format_expiry(runner, sub.expire_at)}"
             ),
         }
         for sub in targets
