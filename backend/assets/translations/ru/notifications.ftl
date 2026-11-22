@@ -173,9 +173,18 @@ ntf-customer-subscription-traffic-limited = Ваш трафик израсход
     }
     .title = Доступ приостановлен — VPN не работает
     .emoji = ⛔
-ntf-customer-subscription-traffic-threshold = { $is_trial ->
-        [yes] Оформите подписку, чтобы не потерять доступ.
-       *[no] Продлите подписку, чтобы не потерять доступ.
+ntf-customer-subscription-traffic-threshold = { $percent ->
+        [0] Трафик подходит к концу.
+       *[other] Израсходовано { $percent }% трафика.
+    }{ $reset_date ->
+        [none] {""}
+       *[other] {" "}Он восстановится { $reset_date }.
+    }{ $is_trial ->
+        [yes] {" "}Оформите подписку, чтобы не потерять доступ.
+       *[no] { $can_renew ->
+            [yes] {" "}Продлите подписку, чтобы сбросить его сейчас.
+           *[no] {""}
+        }
     }
     .title = Трафик на исходе
     .emoji = ⚠️

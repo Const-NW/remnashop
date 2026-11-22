@@ -2,7 +2,7 @@ from typing import Optional, Union
 
 from app.core.enums import Locale
 from app.core.utils.money import format_money
-from app.modules.subscriptions import SubscriptionGrantedEvent
+from app.modules.subscriptions import SubscriptionGrantedEvent, SubscriptionTrafficThresholdEvent
 
 
 def customer_render_args(
@@ -22,6 +22,11 @@ def customer_render_args(
     if event_type == SubscriptionGrantedEvent.__name__:
         # a feed row stored before the plan name was has none
         rendered["has_plan_name"] = "yes" if args.get("plan_name") else "no"
+    if event_type == SubscriptionTrafficThresholdEvent.__name__:
+        # a feed row stored before these were has none: the old text, "renew to keep access"
+        rendered.setdefault("percent", 0)
+        rendered.setdefault("reset_date", "none")
+        rendered.setdefault("can_renew", "yes")
     if "amount" in args and "currency" in args:
         rendered["money"] = format_money(str(args["amount"]), str(args["currency"]), locale)
     return rendered

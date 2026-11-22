@@ -5,6 +5,7 @@ from typing import Any, Optional, Union, cast
 
 import pytest
 from redis.asyncio import Redis
+from remnapy.enums import TrafficLimitStrategy
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +16,7 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import (
     Locale,
     PaymentOutcome,
+    PlanType,
     PurchaseChannel,
     SessionAudience,
     SubscriptionStatus,
@@ -34,6 +36,7 @@ from app.modules.notifications.dto import PushMessage
 from app.modules.notifications.render import NotificationRenderer
 from app.modules.notifications.repository import NotificationRepository
 from app.modules.plans import PlanRepository
+from app.modules.plans.dto import CreatePlanDto
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.subscriptions import SubscriptionRepository
@@ -78,6 +81,8 @@ ntf-customer-torrent-blocker-report = Torrents are forbidden.
     .title = Torrents
 ntf-customer-payments-restored = Payments are back.
     .title = Payments
+ntf-customer-subscription-traffic-threshold = Used { $percent }%. Renew { $can_renew }.
+    .title = Traffic
 """
 _PURCHASED = "SubscriptionPurchasedEvent"
 
@@ -878,3 +883,100 @@ async def test_a_new_sign_in_offers_to_end_every_session(fx: _Fixture) -> None:
         {"text": "📩 Support", "url": "https://help.test"},
         {"text": "Close", "callback_data": "cn:close"},
     ]
+
+
+async def _traffic_subscription(
+    fx: _Fixture,
+    user: UserDto,
+    remnawave_user_id: int,
+    *,
+    status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
+    strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET,
+    plan_id: int = 1,
+) -> int:
+    async with fx.uow:
+        subscription = await SubscriptionRepository(fx.orders.session).create(
+            CreateSubscriptionDto(
+                user_id=user.id,
+                remnawave_user_id=remnawave_user_id,
+                status=status,
+                traffic_limit=100,
+                traffic_limit_strategy=strategy,
+                device_limit=0,
+                expire_at=datetime_now() + timedelta(days=20),
+                url="https://example.test/sub",
+                plan_snapshot=make_plan_snapshot(plan_id=plan_id),
+            )
+        )
+    return subscription.id
+
+
+async def test_traffic_threshold_names_the_reset_date_and_renewal(fx: _Fixture) -> None:
+    user = await fx.create(name="tt", telegram_id=8401)
+    plan = await PlanRepository(fx.orders.session).create(
+        CreatePlanDto(
+            public_code="tt-plan", name="TT", type=PlanType.BOTH, traffic_limit=100, device_limit=1
+        )
+    )
+    subscription_id = await _traffic_subscription(
+        fx, user, 880_401, strategy=TrafficLimitStrategy.DAY, plan_id=plan.id
+    )
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    tomorrow = (datetime_now() + timedelta(days=1)).strftime("%d.%m.%Y")
+    assert row.args == {
+        "percent": 80,
+        "is_trial": "no",
+        "reset_date": tomorrow,
+        "can_renew": "yes",
+    }
+
+
+async def test_traffic_threshold_offers_no_renewal_a_plan_closes(fx: _Fixture) -> None:
+    user = await fx.create(name="tn", telegram_id=8402)
+    plan = await PlanRepository(fx.orders.session).create(
+        CreatePlanDto(
+            public_code="tn-plan",
+            name="TN",
+            type=PlanType.BOTH,
+            traffic_limit=100,
+            device_limit=1,
+            allow_renewal=False,
+        )
+    )
+    subscription_id = await _traffic_subscription(fx, user, 880_402, plan_id=plan.id)
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 95},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    # NO_RESET: the counter never comes back on its own
+    assert (row.args["reset_date"], row.args["can_renew"]) == ("none", "no")
+
+
+async def test_traffic_threshold_is_dropped_once_the_subscription_is_limited(fx: _Fixture) -> None:
+    user = await fx.create(name="tl", telegram_id=8403)
+    subscription_id = await _traffic_subscription(
+        fx, user, 880_403, status=SubscriptionStatus.LIMITED
+    )
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 95},
+    )
+
+    assert await fx.feed_rows(user) == []
+    assert fx.telegram.messages == []

@@ -152,14 +152,18 @@ async def _on_hours(
 
 
 async def _on_subscription(
-    event: Union[
-        SubscriptionExpiredEvent,
-        SubscriptionTrafficLimitedEvent,
-        SubscriptionTrafficThresholdEvent,
-    ],
+    event: Union[SubscriptionExpiredEvent, SubscriptionTrafficLimitedEvent],
     entry: StoredEvent,
 ) -> None:
     await _notify(entry, event.user.id, {}, subscription_id=event.subscription_id)
+
+
+async def _on_traffic_threshold(
+    event: SubscriptionTrafficThresholdEvent, entry: StoredEvent
+) -> None:
+    await _notify(
+        entry, event.user.id, {"percent": event.percent}, subscription_id=event.subscription_id
+    )
 
 
 def _block_span(blocked_until: str, now: datetime) -> dict[str, Any]:
@@ -250,7 +254,7 @@ def register_subscribers(bus: EventBus) -> None:
     bus.subscribe(SubscriptionExpiringEvent, _on_hours)
     bus.subscribe(SubscriptionExpiredEvent, _on_subscription)
     bus.subscribe(SubscriptionTrafficLimitedEvent, _on_subscription)
-    bus.subscribe(SubscriptionTrafficThresholdEvent, _on_subscription)
+    bus.subscribe(SubscriptionTrafficThresholdEvent, _on_traffic_threshold)
     bus.subscribe(SubscriptionNotConnectedEvent, _on_hours)
     bus.subscribe(SubscriptionExpiredAgoEvent, _on_hours)
     bus.subscribe(TorrentBlockerReportEvent, _on_torrent)

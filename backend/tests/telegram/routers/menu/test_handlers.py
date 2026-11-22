@@ -9,10 +9,10 @@ from remnapy.enums import TrafficLimitStrategy
 
 from app.core.constants import USER_KEY
 from app.core.enums import Currency, PurchaseType, SubscriptionStatus
+from app.modules.subscriptions import next_traffic_reset
 from app.modules.subscriptions.dto import GetAvailableTrialDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
 from app.telegram.routers.menu.handlers import (
-    next_traffic_reset,
     on_get_trial,
     on_show_connect_problem,
 )

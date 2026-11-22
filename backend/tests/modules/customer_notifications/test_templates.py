@@ -44,7 +44,12 @@ _ARGS: dict[str, dict[str, Union[str, int]]] = {
     "SubscriptionExpiredEvent": {"is_trial": "yes"},
     "SubscriptionExpiredAgoEvent": {"hours": 72, "is_trial": "no"},
     "SubscriptionTrafficLimitedEvent": {"is_trial": "no", "traffic_strategy": "MONTH"},
-    "SubscriptionTrafficThresholdEvent": {"is_trial": "yes"},
+    "SubscriptionTrafficThresholdEvent": {
+        "percent": 80,
+        "reset_date": "01.12.2026",
+        "is_trial": "no",
+        "can_renew": "yes",
+    },
     "SubscriptionNotConnectedEvent": {"hours": 5},
     "CabinetNewDeviceSignInEvent": {"ip": "1.2.3.4", "browser": "Firefox"},
     "PromocodeDiscountExpiringEvent": {"percent": 10, "code": "SALE", "hours": 1},
@@ -133,8 +138,22 @@ def test_changed_template_renders(locale: Locale, event_type: str) -> None:
         (
             Locale.EN,
             "SubscriptionTrafficThresholdEvent",
-            {"is_trial": "yes"},
-            "Get a subscription to keep your access.",
+            {"percent": 80, "reset_date": "01.12.2026", "is_trial": "no", "can_renew": "yes"},
+            "You've used 80% of your traffic. It resets on 01.12.2026. Renew your subscription "
+            "to reset it now.",
+        ),
+        (
+            Locale.RU,
+            "SubscriptionTrafficThresholdEvent",
+            {"percent": 95, "reset_date": "none", "is_trial": "yes", "can_renew": "no"},
+            "Израсходовано 95% трафика. Оформите подписку, чтобы не потерять доступ.",
+        ),
+        (
+            Locale.RU,
+            "SubscriptionTrafficThresholdEvent",
+            # a feed row stored before percent and the reset date were
+            {"is_trial": "no"},
+            "Трафик подходит к концу. Продлите подписку, чтобы сбросить его сейчас.",
         ),
         (
             Locale.EN,

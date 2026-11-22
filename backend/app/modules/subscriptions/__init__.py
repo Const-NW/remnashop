@@ -54,6 +54,7 @@ from app.modules.subscriptions.ports import (
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.rollback import PurchaseRollbackService
 from app.modules.subscriptions.stats_repository import SubscriptionStatsRepository
+from app.modules.subscriptions.traffic_reset import next_traffic_reset
 from app.modules.subscriptions.unlimited import is_unlimited_expiry
 from app.modules.subscriptions.usage import PanelTrafficUsage, traffic_spent_for_good
 from app.modules.subscriptions.usecases import (
@@ -135,6 +136,7 @@ __all__ = [
     "get_subscriptions_providers",
     "is_unlimited_expiry",
     "missing_squads",
+    "next_traffic_reset",
     "read_panel_sync_status",
     "traffic_spent_for_good",
     "with_current_plan_labels",

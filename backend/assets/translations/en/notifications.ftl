@@ -168,9 +168,18 @@ ntf-customer-subscription-traffic-limited = You've used up your traffic. { $is_t
     }
     .title = Access paused — the VPN isn't working
     .emoji = ⛔
-ntf-customer-subscription-traffic-threshold = { $is_trial ->
-        [yes] Get a subscription to keep your access.
-       *[no] Renew your subscription to keep your access.
+ntf-customer-subscription-traffic-threshold = { $percent ->
+        [0] Your traffic is running low.
+       *[other] You've used { $percent }% of your traffic.
+    }{ $reset_date ->
+        [none] {""}
+       *[other] {" "}It resets on { $reset_date }.
+    }{ $is_trial ->
+        [yes] {" "}Get a subscription to keep your access.
+       *[no] { $can_renew ->
+            [yes] {" "}Renew your subscription to reset it now.
+           *[no] {""}
+        }
     }
     .title = Traffic running low
     .emoji = ⚠️
