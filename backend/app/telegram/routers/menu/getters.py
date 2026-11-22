@@ -32,7 +32,7 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_expiry, get_translator
+from app.telegram.i18n import format_expiry, format_expiry_tag, get_translator
 
 
 def menu_subscription(
@@ -68,6 +68,7 @@ def subscription_menu_values(
         "subscription_traffic_limit": "",
         "subscription_device_limit": "",
         "subscription_expire_at": "",
+        "subscription_expire_at_unix": "",
     }
     if listed_elsewhere:
         # several subscriptions allowed: they sit behind "My subscriptions"
@@ -90,6 +91,9 @@ def subscription_menu_values(
             ),
             "subscription_device_limit": str(devices) if devices else unlimited,
             "subscription_expire_at": format_expiry(runner, subscription.expire_at, with_time=True),
+            "subscription_expire_at_unix": format_expiry_tag(
+                runner, subscription.expire_at, with_time=True
+            ),
         }
     if subscription is None:
         block = render_window_text(
@@ -112,6 +116,7 @@ def subscription_menu_values(
         traffic_limit=values["subscription_traffic_limit"],
         device_limit=values["subscription_device_limit"],
         expire_at=values["subscription_expire_at"],
+        expire_at_unix=values["subscription_expire_at_unix"],
         extra_count=str(extra_count) if extra_count > 0 else "",
     )
     return {**values, "subscription_block": TrustedHtml(block)}

@@ -121,6 +121,7 @@ def register_menu_metadata() -> None:
                 "subscription_traffic_limit",
                 "subscription_device_limit",
                 "subscription_expire_at",
+                "subscription_expire_at_unix",
                 "subscription_block",
             ),
             buttons=(

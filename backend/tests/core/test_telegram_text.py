@@ -33,6 +33,8 @@ def test_regex_captures_glyph_and_id() -> None:
         "<blockquote>q</blockquote><pre>code</pre> a &amp; b",
         "5 &lt; 6",
         "<b>{ $user_name }</b> [⭐](emoji:123)",
+        '<tg-time unix="1797955380" format="dt">22.12.2026</tg-time>',
+        '<tg-time unix="{ $unix }">x</tg-time>',
     ],
 )
 def test_valid_html(text: str) -> None:
@@ -54,6 +56,8 @@ def test_valid_html(text: str) -> None:
         "<!DOCTYPE html>",
         "<?php x ?>",
         "<![CDATA[x]]>",
+        '<tg-time format="d">x</tg-time>',
+        '<tg-time unix="1" format="rd">x</tg-time>',
     ],
 )
 def test_invalid_html(text: str) -> None:

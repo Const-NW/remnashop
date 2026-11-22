@@ -13,6 +13,7 @@ def _card(**kwargs: object) -> str:
         "status": SubscriptionStatus.ACTIVE.value,
         "is_trial": 0,
         "expire_at": "01.01.2027",
+        "expire_at_unix": "01.01.2027",
         "traffic_limit": 0,
         "device_limit": 0,
     }
@@ -43,6 +44,7 @@ def _rendered(**kwargs: object) -> str:
         "status": SubscriptionStatus.ACTIVE.value,
         "is_trial": 0,
         "expire_at": "01.01.2027",
+        "expire_at_unix": "01.01.2027",
         "traffic_limit": 50,
         "device_limit": 3,
     }

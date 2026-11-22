@@ -1,3 +1,4 @@
+import html
 import math
 from datetime import datetime
 from decimal import Decimal
@@ -14,8 +15,12 @@ from app.core.utils.time import datetime_now, period_parts
 from app.modules.subscriptions import is_unlimited_expiry
 from app.modules.translations import TranslationRepository
 from app.modules.users import UserDto
+from app.telegram.dialogs.rendering import TrustedHtml
 
 _DATETIME_FORMAT: Final[str] = "%d.%m.%Y %H:%M"
+# Bot API date_time entity: d = short date, t = short time
+_TG_DATETIME_FORMAT: Final[str] = "dt"
+_TG_DATE_FORMAT: Final[str] = "d"
 
 
 def build_translator_hub(
@@ -79,6 +84,20 @@ def format_expiry(runner: TranslatorRunner, value: datetime, *, with_time: bool 
     if is_unlimited_expiry(value):
         return runner.get("time-unit.no-expiry")
     return format_datetime(value) if with_time else format_date(value)
+
+
+def format_expiry_tag(
+    runner: TranslatorRunner, value: datetime, *, with_time: bool = False
+) -> TrustedHtml:
+    """The expiry as <tg-time>, shown in the reader's own time zone; the inner
+    text is for clients that don't know the tag."""
+    text = html.escape(format_expiry(runner, value, with_time=with_time))
+    if is_unlimited_expiry(value):
+        return TrustedHtml(text)
+    tg_format = _TG_DATETIME_FORMAT if with_time else _TG_DATE_FORMAT
+    return TrustedHtml(
+        f'<tg-time unix="{int(value.timestamp())}" format="{tg_format}">{text}</tg-time>'
+    )
 
 
 def format_period(runner: TranslatorRunner, days: int) -> str:

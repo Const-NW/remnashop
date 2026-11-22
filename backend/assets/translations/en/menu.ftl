@@ -17,7 +17,7 @@ frg-menu-subscription =
             <blockquote>
             • <b>Traffic limit</b>: { $traffic_limit }
             • <b>Device limit</b>: { $device_limit }
-            • <b>Expires</b>: { $expire_at }
+            • <b>Expires</b>: { $expire_at_unix }
             </blockquote>
         [EXPIRED]
             <blockquote>
@@ -186,7 +186,7 @@ msg-subscription-card =
         [0] Unlimited
        *[other] { $device_limit }
     }
-    • <b>Valid until</b>: { $expire_at }
+    • <b>Expires</b>: { $expire_at_unix }
     </blockquote>
 msg-referrals =
     <b>👥 Invite friends</b>
@@ -205,8 +205,8 @@ btn-subscriptions =
     .purchase = Buy a subscription
     .purchase-icon = 💸
     .item = { $status ->
-        [ACTIVE] 🟢 { $plan_name } · until { $expire_at }
-        [UNLIMITED] 🟢 { $plan_name } · no end date
+        [ACTIVE] 🟢 { $plan_name } · expires { $expire_at }
+        [UNLIMITED] 🟢 { $plan_name } · never expires
         [LIMITED] 🟡 { $plan_name } · traffic used up
         [EXPIRED] 🔴 { $plan_name } · expired { $expire_at }
         [DISABLED] ⚫ { $plan_name } · disabled
@@ -656,7 +656,7 @@ time-unit =
     .hour = { $value } h
     .minute = { $value } min
     .unlimited = Forever
-    .no-expiry = no end date
+    .no-expiry = never
 
 inline-invite =
     .title = Invite a friend

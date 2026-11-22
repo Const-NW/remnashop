@@ -25,10 +25,13 @@ _ALLOWED_TAGS: Final[frozenset[str]] = frozenset(
         "pre",
         "blockquote",
         "tg-spoiler",
+        "tg-time",
     }
 )
 _URL_SCHEMES: Final[tuple[str, ...]] = ("https://", "http://", "tg://")
 _TAG_RE: Final[re.Pattern[str]] = re.compile(r"<[^<>]*>")
+# Bot API date_time entity format
+_TG_TIME_FORMAT_RE: Final[re.Pattern[str]] = re.compile(r"r|w?[dD]?[tT]?")
 
 
 def premium_emoji_html(text: str) -> str:
@@ -104,6 +107,13 @@ class _TagChecker(HTMLParser):
             href = dict(attrs).get("href") or ""
             if not href.startswith(_URL_SCHEMES):
                 raise self.invalid("link must start with https://, http:// or tg://")
+        if tag == "tg-time":
+            values = dict(attrs)
+            # a template holds a variable here, so only presence is checked
+            if not values.get("unix"):
+                raise self.invalid("<tg-time> needs a unix attribute")
+            if not _TG_TIME_FORMAT_RE.fullmatch(values.get("format") or ""):
+                raise self.invalid("<tg-time> format must match r|w?[dD]?[tT]?")
         self.stack.append(tag)
 
     def handle_comment(self, data: str) -> None:

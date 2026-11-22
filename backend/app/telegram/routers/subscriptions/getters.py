@@ -33,7 +33,7 @@ from app.telegram.dialogs.rendering import (
     render_window_text,
     resolve_variable_kwargs,
 )
-from app.telegram.i18n import format_date, format_expiry, get_translator
+from app.telegram.i18n import format_date, format_expiry, format_expiry_tag, get_translator
 from app.telegram.routers.subscriptions.handlers import SELECTED_HWID_KEY
 
 # the open device card's title and whether the customer named it, for the rename window
@@ -165,6 +165,7 @@ async def subscription_card_getter(
             status=subscription.status.value,
             is_trial=int(subscription.is_trial),
             expire_at=format_expiry(runner, subscription.expire_at),
+            expire_at_unix=format_expiry_tag(runner, subscription.expire_at),
             traffic_limit=subscription.effective_traffic_limit,
             device_limit=subscription.effective_device_limit,
             **resolve_variable_kwargs(data),

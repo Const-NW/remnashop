@@ -17,7 +17,7 @@ frg-menu-subscription =
             <blockquote>
             • <b>Лимит трафика</b>: { $traffic_limit }
             • <b>Лимит устройств</b>: { $device_limit }
-            • <b>Действует до</b>: { $expire_at }
+            • <b>Действует до</b>: { $expire_at_unix }
             </blockquote>
         [EXPIRED]
             <blockquote>
@@ -186,7 +186,7 @@ msg-subscription-card =
         [0] Безлимит
        *[other] { $device_limit }
     }
-    • <b>Действует до</b>: { $expire_at }
+    • <b>Действует до</b>: { $expire_at_unix }
     </blockquote>
 msg-referrals =
     <b>👥 Пригласить друзей</b>
