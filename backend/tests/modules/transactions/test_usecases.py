@@ -2243,3 +2243,26 @@ async def test_test_payment_refuses_stars_without_a_linked_telegram(
 
     assert error.value.code is ErrorCode.GATEWAY_TEST_NO_TELEGRAM
     assert fake_gateway.create_payment_calls == []
+
+
+async def test_checkout_records_the_customers_markup_in_the_order(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    user_repository: UserRepository,
+    transaction_repository: TransactionRepository,
+    uow: UnitOfWork,
+) -> None:
+    plain = await create_checkout_use_case(actor, _checkout_dto(actor, plan))
+    async with uow:
+        updated = await user_repository.update_fields(actor.id, UpdateUserDto(markup_percent=25))
+    assert updated is not None
+
+    marked = await create_checkout_use_case(updated, _checkout_dto(updated, plan))
+
+    plain_order = await transaction_repository.get_by_id(plain.order_id)
+    order = await transaction_repository.get_by_id(marked.order_id)
+    assert plain_order.markup_percent == 0
+    assert order.markup_percent == 25
+    assert order.base_price > plain_order.base_price
