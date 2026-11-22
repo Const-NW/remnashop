@@ -7,12 +7,20 @@ import httpx
 import pytest
 from remnapy import RemnawaveSDK
 from remnapy.enums import TrafficLimitStrategy
-from remnapy.models import UpdateUserRequestDto
+from remnapy.models import UpdateUserRequestDto, UserResponseDto
 
 from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Currency, Locale, PlanType, PurchaseType, Role, SubscriptionStatus
+from app.core.enums import (
+    AddOnType,
+    Currency,
+    Locale,
+    PlanType,
+    PurchaseType,
+    Role,
+    SubscriptionStatus,
+)
 from app.core.error_codes import ErrorCode
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now, truncate_to_ms
@@ -28,6 +36,7 @@ from app.modules.plans.repository import PlanRepository
 from app.modules.pricing.repository import PricingRepository
 from app.modules.settings import SettingsRepository
 from app.modules.settings.dto import UpdateGraceSettingsDto
+from app.modules.subscriptions.credit import remaining_term_credit
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.domain import OrderNotPaidError
 from app.modules.subscriptions.dto import (
@@ -38,10 +47,12 @@ from app.modules.subscriptions.dto import (
 )
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.panel_sync import from_panel
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.unlimited import expiry_after
 from app.modules.subscriptions.usecases import (
     PurchaseSubscriptionUseCase,
+    SyncSubscriptionStatusUseCase,
     UpdateSubscriptionUseCase,
 )
 from app.modules.users.dto import UserDto
@@ -59,26 +70,7 @@ _PLAN_SQUAD: Final[UUID] = uuid4()
 _NEW_PLAN_SQUAD: Final[UUID] = uuid4()
 
 
-@pytest.fixture(autouse=True)
-def _panel_keeps_squads(
-    remnawave_sdk: RemnawaveSDK, remnawave_store: FakeUserStore, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The fake panel drops squads on update; these tests read them back."""
-    real_update = remnawave_sdk.users.update_user
-
-    async def _update(request: UpdateUserRequestDto) -> object:
-        result = await real_update(request)
-        if request.active_internal_squads is not None:
-            remnawave_store[request.id]["activeInternalSquads"] = [
-                {"uuid": str(squad), "name": "fake-squad"}
-                for squad in request.active_internal_squads
-            ]
-        return result
-
-    monkeypatch.setattr(remnawave_sdk.users, "update_user", _update)
-
-
-async def _plan(plan_repository: PlanRepository, squad: UUID, tag: str) -> PlanDto:
+async def _plan(plan_repository: PlanRepository, squad: Optional[UUID], tag: str) -> PlanDto:
     plan = await plan_repository.create(
         CreatePlanDto(
             public_code=f"gr{uuid4().hex[:6]}",
@@ -96,7 +88,9 @@ async def _plan(plan_repository: PlanRepository, squad: UUID, tag: str) -> PlanD
         )
     )
     await plan_repository.update_squads(
-        UpdatePlanSquadsDto(plan_id=plan.id, internal_squads=[squad], external_squad=None)
+        UpdatePlanSquadsDto(
+            plan_id=plan.id, internal_squads=[squad] if squad else [], external_squad=None
+        )
     )
     return await plan_repository.update(UpdatePlanDto(plan_id=plan.id, is_active=True))
 
@@ -608,3 +602,130 @@ async def test_admin_traffic_edit_in_grace_leaves_panel(
     assert updated.tag == "VIP"
     assert updated.grace_until == target.grace_until
     assert remnawave_store[95_010]["trafficLimitBytes"] == 512 * MB_TO_BYTES
+
+
+async def test_renewal_echo_in_grace_keeps_add_ons_and_the_plan_config(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    target = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_011,
+    )
+    # a 10 GB add-on above the 512 MB grace limit
+    async with uow:
+        await subscription_repository.grant_entitlement(
+            subscription_id=target.id, addon_id=None, addon_type=AddOnType.TRAFFIC, amount=10
+        )
+    session = subscription_repository.session
+    sync = SyncSubscriptionStatusUseCase(
+        subscription_repository,
+        uow,
+        event_publisher,
+        SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
+    )
+    real_update = remnawave_sdk.users.update_user
+    echoed: list[UserResponseDto] = []
+
+    async def _update_then_echo(request: UpdateUserRequestDto) -> UserResponseDto:
+        result = await real_update(request)
+        # the panel's webhook for the expiry lands before the renewal is recorded
+        if request.expire_at is not None and not echoed:
+            echoed.append(result)
+            await sync.system(from_panel(result, target.remnawave_user_id, "webhook"))
+        return result
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _update_then_echo)
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
+
+    renewed = await use_case(await _buyer(user_repository, target), _paid_renewal(target, plan))
+
+    assert echoed
+    assert renewed.grace_until is None
+    assert [e.type for e in renewed.addon_entitlements] == [AddOnType.TRAFFIC]
+    assert (renewed.traffic_limit, renewed.effective_traffic_limit) == (100, 110)
+    assert renewed.internal_squads == [_PLAN_SQUAD]
+    assert renewed.tag == "PLAN"
+    assert remnawave_store[95_011]["trafficLimitBytes"] == 110 * GB_TO_BYTES
+
+
+async def test_paid_renewal_in_grace_credits_the_whole_term(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    target = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_012,
+        expired_ago=timedelta(days=10),
+        grace_until=datetime_now() + timedelta(days=5),
+    )
+    session = subscription_repository.session
+    lifecycle = SubscriptionLifecycleService(
+        subscription_repository, CreditSegmentRepository(session)
+    )
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher, lifecycle)
+
+    renewed = await use_case(await _buyer(user_repository, target), _paid_renewal(target, plan))
+
+    # a plan change a day later: the 30 paid days counted from the real expiry, 10
+    # of them lapsed in grace and one more used
+    now = datetime_now() + timedelta(days=1)
+    async with uow:
+        segments = await lifecycle.credit_segments(renewed.id)
+    credit = remaining_term_credit(
+        segments, now=now, expire_at=renewed.expire_at, convert=lambda amount, _: amount
+    )
+    term = renewed.expire_at - target.expire_at
+    expected = Decimal("299.00") * Decimal((renewed.expire_at - now) / term)
+    assert abs(credit - expected) < Decimal("0.5")
+
+
+async def test_renewal_in_grace_to_a_plan_without_squads_clears_the_grace_squads(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    plan = await _plan(plan_repository, None, "PLAN")
+    target = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_013,
+    )
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
+
+    renewed = await use_case(await _buyer(user_repository, target), _paid_renewal(target, plan))
+
+    assert renewed.grace_until is None
+    assert renewed.internal_squads == []
+    assert remnawave_store[95_013]["activeInternalSquads"] == []

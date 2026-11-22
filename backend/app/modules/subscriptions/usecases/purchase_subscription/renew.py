@@ -4,7 +4,7 @@ from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
-from remnapy.models import ExtendUserRequestDto, UpdateUserRequestDto
+from remnapy.models import ExtendUserRequestDto, UpdateUserRequestDto, UserResponseDto
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
@@ -143,11 +143,8 @@ class RenewPurchase:
         """The panel's new expiry, the days it added and the anchor day it leaves."""
         if data.idempotency_key is None and data.duration_days == 0:
             # the panel's extend takes days, not "unlimited"
-            updated = await self._remnawave_sdk.users.update_user(
-                UpdateUserRequestDto(
-                    id=target.remnawave_user_id,
-                    expire_at=expiry_after(datetime_now(), 0, exact_days=True),
-                )
+            updated = await self._set_expiry(
+                target, data, expiry_after(datetime_now(), 0, exact_days=True)
             )
             expire_at, added_days, anchor_day = updated.expire_at, 0, None
         elif data.idempotency_key is None:
@@ -169,10 +166,7 @@ class RenewPurchase:
             )
             if target.grace_until is not None:
                 # the panel's extend would add to the grace end
-                updated = await self._remnawave_sdk.users.update_user(
-                    UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=end)
-                )
-                expire_at = updated.expire_at
+                expire_at = (await self._set_expiry(target, data, end)).expire_at
             else:
                 extended = await self._remnawave_sdk.users.extend_user(
                     target.remnawave_user_id, ExtendUserRequestDto(days=added_days)
@@ -236,6 +230,7 @@ class RenewPurchase:
                 paid=data.price_paid,
                 currency=data.currency,
                 previous_expire_at=target.expire_at,
+                starts_at=_term_start(target, data),
                 payment_key=data.idempotency_key,
             )
             # plain days and day terms clear it: their end sits off any anchor
@@ -275,19 +270,15 @@ class RenewPurchase:
         self, data: PurchaseSubscriptionDto, target: SubscriptionDto
     ) -> tuple[bool, bool]:
         """(tag applied, terms applied) in the panel; the row follows only what landed.
-        The days are paid for: a failure here must not hold them back. In grace the
-        panel runs on the grace config, so the real one always goes back."""
-        in_grace = target.grace_until is not None
+        The days are paid for: a failure here must not hold them back."""
+        if target.grace_until is not None:
+            # went with the expiry (_set_expiry)
+            return data.apply_current_plan, data.apply_current_plan
         if not data.apply_current_plan:
-            if in_grace:
-                try:
-                    await self._remnawave_sdk.users.update_user(restore(target))
-                except Exception:
-                    logger.exception(f"Failed to take subscription '{target.id}' out of grace")
             return False, False
         tag_applied = False
         # a renewal takes the plan's current tag, as a new purchase would
-        if in_grace or data.plan_snapshot.tag != target.tag:
+        if data.plan_snapshot.tag != target.tag:
             try:
                 await self._remnawave_sdk.users.update_user(
                     panel_update(id=target.remnawave_user_id, tag=data.plan_snapshot.tag)
@@ -298,7 +289,7 @@ class RenewPurchase:
         terms_applied = False
         # the plan was edited since this subscription was sold: the renewal is paid at the
         # new price, so it moves to the new terms too
-        if in_grace or target.plan_snapshot.terms_differ(data.plan_snapshot):
+        if target.plan_snapshot.terms_differ(data.plan_snapshot):
             try:
                 await self._remnawave_sdk.users.update_user(
                     configure_for_renewal(target, data.plan_snapshot)
@@ -393,31 +384,59 @@ class RenewPurchase:
                     added_days = await self._idempotency.find_pending_renew_added_days(key)
                     anchor_day = await self._idempotency.find_pending_renew_anchor_day(key)
             if won:
-                await self._remnawave_sdk.users.update_user(
-                    UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=fresh)
-                )
+                await self._set_expiry(target, data, fresh)
                 return fresh, fresh_days, fresh_anchor_day
             assert pinned is not None  # the winner's pin, on a row still unlinked
         if added_days is None:
             # pinned before the column existed, when a term was plain days
             added_days = data.duration_days
-        await self._reapply_pin(target, pinned)
+        await self._reapply_pin(target, data, pinned)
         return pinned, added_days, anchor_day
 
-    async def _reapply_pin(self, target: SubscriptionDto, pinned: datetime) -> None:
+    async def _reapply_pin(
+        self, target: SubscriptionDto, data: PurchaseSubscriptionDto, pinned: datetime
+    ) -> None:
         if target.grace_until is None:
             panel_user = await self._remnawave_sdk.users.get_user_by_id(target.remnawave_user_id)
             if panel_user.expire_at >= pinned:
                 return
         # in grace the panel's date is the grace end, which may lie past the pin
-        await self._remnawave_sdk.users.update_user(
-            UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=pinned)
-        )
+        await self._set_expiry(target, data, pinned)
+
+    async def _set_expiry(
+        self, target: SubscriptionDto, data: PurchaseSubscriptionDto, expire_at: datetime
+    ) -> UserResponseDto:
+        """In grace the real config goes in the same write: an expiry alone echoes back
+        as an admin's extension, and the sync would take the grace config into the row."""
+        request = UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=expire_at)
+        if target.grace_until is not None:
+            request = _out_of_grace(target, data).model_copy(update={"expire_at": expire_at})
+        return await self._remnawave_sdk.users.update_user(request)
 
 
 def _live_anchor(target: SubscriptionDto) -> Optional[int]:
     """A lapsed subscription starts a new term today: its old anchor doesn't apply."""
     return target.term_anchor_day if target.expire_at > datetime_now() else None
+
+
+def _term_start(target: SubscriptionDto, data: PurchaseSubscriptionDto) -> datetime:
+    """Where the renewed term starts, for its credit: a lapsed term restarts today,
+    a paid one in grace from the real expiry it counts from."""
+    if target.grace_until is not None:
+        return _grace_base(target, data)[0]
+    return max(target.expire_at, datetime_now())
+
+
+def _out_of_grace(target: SubscriptionDto, data: PurchaseSubscriptionDto) -> UpdateUserRequestDto:
+    """The config a renewal takes the panel back to from grace: the plan's for an
+    order, the row's otherwise."""
+    if not data.apply_current_plan:
+        return restore(target)
+    plan = data.plan_snapshot
+    # an empty list too: left out, the panel would keep the grace squads
+    return configure_for_renewal(target, plan).model_copy(
+        update={"tag": plan.tag, "active_internal_squads": plan.internal_squads}
+    )
 
 
 def _grace_base(

@@ -118,6 +118,10 @@ def _handle_update_user(request: httpx.Request, store: FakeUserStore) -> httpx.R
             payload[field] = body[field]
     if body.get("trafficLimitStrategy") is not None:
         payload["trafficLimitStrategy"] = body["trafficLimitStrategy"]
+    if body.get("activeInternalSquads") is not None:
+        payload["activeInternalSquads"] = [
+            {"uuid": squad, "name": "fake-squad"} for squad in body["activeInternalSquads"]
+        ]
     if body.get("status") is not None:
         payload["status"] = body["status"]
     if body.get("expireAt") is not None:

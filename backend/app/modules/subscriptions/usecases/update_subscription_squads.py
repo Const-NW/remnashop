@@ -77,7 +77,8 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
                 await self._remnawave_sdk.users.update_user(
                     panel_update(
                         id=current.remnawave_user_id,
-                        active_internal_squads=restored.internal_squads or None,
+                        # an empty list too: left out, the edit's squads would stay
+                        active_internal_squads=restored.internal_squads,
                         external_squad_uuid=restored.external_squad,
                     )
                 )

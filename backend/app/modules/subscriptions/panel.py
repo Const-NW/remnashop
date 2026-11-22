@@ -204,7 +204,8 @@ def restore(
         traffic_limit_bytes=subscription.effective_traffic_limit * GB_TO_BYTES,
         hwid_device_limit=subscription.effective_device_limit,
         traffic_limit_strategy=subscription.traffic_limit_strategy,
-        active_internal_squads=subscription.internal_squads or None,
+        # an empty list too: left out, the panel keeps whatever squads it had
+        active_internal_squads=subscription.internal_squads,
         external_squad_uuid=subscription.external_squad,
         tag=subscription.tag,
     )
