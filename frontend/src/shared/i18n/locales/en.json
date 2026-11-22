@@ -1605,6 +1605,20 @@
       "redirectHint": "Redirect URI: your cabinet address followed by {{path}}",
       "issuerUrlInvalid": "The issuer URL must start with https://."
     },
+    "grace": {
+      "title": "Grace period",
+      "description": "Temporary access for a customer whose subscription has just ended",
+      "enabledLabel": "Grace period",
+      "enabledHint": "When a subscription ends, the customer keeps access with the limits below instead of losing it at once.",
+      "trafficLabel": "Traffic limit",
+      "trafficUnlimited": "Unlimited",
+      "unit": {
+        "MB": "MB",
+        "GB": "GB"
+      },
+      "durationLabel": "Duration, days",
+      "durationUnlimited": "No end"
+    },
     "shop": {
       "title": "Subscriptions and limits",
       "description": "Subscription limit, plan change credit and reset cooldowns",
@@ -3762,6 +3776,8 @@
     "empty": "No subscriptions",
     "noMatches": "Nothing found",
     "trial": "Trial",
+    "grace": "Grace period",
+    "graceUntil": "Grace period until {{date}}",
     "unlimited": "Unlimited",
     "trafficUnlimited": "Traffic ∞",
     "devicesUnlimited": "Devices ∞",
