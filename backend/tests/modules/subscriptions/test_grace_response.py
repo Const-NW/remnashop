@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Optional
 
 from app.core.enums import Locale
 from app.core.utils.time import datetime_now
@@ -7,7 +8,7 @@ from app.modules.subscriptions.dto import SubscriptionDto
 from tests.modules.subscriptions.factories import make_plan_snapshot
 
 
-def _dto(grace_until: datetime | None) -> SubscriptionDto:
+def _dto(grace_until: Optional[datetime]) -> SubscriptionDto:
     return SubscriptionDto.model_validate(
         {
             "id": 1,
