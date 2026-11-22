@@ -47,6 +47,7 @@ from app.modules.users.dto import (
     ListBlacklistMatchesDto,
     ListUsersDto,
     PromoteToAdminDto,
+    ResetBotMenuDto,
     SetUserDiscountDto,
     SetUserTrialAvailabilityDto,
     UnbindTelegramDto,
@@ -79,6 +80,7 @@ from app.modules.users.usecases import (
     ListBlacklistMatchesUseCase,
     ListUsersUseCase,
     PromoteToAdminUseCase,
+    ResetBotMenuUseCase,
     SetUserDiscountUseCase,
     SetUserTrialAvailabilityUseCase,
     UnbindTelegramIdUseCase,
@@ -377,6 +379,21 @@ async def unblock_user(
         actor, UnblockUserDto(user_id=user_id, client_ip=resolve_client_ip(request))
     )
     return UserListItemResponse.model_validate(updated, from_attributes=True)
+
+
+@router.post(
+    "/{user_id:int}/actions/reset-bot-menu",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=error_responses(400, 404, 409),
+)
+@inject
+async def reset_user_bot_menu(
+    user_id: int,
+    request: Request,
+    use_case: FromDishka[ResetBotMenuUseCase],
+    actor: Actor = Depends(require_admin),
+) -> None:
+    await use_case(actor, ResetBotMenuDto(user_id=user_id, client_ip=resolve_client_ip(request)))
 
 
 @router.post(

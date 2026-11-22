@@ -8,6 +8,7 @@ from aiogram_dialog import BgManagerFactory, ShowMode, StartMode
 from fluentogram import TranslatorHub
 
 from app.core.constants import (
+    CUSTOMER_MENU_RESET_CHANNEL,
     DIALOG_CONFIG_CHANGED_CHANNEL,
     PAYMENT_OUTCOME_CHANNEL,
     TRANSLATION_CHANGED_CHANNEL,
@@ -15,7 +16,7 @@ from app.core.constants import (
 from app.core.enums import PaymentOutcome
 from app.modules.translations import fluent_value_source
 from app.telegram.signal_listener import SignalHandler, restart_handlers
-from app.telegram.states import PaymentResult
+from app.telegram.states import MainMenu, PaymentResult
 
 _OUTCOME_STATES: Final[dict[PaymentOutcome, State]] = {
     PaymentOutcome.SUCCEEDED: PaymentResult.SUCCESS,
@@ -55,7 +56,7 @@ def live_update_handlers(
     }
 
 
-def payment_outcome_handlers(bot: Bot, factory: BgManagerFactory) -> dict[str, SignalHandler]:
+def customer_dialog_handlers(bot: Bot, factory: BgManagerFactory) -> dict[str, SignalHandler]:
     async def show_outcome(data: str) -> None:
         payload = json.loads(data)
         telegram_id = payload["telegram_id"]
@@ -66,4 +67,11 @@ def payment_outcome_handlers(bot: Bot, factory: BgManagerFactory) -> dict[str, S
             show_mode=ShowMode.DELETE_AND_SEND,
         )
 
-    return {PAYMENT_OUTCOME_CHANNEL: show_outcome}
+    async def reset_menu(data: str) -> None:
+        telegram_id = json.loads(data)["telegram_id"]
+        # the stuck window goes too: the new menu replaces the dialog's last message
+        await factory.bg(bot=bot, user_id=telegram_id, chat_id=telegram_id).start(
+            MainMenu.MAIN, mode=StartMode.RESET_STACK, show_mode=ShowMode.DELETE_AND_SEND
+        )
+
+    return {PAYMENT_OUTCOME_CHANNEL: show_outcome, CUSTOMER_MENU_RESET_CHANNEL: reset_menu}

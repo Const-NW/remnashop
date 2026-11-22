@@ -421,6 +421,12 @@ class BlockUserDto:
 
 
 @dataclass(frozen=True, kw_only=True)
+class ResetBotMenuDto:
+    user_id: int
+    client_ip: str
+
+
+@dataclass(frozen=True, kw_only=True)
 class ClearEmailUndeliverableDto:
     user_id: int
     client_ip: str

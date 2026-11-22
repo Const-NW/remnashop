@@ -27,6 +27,9 @@ class FakeBotSignals:
         self.outcomes.append((telegram_id, order_id, outcome))
         return self.receivers
 
+    async def reset_customer_menu(self, telegram_id: int) -> int:
+        return self.receivers
+
 
 async def create_order(
     repository: TransactionRepository,

@@ -816,6 +816,38 @@ async def test_clear_undeliverable(
     assert denied.status_code == 403
 
 
+async def test_reset_bot_menu_route(
+    client: httpx.AsyncClient,
+    user_repository: UserRepository,
+    session_repository: SessionRepository,
+    uow: UnitOfWork,
+    config: AppConfig,
+) -> None:
+    _, token = await _owner_token(user_repository, session_repository, uow, config)
+    target = await _create(user_repository, uow, name="stuck-bot", telegram_id=777_031)
+    url = f"/api/v1/users/{target.id}/actions/reset-bot-menu"
+
+    # no telegram process subscribed in tests: the signal reaches nobody
+    response = await client.post(url, headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 409
+    assert response.json()["code"] == "BOT_NOT_RUNNING"
+
+    async with uow:
+        admin = await user_repository.create(
+            CreateUserDto(
+                login="nobotreset",
+                password_hash=await hash_password("x", config.crypt_key.get_secret_value()),
+                name="nobotreset",
+                role=Role.ADMIN,
+                language=Locale.EN,
+                permission_revokes=[Permission.USERS_BOT_MENU_RESET.value],
+            )
+        )
+    admin_token = await _issue_token(admin.id, session_repository, config)
+    denied = await client.post(url, headers={"Authorization": f"Bearer {admin_token}"})
+    assert denied.status_code == 403
+
+
 async def test_set_trial_availability(
     client: httpx.AsyncClient,
     user_repository: UserRepository,

@@ -886,6 +886,7 @@
       "UserPersonalDiscountChangedEvent": "Персональная скидка изменена",
       "UserPurchaseDiscountChangedEvent": "Скидка на покупку изменена",
       "UserUnblockedEvent": "Пользователь разблокирован",
+      "UserBotMenuResetEvent": "Меню бота клиента сброшено",
       "UserEmailUndeliverableClearedEvent": "Отметка о недоставке почты снята",
       "UserTrialAvailabilityChangedEvent": "Доступ к пробному периоду изменён",
       "UsersBulkUnblockedEvent": "Пользователи разблокированы массово",
@@ -1448,6 +1449,10 @@
     },
     "botBlocked": {
       "badge": "Бот заблокирован"
+    },
+    "botMenu": {
+      "action": "Сбросить меню бота",
+      "done": "Клиенту отправлено главное меню."
     },
     "emailUndeliverable": {
       "badge": "Не доставляется",
@@ -2477,6 +2482,7 @@
     "BLACKLIST_SYNC": "Синхронизация источников чёрного списка",
     "BLACKLIST_MATCHES_VIEW": "Просмотр пользователей из чёрного списка",
     "USERS_BLOCK": "Блокировка пользователей",
+    "USERS_BOT_MENU_RESET": "Сброс меню бота у клиента",
     "USERS_EMAIL_UNDELIVERABLE_CLEAR": "Снятие отметки о недоставке почты",
     "USERS_TRIAL_MANAGE": "Разрешение и запрет пробного периода",
     "USERS_UNBLOCK": "Разблокировка пользователей",
@@ -4800,11 +4806,15 @@
     "USER_BLOCKED": "Ваш аккаунт заблокирован.",
     "USER_NOT_DELETABLE": "Этого пользователя нельзя удалить.",
     "USER_NOT_FOUND": "Пользователь не найден.",
+    "USER_NO_TELEGRAM": "У пользователя нет Telegram.",
+    "USER_TARGET_BLOCKED": "Пользователь заблокирован.",
+    "USER_TARGET_BOT_BLOCKED": "Пользователь заблокировал бота.",
     "WEBHOOK_MALFORMED": "Некорректный вебхук.",
     "WEBHOOK_NOT_CONFIGURED": "Секрет вебхука не настроен.",
     "WEBHOOK_SIGNATURE_INVALID": "Неверная подпись вебхука.",
     "WEBHOOK_SOURCE_UNTRUSTED": "Источник вебхука не доверенный.",
     "WEBHOOK_STALE": "Вебхук устарел.",
+    "BOT_NOT_RUNNING": "Бот не запущен.",
     "BOT_PROXY_URL_INVALID": "Неверный адрес прокси: нужен socks5, socks5h или http с хостом и портом.",
     "TRANSLATION_VARIABLE_NOT_ALLOWED": "В тексте есть переменная или выражение, которых нет в исходном тексте.",
     "TRANSLATION_VARIABLE_UNKNOWN": "Переменных {{detail}} нет в исходном тексте. Если текст правили до обновления, сбросьте его и внесите правки заново."

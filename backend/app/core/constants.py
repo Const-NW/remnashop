@@ -78,6 +78,7 @@ TELEGRAM_LOGS_KEY: Final[str] = f"{REDIS_KEY_PREFIX}telegram:logs"
 DIALOG_CONFIG_CHANGED_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:dialog-config-changed"
 TRANSLATION_CHANGED_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:translation-changed"
 PAYMENT_OUTCOME_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:payment-outcome"
+CUSTOMER_MENU_RESET_CHANNEL: Final[str] = f"{REDIS_KEY_PREFIX}telegram:customer-menu-reset"
 
 # A custom dialog window renders through one state out of a fixed pool
 # (app/telegram/dialogs/state_pool.py), so the pool size is also the hard cap on
