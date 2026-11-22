@@ -55,10 +55,7 @@ import { Badge } from "@shared/ui/Badge";
 import { Button } from "@shared/ui/Button";
 import { ConfirmDialog } from "@shared/ui/ConfirmDialog";
 import { KpiTile } from "@shared/ui/KpiTile";
-import {
-  GLASS_DIALOG_BODY_CLASS,
-  SECTION_TITLE_CLASS,
-} from "@shared/ui/classes";
+import { GLASS_DIALOG_BODY_CLASS, SECTION_TITLE_CLASS } from "@shared/ui/classes";
 
 interface TransactionDetailsDialogProps {
   order: TransactionItem;
@@ -71,11 +68,7 @@ function DetailValue({ value }: { value: string }) {
   return <span className="max-w-60 truncate">{value}</span>;
 }
 
-export function TransactionDetailsDialog({
-  order,
-  onClose,
-  onChanged,
-}: TransactionDetailsDialogProps) {
+export function TransactionDetailsDialog({ order, onClose, onChanged }: TransactionDetailsDialogProps) {
   return (
     <Modal onClose={onClose} size="lg" scrollable>
       <TransactionDetailsDialogBody order={order} onChanged={onChanged} />
@@ -92,23 +85,16 @@ function TransactionDetailsDialogBody({
   const [isConfirmingFulfill, setIsConfirmingFulfill] = useState(false);
   const [isFulfilling, setIsFulfilling] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const [refundPreview, setRefundPreview] = useState<RefundPreview | null>(
-    null,
-  );
+  const [refundPreview, setRefundPreview] = useState<RefundPreview | null>(null);
   const [isRefunding, setIsRefunding] = useState(false);
   const permissions = usePermissions();
   const canRefund =
     permissions.includes("TRANSACTIONS_REFUND") &&
     permissions.includes("TRANSACTIONS_REFUND_PREVIEW") &&
     canRefundTransaction(order);
-  const canFulfill =
-    permissions.includes("TRANSACTIONS_FULFILL") &&
-    canFulfillTransaction(order);
-  const canCheckPayment =
-    permissions.includes("TRANSACTIONS_PAYMENT_CHECK") &&
-    canCheckTransactionPayment(order);
-  const money = (amount: string) =>
-    formatMoney(amount, order.currency, i18n.language, true);
+  const canFulfill = permissions.includes("TRANSACTIONS_FULFILL") && canFulfillTransaction(order);
+  const canCheckPayment = permissions.includes("TRANSACTIONS_PAYMENT_CHECK") && canCheckTransactionPayment(order);
+  const money = (amount: string) => formatMoney(amount, order.currency, i18n.language, true);
   const symbol = currencySymbol(order.currency);
   const gatewayLabel = transactionGatewayLabel(order.gateway_type, t);
   const statusLabel = t(`transactions.status.${order.status}`);
@@ -161,8 +147,7 @@ function TransactionDetailsDialogBody({
       const result = await refundTransaction(order.id, rollbackSubscription);
       setOrder(result.transaction);
       onChanged?.(result.transaction);
-      if (result.rollback_failed)
-        toast.warning(t("transactions.refund.rollbackFailed"));
+      if (result.rollback_failed) toast.warning(t("transactions.refund.rollbackFailed"));
       else toast.success(t("transactions.refund.done"));
     } catch (err) {
       toast.error(getErrorMessage(err, t("transactions.refund.error")));
@@ -175,43 +160,28 @@ function TransactionDetailsDialogBody({
   const hasCredit = Number(order.change_credit) > 0;
   // a test payment buys no term, and its 0 isn't "forever"
   const period = order.is_test ? none : formatDuration(order.duration_days, t);
-  const plan = order.is_test
-    ? order.plan_snapshot.name
-    : `${order.plan_snapshot.name} · ${period}`;
+  const plan = order.is_test ? order.plan_snapshot.name : `${order.plan_snapshot.name} · ${period}`;
   const previous = order.previous_plan_snapshot;
   // a panel import (plan 0) stores 0 days with no term known
   const previousPlan =
     previous &&
     [
       previous.name,
-      previous.duration_days !== undefined &&
-        previous.plan_id !== 0 &&
-        formatDuration(previous.duration_days, t),
+      previous.duration_days !== undefined && previous.plan_id !== 0 && formatDuration(previous.duration_days, t),
     ]
       .filter(Boolean)
       .join(" · ");
   const purchaseType = t(`transactions.purchaseType.${order.purchase_type}`);
   // what a renewal or change was for, otherwise what the order issued
-  const subscriptionId =
-    order.target_subscription_id ?? order.fulfilled_subscription_id;
-  const targetSubscription =
-    subscriptionId !== null ? `#${subscriptionId}` : undefined;
-  const missingSubscription =
-    order.status === "PAID" ? t("transactions.details.notIssued") : none;
-  const held =
-    order.fulfillment_hold !== null &&
-    order.status === "PAID" &&
-    order.fulfilled_subscription_id === null;
-  const hold = held
-    ? t(`transactions.details.hold.${order.fulfillment_hold}` as ParseKeys)
-    : null;
+  const subscriptionId = order.target_subscription_id ?? order.fulfilled_subscription_id;
+  const targetSubscription = subscriptionId !== null ? `#${subscriptionId}` : undefined;
+  const missingSubscription = order.status === "PAID" ? t("transactions.details.notIssued") : none;
+  const held = order.fulfillment_hold !== null && order.status === "PAID" && order.fulfilled_subscription_id === null;
+  const hold = held ? t(`transactions.details.hold.${order.fulfillment_hold}` as ParseKeys) : null;
   const createdAt = formatDateTime(order.created_at, i18n.language);
   const { user } = order;
   const username = user?.username ? `@${user.username}` : undefined;
-  const telegramId =
-    user !== null && user.telegram_id !== null
-      ? String(user.telegram_id)
-      : undefined;
+  const telegramId = user !== null && user.telegram_id !== null ? String(user.telegram_id) : undefined;
 
   return (
     <>
@@ -219,11 +189,7 @@ function TransactionDetailsDialogBody({
         glyph={<span className="text-sm font-bold">{symbol}</span>}
         title={t("transactions.orderLabel", { id: order.id })}
         subtitle={<span className="font-mono">{createdAt}</span>}
-        actions={
-          <Badge tone={PAYMENT_STATUS_BADGE_TONE[order.status]}>
-            {statusLabel}
-          </Badge>
-        }
+        actions={<Badge tone={PAYMENT_STATUS_BADGE_TONE[order.status]}>{statusLabel}</Badge>}
       />
 
       <div className={GLASS_DIALOG_BODY_CLASS}>
@@ -233,86 +199,43 @@ function TransactionDetailsDialogBody({
               glass
               label={t("transactions.details.total")}
               value={money(order.final_price)}
-              valueSuffix={
-                (hasDiscount(order) || hasCredit) && (
-                  <s>{money(order.base_price)}</s>
-                )
-              }
+              valueSuffix={(hasDiscount(order) || hasCredit) && <s>{money(order.base_price)}</s>}
               hint={
                 <>
                   {order.markup_percent > 0 && (
-                    <span className="block">
-                      {t("transactions.details.markup", {
-                        percent: order.markup_percent,
-                      })}
-                    </span>
+                    <span className="block">{t("transactions.details.markup", { percent: order.markup_percent })}</span>
                   )}
                   {hasDiscount(order) || hasCredit
                     ? [
-                        hasCredit &&
-                          t("transactions.details.changeCredit", {
-                            amount: money(order.change_credit),
-                          }),
+                        hasCredit && t("transactions.details.changeCredit", { amount: money(order.change_credit) }),
                         order.plan_discount_percent > 0 &&
-                          t("transactions.details.planDiscount", {
-                            percent: order.plan_discount_percent,
-                          }),
+                          t("transactions.details.planDiscount", { percent: order.plan_discount_percent }),
                         order.discount_percent > 0 &&
                           t("transactions.details.discount", {
                             percent: order.discount_percent,
-                            source: t(
-                              `transactions.discountSource.${order.discount_source}`,
-                            ),
+                            source: t(`transactions.discountSource.${order.discount_source}`),
                           }),
                       ]
                         .filter(Boolean)
                         .join(" + ")
-                    : order.markup_percent === 0 &&
-                      t("transactions.details.noDiscount")}
+                    : order.markup_percent === 0 && t("transactions.details.noDiscount")}
                 </>
               }
             />
-            <KpiTile
-              glass
-              label={t("transactions.details.period")}
-              value={period}
-              hint={purchaseType}
-            />
+            <KpiTile glass label={t("transactions.details.period")} value={period} hint={purchaseType} />
           </div>
 
-          <DialogCard
-            title={t("transactions.details.sections.payment")}
-            icon={Wallet}
-          >
-            <InfoRow
-              icon={Hash}
-              label={t("transactions.details.id")}
-              copyValue={String(order.id)}
-              mono
-            >
+          <DialogCard title={t("transactions.details.sections.payment")} icon={Wallet}>
+            <InfoRow icon={Hash} label={t("transactions.details.id")} copyValue={String(order.id)} mono>
               {order.id}
             </InfoRow>
-            <InfoRow
-              icon={CreditCard}
-              label={t("transactions.details.gateway")}
-              copyValue={gatewayLabel}
-            >
+            <InfoRow icon={CreditCard} label={t("transactions.details.gateway")} copyValue={gatewayLabel}>
               <DetailValue value={gatewayLabel} />
             </InfoRow>
-            <InfoRow
-              icon={Smartphone}
-              label={t("transactions.details.channel")}
-            >
-              <DetailValue
-                value={t(`transactions.channel.${order.channel}` as ParseKeys)}
-              />
+            <InfoRow icon={Smartphone} label={t("transactions.details.channel")}>
+              <DetailValue value={t(`transactions.channel.${order.channel}` as ParseKeys)} />
             </InfoRow>
-            <InfoRow
-              icon={CalendarDays}
-              label={t("transactions.details.createdAt")}
-              copyValue={createdAt}
-              mono
-            >
+            <InfoRow icon={CalendarDays} label={t("transactions.details.createdAt")} copyValue={createdAt} mono>
               <DetailValue value={createdAt} />
             </InfoRow>
             <InfoRow
@@ -331,87 +254,41 @@ function TransactionDetailsDialogBody({
             >
               <DetailValue value={order.external_payment_id ?? none} />
             </InfoRow>
-            <InfoRow
-              icon={KeyRound}
-              label={t("transactions.details.idempotencyKey")}
-              copyValue={order.idempotency_key}
-              mono
-            >
+            <InfoRow icon={KeyRound} label={t("transactions.details.idempotencyKey")} copyValue={order.idempotency_key} mono>
               <DetailValue value={order.idempotency_key} />
             </InfoRow>
           </DialogCard>
 
-          <DialogCard
-            title={t("transactions.details.sections.purchase")}
-            icon={ShoppingCart}
-          >
-            <InfoRow
-              icon={Repeat}
-              label={t("transactions.details.purchaseType")}
-              copyValue={purchaseType}
-            >
+          <DialogCard title={t("transactions.details.sections.purchase")} icon={ShoppingCart}>
+            <InfoRow icon={Repeat} label={t("transactions.details.purchaseType")} copyValue={purchaseType}>
               <DetailValue value={purchaseType} />
             </InfoRow>
             {previousPlan && (
-              <InfoRow
-                icon={PackageMinus}
-                label={t("transactions.details.previousPlan")}
-                copyValue={previousPlan}
-              >
+              <InfoRow icon={PackageMinus} label={t("transactions.details.previousPlan")} copyValue={previousPlan}>
                 <DetailValue value={previousPlan} />
               </InfoRow>
             )}
-            <InfoRow
-              icon={Package}
-              label={t("transactions.details.plan")}
-              copyValue={plan}
-            >
+            <InfoRow icon={Package} label={t("transactions.details.plan")} copyValue={plan}>
               <DetailValue value={plan} />
             </InfoRow>
-            <InfoRow
-              icon={Captions}
-              label={t("transactions.details.targetSubscription")}
-              copyValue={targetSubscription}
-              mono
-            >
+            <InfoRow icon={Captions} label={t("transactions.details.targetSubscription")} copyValue={targetSubscription} mono>
               <DetailValue value={targetSubscription ?? missingSubscription} />
             </InfoRow>
             {hold && (
-              <InfoRow
-                icon={PackageX}
-                label={t("transactions.details.holdLabel")}
-                copyValue={hold}
-              >
+              <InfoRow icon={PackageX} label={t("transactions.details.holdLabel")} copyValue={hold}>
                 <DetailValue value={hold} />
               </InfoRow>
             )}
           </DialogCard>
 
-          <DialogCard
-            title={t("transactions.details.sections.user")}
-            icon={User}
-          >
-            <InfoRow
-              icon={Hash}
-              label={t("users.details.id")}
-              copyValue={String(order.user_id)}
-              mono
-            >
+          <DialogCard title={t("transactions.details.sections.user")} icon={User}>
+            <InfoRow icon={Hash} label={t("users.details.id")} copyValue={String(order.user_id)} mono>
               {order.user_id}
             </InfoRow>
-            <InfoRow
-              icon={User}
-              label={t("transactions.details.name")}
-              copyValue={user?.name || undefined}
-            >
+            <InfoRow icon={User} label={t("transactions.details.name")} copyValue={user?.name || undefined}>
               <DetailValue value={user ? userNameField(user, t) : none} />
             </InfoRow>
-            <InfoRow
-              icon={Mail}
-              label={t("users.details.email")}
-              copyValue={user?.email ?? undefined}
-              mono
-            >
+            <InfoRow icon={Mail} label={t("users.details.email")} copyValue={user?.email ?? undefined} mono>
               <DetailValue value={user?.email ?? none} />
             </InfoRow>
             {telegramId !== undefined && (
@@ -420,20 +297,10 @@ function TransactionDetailsDialogBody({
                   <Send className="size-3.5" />
                   {t("transactions.details.sections.telegram")}
                 </h4>
-                <InfoRow
-                  icon={Send}
-                  label={t("users.details.telegramId")}
-                  copyValue={telegramId}
-                  mono
-                >
+                <InfoRow icon={Send} label={t("users.details.telegramId")} copyValue={telegramId} mono>
                   {telegramId}
                 </InfoRow>
-                <InfoRow
-                  icon={AtSign}
-                  label={t("users.details.username")}
-                  copyValue={username}
-                  mono
-                >
+                <InfoRow icon={AtSign} label={t("users.details.username")} copyValue={username} mono>
                   <DetailValue value={username ?? none} />
                 </InfoRow>
               </div>
@@ -443,40 +310,22 @@ function TransactionDetailsDialogBody({
       </div>
 
       <OpenUserFooter
-        links={[
-          {
-            label: t("users.openUser"),
-            icon: User,
-            user: user && { id: order.user_id },
-          },
-        ]}
+        links={[{ label: t("users.openUser"), icon: User, user: user && { id: order.user_id } }]}
       >
         {canRefund && (
-          <Button
-            variant="glassDanger"
-            onClick={() => void openRefund()}
-            isLoading={isRefunding}
-          >
+          <Button variant="glassDanger" onClick={() => void openRefund()} isLoading={isRefunding}>
             <Undo2 className="size-4" />
             {t("transactions.refund.button")}
           </Button>
         )}
         {canCheckPayment && (
-          <Button
-            variant="glass"
-            onClick={() => void handleCheckPayment()}
-            isLoading={isChecking}
-          >
+          <Button variant="glass" onClick={() => void handleCheckPayment()} isLoading={isChecking}>
             <SearchCheck className="size-4" />
             {t("transactions.checkPayment.action")}
           </Button>
         )}
         {canFulfill && (
-          <Button
-            variant="glassAccent"
-            onClick={() => setIsConfirmingFulfill(true)}
-            isLoading={isFulfilling}
-          >
+          <Button variant="glassAccent" onClick={() => setIsConfirmingFulfill(true)} isLoading={isFulfilling}>
             <PackageCheck className="size-4" />
             {t("transactions.fulfill.action")}
           </Button>
