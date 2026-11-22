@@ -1128,6 +1128,30 @@ async def test_broadcast_promocode_needs_recipient_or_channel_post(
     assert await use_case(stranger, broadcast.id) == "PRIVATE"
 
 
+async def test_broadcast_promocode_draft_reaches_test_sender_only(
+    broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    broadcast_recipient_repository: BroadcastRecipientRepository,
+    admin: UserDto,
+) -> None:
+    customer = await user_repository.create(CreateUserDto(name="c", telegram_id=9405))
+    use_case = GetBroadcastPromocodeUseCase(
+        broadcast_repository,
+        broadcast_recipient_repository,
+        promocode_repository,
+        uow,
+    )
+    promo = await promocode_repository.create(
+        CreatePromocodeDto(code="TEST", reward_type=PromocodeRewardType.DURATION, reward=5)
+    )
+    broadcast = await broadcast_repository.create(save_dto(promocode_id=promo.id), created_by=None)
+
+    assert await use_case(admin, broadcast.id) == "TEST"
+    assert await use_case(customer, broadcast.id) is None
+
+
 async def test_broadcast_promocode_is_none_when_deactivated(
     broadcast_repository: BroadcastRepository,
     promocode_repository: PromocodeRepository,
