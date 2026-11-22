@@ -14,6 +14,7 @@ from app.core.constants import (
     CUSTOMER_NOTIFICATION_CLOSE_CALLBACK,
     CUSTOMER_NOTIFICATION_RENEW_PREFIX,
     CUSTOMER_NOTIFICATION_REVOKE_SESSIONS_CALLBACK,
+    DATE_FORMAT,
     ICON_ID_KEY_SUFFIX,
     ICON_KEY_SUFFIX,
     REDIS_KEY_PREFIX,
@@ -27,6 +28,7 @@ from app.core.enums import (
     PaymentOutcome,
     PurchaseChannel,
     SessionAudience,
+    SubscriptionStatus,
 )
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import BotSignals
@@ -74,6 +76,7 @@ from app.modules.subscriptions import (
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
     current_plan_snapshots,
+    next_traffic_reset,
 )
 from app.modules.transactions import PaidOrderNotFulfilledEvent, TransactionRepository
 from app.modules.users import UserDto, UserRepository
@@ -184,15 +187,10 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
         if user is None or user.is_blocked or user.deleted_at is not None:
             return
         if data.event_type in _TRIAL_AWARE and data.subscription_id is not None:
-            subscription = await self._find_subscription(data.subscription_id)
-            # stored with the feed row, the bell renders it again later
-            args = {
-                **data.args,
-                "is_trial": "yes" if subscription and subscription.is_trial else "no",
-            }
-            if data.event_type == SubscriptionTrafficLimitedEvent.__name__ and subscription:
-                args["traffic_strategy"] = subscription.traffic_limit_strategy.value
-            data = replace(data, args=args)
+            with_subscription = await self._with_subscription_args(data, data.subscription_id)
+            if with_subscription is None:
+                return
+            data = with_subscription
         if data.event_type == SubscriptionGrantedEvent.__name__:
             data = await self._with_plan_name(data, user.language)
         renderer = await self._renderer_factory.build()
@@ -384,7 +382,12 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
     ) -> list[dict[str, str]]:
         # (label key, "callback_data" or "url", value)
         buttons: list[tuple[str, str, str]] = []
-        if data.event_type in _RENEWABLE and data.subscription_id is not None:
+        # the traffic warning offers it only where its text does
+        renewable = data.event_type in _RENEWABLE or (
+            data.event_type == SubscriptionTrafficThresholdEvent.__name__
+            and (data.args.get("is_trial") == "yes" or data.args.get("can_renew") == "yes")
+        )
+        if renewable and data.subscription_id is not None:
             # a trial isn't renewed: a purchase replaces it and keeps its link
             if subscription is not None and subscription.is_trial:
                 buttons.append(
@@ -429,6 +432,40 @@ class NotifyCustomerUseCase(UseCase[NotifyCustomerDto, None]):
             for key, kind, value in buttons
             if (button := _telegram_button(renderer, user.language, key, kind, value))
         ]
+
+    async def _with_subscription_args(
+        self, data: NotifyCustomerDto, subscription_id: int
+    ) -> Optional[NotifyCustomerDto]:
+        """None when the event no longer applies to the subscription."""
+        subscription = await self._find_subscription(subscription_id)
+        # stored with the feed row, the bell renders it again later
+        args = {**data.args, "is_trial": "yes" if subscription and subscription.is_trial else "no"}
+        if data.event_type == SubscriptionTrafficLimitedEvent.__name__ and subscription:
+            args["traffic_strategy"] = subscription.traffic_limit_strategy.value
+        if data.event_type == SubscriptionTrafficThresholdEvent.__name__:
+            # limited, expired or gone since the panel sent it: nothing left to warn about
+            if subscription is None or subscription.status is not SubscriptionStatus.ACTIVE:
+                return None
+            args |= await self._traffic_threshold_args(subscription)
+        return replace(data, args=args)
+
+    async def _traffic_threshold_args(self, subscription: SubscriptionDto) -> dict[str, str]:
+        anchor = subscription.panel_created_at
+        reset = next_traffic_reset(subscription.traffic_limit_strategy, anchor, datetime_now())
+        # paid renewals reset the traffic: worth suggesting only where renewing is open
+        can_renew = not subscription.is_trial and not subscription.is_unlimited
+        if can_renew:
+            async with self._uow:
+                try:
+                    plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
+                except NotFoundError:
+                    plan = None
+            # a free duration isn't renewed either: the renewal catalog would come up empty
+            can_renew = plan is not None and plan.allow_renewal and bool(plan.renewable_durations())
+        return {
+            "reset_date": reset.strftime(DATE_FORMAT) if reset is not None else "none",
+            "can_renew": "yes" if can_renew else "no",
+        }
 
     async def _find_subscription(self, subscription_id: int) -> Optional[SubscriptionDto]:
         async with self._uow:

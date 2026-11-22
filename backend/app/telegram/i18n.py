@@ -7,6 +7,7 @@ from fluent_compiler.bundle import FluentBundle
 from fluentogram import FluentTranslator, TranslatorHub, TranslatorRunner
 
 from app.core.config import AppConfig
+from app.core.constants import DATE_FORMAT
 from app.core.db.standalone import standalone_session
 from app.core.enums import Locale
 from app.core.utils.time import datetime_now, period_parts
@@ -15,7 +16,6 @@ from app.modules.translations import TranslationRepository
 from app.modules.users import UserDto
 
 _DATETIME_FORMAT: Final[str] = "%d.%m.%Y %H:%M"
-_DATE_FORMAT: Final[str] = "%d.%m.%Y"
 
 
 def build_translator_hub(
@@ -67,7 +67,7 @@ def format_datetime(value: Optional[datetime]) -> str:
 
 
 def format_date(value: Optional[datetime]) -> str:
-    return value.strftime(_DATE_FORMAT) if value is not None else "—"
+    return value.strftime(DATE_FORMAT) if value is not None else "—"
 
 
 def format_price(price: Decimal) -> str:

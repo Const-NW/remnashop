@@ -68,6 +68,9 @@ def customer_url(event_type: str, subscription_id: Optional[int], args: Mapping[
     if event_type in _SUBSCRIPTION and subscription_id is not None:
         return f"/?sub={subscription_id}"
     if event_type in _RENEW and subscription_id is not None:
+        # a traffic warning with no renewal to offer opens the subscription itself
+        if args.get("can_renew") == "no" and args.get("is_trial") != "yes":
+            return f"/?sub={subscription_id}"
         return f"/?sub={subscription_id}&renew=1"
     if event_type in _REFUNDS or event_type == PaidOrderNotFulfilledEvent.__name__:
         order_id = args.get("order_id")

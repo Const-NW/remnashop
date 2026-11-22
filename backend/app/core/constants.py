@@ -110,6 +110,8 @@ MAX_POINTS_BALANCE: Final[Decimal] = Decimal(10**12 - 1)
 INT64_MAX: Final[int] = 2**63 - 1
 
 TIMEZONE: Final[timezone] = timezone.utc
+# how a customer reads a date, in the bot and in what it sends
+DATE_FORMAT: Final[str] = "%d.%m.%Y"
 # the inline query the referral "Invite" button opens the chat picker with
 INLINE_INVITE_QUERY: Final[str] = "invite"
 DATETIME_FILE_FORMAT: Final[str] = "%Y-%m-%d_%H-%M-%S"

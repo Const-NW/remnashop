@@ -6,6 +6,7 @@ from remnapy.models.webhook import (
     LoginAttemptDto,
     TorrentBlockerReportDto,
     UserHwidDeviceEventDto,
+    WebhookMetaDto,
     WebhookNodeDto,
     WebhookPayloadDto,
 )
@@ -49,7 +50,6 @@ from app.modules.users import UserDto, UserRepository
 _PLAIN_USER_EVENTS: Final[dict[str, Callable[..., BaseEvent]]] = {
     "user.expired": SubscriptionExpiredEvent,
     "user.limited": SubscriptionTrafficLimitedEvent,
-    "user.bandwidth_usage_threshold_reached": SubscriptionTrafficThresholdEvent,
     "user.first_connected": SubscriptionFirstConnectedEvent,
     "user.traffic_reset": SubscriptionTrafficResetEvent,
     "user.revoked": SubscriptionRevokedEvent,
@@ -95,21 +95,39 @@ def _system_event(payload: WebhookPayloadDto) -> Optional[BaseEvent]:
     return None
 
 
+def _expiration_event(
+    meta: Optional[WebhookMetaDto], owner: UserDto, subscription_id: int
+) -> Optional[BaseEvent]:
+    hours = meta.expiration if meta else None
+    if not hours:
+        # 0 is the moment of expiry, which user.expired already reports
+        return None
+    # the panel sends hours since expiry: negative = still ahead
+    if hours < 0:
+        return SubscriptionExpiringEvent(user=owner, subscription_id=subscription_id, hours=-hours)
+    return SubscriptionExpiredAgoEvent(user=owner, subscription_id=subscription_id, hours=hours)
+
+
+def _traffic_threshold_event(
+    data: object, owner: UserDto, subscription_id: int
+) -> Optional[BaseEvent]:
+    percent = 0
+    if isinstance(data, WebhookUserDto):
+        # a limited subscription already got "traffic used up": nothing left to warn about
+        if data.status == SubscriptionStatus.LIMITED:
+            return None
+        percent = data.last_triggered_threshold
+    return SubscriptionTrafficThresholdEvent(
+        user=owner, subscription_id=subscription_id, percent=percent
+    )
+
+
 def _user_event(
     payload: WebhookPayloadDto, owner: UserDto, subscription_id: int
 ) -> Optional[BaseEvent]:
     event, data, meta = payload.event, payload.data, payload.meta
     if event == "user.expiration":
-        hours = meta.expiration if meta else None
-        if not hours:
-            # 0 is the moment of expiry, which user.expired already reports
-            return None
-        # the panel sends hours since expiry: negative = still ahead
-        if hours < 0:
-            return SubscriptionExpiringEvent(
-                user=owner, subscription_id=subscription_id, hours=-hours
-            )
-        return SubscriptionExpiredAgoEvent(user=owner, subscription_id=subscription_id, hours=hours)
+        return _expiration_event(meta, owner, subscription_id)
     if event == "user.not_connected":
         hours = meta.not_connected_after_hours if meta else None
         if not hours:
@@ -117,6 +135,8 @@ def _user_event(
         return SubscriptionNotConnectedEvent(
             user=owner, subscription_id=subscription_id, hours=hours
         )
+    if event == "user.bandwidth_usage_threshold_reached":
+        return _traffic_threshold_event(data, owner, subscription_id)
     plain = _PLAIN_USER_EVENTS.get(event)
     if plain is not None:
         return plain(user=owner, subscription_id=subscription_id)

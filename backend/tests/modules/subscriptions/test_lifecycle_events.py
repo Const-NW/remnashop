@@ -336,3 +336,32 @@ async def test_a_failed_sync_is_left_to_the_task_retry(
 
     with pytest.raises(RetryableTaskError):
         await use_case.system(_webhook(config, "user.limited", 91011, "LIMITED"))
+
+
+@pytest.mark.parametrize(("status", "published"), [("ACTIVE", True), ("LIMITED", False)])
+async def test_traffic_threshold_carries_the_percent_and_skips_a_limited_user(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+    config: AppConfig,
+    status: str,
+    published: bool,
+) -> None:
+    await create_subscription(
+        subscription_repository, user_repository, telegram_id=91010, remnawave_user_id=91010
+    )
+    payload = user_event_payload(
+        event="user.bandwidth_usage_threshold_reached", remnawave_user_id=91010, status=status
+    )
+    payload["data"]["lastTriggeredThreshold"] = 80
+    body, _ = sign_webhook(payload, config.remnawave.webhook_secret.get_secret_value())  # type: ignore[union-attr]
+    use_case = _use_case(subscription_repository, user_repository, uow, event_publisher, redis)
+
+    await use_case.system(ProcessRemnawaveWebhookDto(body=body.decode()))
+
+    rows = await _lifecycle_rows(session)
+    # a limited user already hears "traffic used up"
+    assert [row.payload["percent"] for row in rows] == ([80] if published else [])

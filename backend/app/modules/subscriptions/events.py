@@ -144,6 +144,8 @@ class SubscriptionTrafficLimitedEvent(UserEvent):
 class SubscriptionTrafficThresholdEvent(UserEvent):
     category: ClassVar[EventCategory] = EventCategory.SUBSCRIPTION
     subscription_id: int
+    # the panel's threshold reached, as a percentage of the limit; 0 in rows stored before it
+    percent: int = 0
 
 
 @dataclass(frozen=True, kw_only=True)
