@@ -54,6 +54,7 @@ from app.core.db.models.referral_reward import ReferralReward
 from app.core.db.models.referral_settings import ReferralSettings
 from app.core.db.models.shop_settings import ShopSettings
 from app.core.db.models.subscription import Subscription
+from app.core.db.models.subscription_device_name import SubscriptionDeviceName
 from app.core.db.models.subscription_purchase_idempotency import SubscriptionPurchaseIdempotency
 from app.core.db.models.transaction import Transaction
 from app.core.db.models.user import User
@@ -120,6 +121,7 @@ __all__ = [
     "ReferralSettings",
     "ShopSettings",
     "Subscription",
+    "SubscriptionDeviceName",
     "SubscriptionPurchaseIdempotency",
     "Transaction",
     "User",

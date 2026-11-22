@@ -80,6 +80,13 @@ msg-menu-devices = Your devices ({ $devices_max ->
     [0] { $devices_current }
    *[other] { $devices_current }/{ $devices_max }
 })
+msg-menu-device =
+    <b>{ $device_name }</b>
+    Model: { $device_model }
+    System: { $device_system }
+    App: { $device_app }
+    Connected: { $device_created_at }
+msg-menu-device-rename = Send a new name for “{ $device_name }”, up to { $device_name_max_length } characters.
 msg-menu-devices-confirm-delete = Delete this device?
 msg-menu-devices-confirm-delete-all = Delete every device? The connection link changes and every device loses access — each one has to be connected again with the new link.
 msg-menu-devices-confirm-reissue = Reissue the connection link? The old link will stop working.
@@ -133,7 +140,13 @@ btn-legal-gate =
     .accept = ✅ I accept
 
 btn-devices =
-    .item = { $platform_icon } { $platform } ({ $device_model }) — { $created_at }
+    .item = { $platform_icon } { $device_name } — { $created_at }
+    .rename = Rename
+    .rename-icon = ✏️
+    .delete = Delete
+    .delete-icon = 🗑
+    .clear-name = Reset name
+    .clear-name-icon = ↩️
     .delete-all = Delete all devices
     .delete-all-icon = 🗑
     .reissue = Reissue link
@@ -314,6 +327,10 @@ ntf-devices =
     .delete-cooldown = ⏳ You can delete a device again in { $wait }.
     .delete-all-cooldown = ⏳ You can delete all devices again in { $wait }.
     .reissue-cooldown = ⏳ You can reissue the connection link again in { $wait }.
+    .renamed = ✅ Device name saved.
+    .name-cleared = ✅ Device name reset.
+    .name-too-long = ⚠️ The name can be at most { $max } characters.
+    .gone = ❌ This device is no longer connected.
 
 ntf-access =
     .restricted = 🚧 Maintenance in progress. Please try again later.

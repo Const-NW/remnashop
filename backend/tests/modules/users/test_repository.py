@@ -5,11 +5,12 @@ from typing import Any
 import pytest
 from remnapy.enums import TrafficLimitStrategy
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db.models.subscription import Subscription
+from app.core.db.models.subscription_device_name import SubscriptionDeviceName
 from app.core.db.models.user import User
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, Role, SubscriptionStatus
@@ -616,6 +617,31 @@ async def test_anonymize_zeroes_bonus_days(user_repository: UserRepository) -> N
 
     assert anonymized is not None
     assert anonymized.bonus_days == 0
+
+
+async def test_anonymize_drops_the_customers_device_names(
+    user_repository: UserRepository, session: AsyncSession
+) -> None:
+    gone = await user_repository.create(CreateUserDto(name="u", telegram_id=930_004))
+    kept = await user_repository.create(CreateUserDto(name="k", telegram_id=930_005))
+    _add_subscription(session, gone.id, SubscriptionStatus.ACTIVE, remnawave_user_id=930_004)
+    _add_subscription(session, kept.id, SubscriptionStatus.ACTIVE, remnawave_user_id=930_005)
+    await session.flush()
+    ids = dict(
+        (await session.execute(select(Subscription.user_id, Subscription.id))).tuples().all()
+    )
+    session.add_all(
+        [
+            SubscriptionDeviceName(subscription_id=ids[gone.id], hwid="a", name="Masha's phone"),
+            SubscriptionDeviceName(subscription_id=ids[kept.id], hwid="b", name="Mine"),
+        ]
+    )
+    await session.flush()
+
+    await user_repository.anonymize(gone.id)
+
+    names = await session.scalars(select(SubscriptionDeviceName.name))
+    assert list(names) == ["Mine"]
 
 
 async def test_has_discount_filter_counts_the_loyalty_discount(

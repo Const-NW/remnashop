@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import pytest
 from remnapy import RemnawaveSDK
@@ -6,13 +7,16 @@ from remnapy.enums import TrafficLimitStrategy
 
 from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
-from app.core.exceptions import CooldownError, ValidationError
+from app.core.exceptions import CooldownError, NotFoundError, ValidationError
 from app.core.utils.time import datetime_now
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.device_name_repository import DeviceNameRepository
+from app.modules.subscriptions.devices import client_app
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
     DeleteDeviceDto,
+    RenameDeviceDto,
     SubscriptionRefDto,
 )
 from app.modules.subscriptions.repository import SubscriptionRepository
@@ -21,6 +25,7 @@ from app.modules.subscriptions.usecases import (
     DeleteDeviceUseCase,
     ListDevicesUseCase,
     ReissueSubscriptionUseCase,
+    RenameDeviceUseCase,
 )
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
@@ -50,6 +55,28 @@ async def _create_active_subscription(
     )
 
 
+def _list_devices(
+    subscription_repository: SubscriptionRepository, remnawave_sdk: RemnawaveSDK, uow: UnitOfWork
+) -> ListDevicesUseCase:
+    return ListDevicesUseCase(
+        subscription_repository,
+        DeviceNameRepository(subscription_repository.session),
+        remnawave_sdk,
+        uow,
+    )
+
+
+def _rename_device(
+    subscription_repository: SubscriptionRepository, remnawave_sdk: RemnawaveSDK, uow: UnitOfWork
+) -> RenameDeviceUseCase:
+    return RenameDeviceUseCase(
+        subscription_repository,
+        DeviceNameRepository(subscription_repository.session),
+        remnawave_sdk,
+        uow,
+    )
+
+
 def _device(hwid: str, user_id: int, **overrides: object) -> dict:
     return {
         "hwid": hwid,
@@ -75,7 +102,7 @@ async def test_lists_the_actors_devices(
     actor = await user_repository.create(CreateUserDto(name="device-lister"))
     subscription = await _create_active_subscription(subscription_repository, actor.id, 7001)
     remnawave_hwid_store[7001] = [_device("abc", 7001, platform="android", deviceModel="Pixel")]
-    use_case = ListDevicesUseCase(subscription_repository, remnawave_sdk, uow)
+    use_case = _list_devices(subscription_repository, remnawave_sdk, uow)
 
     devices = await use_case(actor, SubscriptionRefDto(subscription_id=subscription.id))
 
@@ -93,7 +120,7 @@ async def test_refuses_a_deleted_subscription(
     actor = await user_repository.create(CreateUserDto(name="deleted-sub"))
     subscription = await _create_active_subscription(subscription_repository, actor.id, 7100)
     await subscription_repository.mark_deleted(subscription.id)
-    use_case = ListDevicesUseCase(subscription_repository, remnawave_sdk, uow)
+    use_case = _list_devices(subscription_repository, remnawave_sdk, uow)
 
     with pytest.raises(ValidationError):
         await use_case(actor, SubscriptionRefDto(subscription_id=subscription.id))
@@ -108,7 +135,7 @@ async def test_device_usecases_refuse_another_users_subscription(
     owner = await user_repository.create(CreateUserDto(name="owner"))
     stranger = await user_repository.create(CreateUserDto(name="stranger"))
     subscription = await _create_active_subscription(subscription_repository, owner.id, 7101)
-    use_case = ListDevicesUseCase(subscription_repository, remnawave_sdk, uow)
+    use_case = _list_devices(subscription_repository, remnawave_sdk, uow)
 
     with pytest.raises(ValidationError):
         await use_case(stranger, SubscriptionRefDto(subscription_id=subscription.id))
@@ -126,7 +153,7 @@ async def test_lists_devices_of_the_chosen_subscription(
     second = await _create_active_subscription(subscription_repository, actor.id, 7103)
     remnawave_hwid_store[7102] = []
     remnawave_hwid_store[7103] = [_device("second-hwid", 7103)]
-    use_case = ListDevicesUseCase(subscription_repository, remnawave_sdk, uow)
+    use_case = _list_devices(subscription_repository, remnawave_sdk, uow)
 
     devices = await use_case(actor, SubscriptionRefDto(subscription_id=second.id))
 
@@ -304,3 +331,89 @@ async def test_a_failed_panel_call_hands_the_cooldown_back(
 
     reloaded = await subscription_repository.get_by_id(subscription.id)
     assert reloaded.device_single_reset_at is None
+
+
+async def test_a_renamed_device_lists_with_its_name_app_and_os(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_hwid_store: dict,
+    uow: UnitOfWork,
+) -> None:
+    actor = await user_repository.create(CreateUserDto(name="renamer"))
+    subscription = await _create_active_subscription(subscription_repository, actor.id, 7301)
+    remnawave_hwid_store[7301] = [
+        _device("phone", 7301, osVersion="18.1", userAgent="Happ/2.1.0/ios"),
+        _device("laptop", 7301),
+    ]
+    rename = _rename_device(subscription_repository, remnawave_sdk, uow)
+    ref = SubscriptionRefDto(subscription_id=subscription.id)
+
+    await rename(
+        actor, RenameDeviceDto(subscription_id=subscription.id, hwid="phone", name="  My   phone ")
+    )
+    phone, laptop = await _list_devices(subscription_repository, remnawave_sdk, uow)(actor, ref)
+
+    assert (phone.name, phone.app, phone.os_version) == ("My phone", "Happ 2.1.0", "18.1")
+    assert (laptop.name, laptop.app) == (None, None)
+
+    # renamed again, then the name dropped: the panel's model shows once more
+    await rename(actor, RenameDeviceDto(subscription_id=subscription.id, hwid="phone", name="Work"))
+    assert (await _list_devices(subscription_repository, remnawave_sdk, uow)(actor, ref))[
+        0
+    ].name == "Work"
+    await rename(actor, RenameDeviceDto(subscription_id=subscription.id, hwid="phone", name=" "))
+    assert (await _list_devices(subscription_repository, remnawave_sdk, uow)(actor, ref))[
+        0
+    ].name is None
+
+
+async def test_renaming_refuses_an_unknown_device_and_a_long_name(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_hwid_store: dict,
+    uow: UnitOfWork,
+) -> None:
+    actor = await user_repository.create(CreateUserDto(name="rename-refused"))
+    stranger = await user_repository.create(CreateUserDto(name="rename-stranger"))
+    subscription = await _create_active_subscription(subscription_repository, actor.id, 7302)
+    remnawave_hwid_store[7302] = [_device("known", 7302)]
+    rename = _rename_device(subscription_repository, remnawave_sdk, uow)
+
+    with pytest.raises(NotFoundError):
+        await rename(
+            actor, RenameDeviceDto(subscription_id=subscription.id, hwid="made-up", name="x")
+        )
+    with pytest.raises(ValidationError):
+        await rename(
+            actor, RenameDeviceDto(subscription_id=subscription.id, hwid="known", name="x" * 33)
+        )
+    # invisible characters only: the same as a blank name, nothing stored
+    await rename(
+        actor, RenameDeviceDto(subscription_id=subscription.id, hwid="known", name="\u200b\u2060")
+    )
+    with pytest.raises(ValidationError):
+        await rename(
+            stranger, RenameDeviceDto(subscription_id=subscription.id, hwid="known", name="x")
+        )
+    assert (
+        await DeviceNameRepository(subscription_repository.session).names_for(subscription.id) == {}
+    )
+
+
+@pytest.mark.parametrize(
+    ("user_agent", "app"),
+    [
+        ("Happ/2.1.0/ios", "Happ 2.1.0"),
+        ("v2rayNG/1.9.30", "v2rayNG 1.9.30"),
+        ("HiddifyNext/2.5.7 (android) like ClashMeta", "HiddifyNext 2.5.7"),
+        ("clash-verge/v2.0.0", "clash-verge 2.0.0"),
+        ("Streisand", "Streisand"),
+        ("v2raytun/android", "v2raytun"),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_client_app_reads_the_user_agent(user_agent: Optional[str], app: Optional[str]) -> None:
+    assert client_app(user_agent) == app

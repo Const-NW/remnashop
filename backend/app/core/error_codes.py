@@ -85,6 +85,8 @@ class ErrorCode(UpperStrEnum):
     CSRF_FAILED = auto()
     CURRENCY_RATE_MISSING = auto()
     CURRENT_PASSWORD_INCORRECT = auto()
+    DEVICE_NAME_TOO_LONG = auto()
+    DEVICE_NOT_FOUND = auto()
     DEVICE_RESET_DISABLED = auto()
     DIALOG_ACTION_NOT_IN_WINDOW = auto()
     DIALOG_ACTION_UNKNOWN = auto()

@@ -3,6 +3,7 @@ from app.telegram.dialogs.state_pool import register_seed_state
 from app.telegram.routers.subscriptions.handlers import (
     on_device_delete_all_confirm,
     on_device_delete_confirm,
+    on_device_name_clear,
     on_devices_back,
     on_open_devices,
     on_open_subscriptions,
@@ -22,6 +23,7 @@ def register_subscriptions_catalog() -> None:
     catalog.bind_action_handler("devices_back", on_devices_back)
     catalog.bind_action_handler("subscription_card_back", on_subscription_card_back)
     catalog.bind_action_handler("delete_device", on_device_delete_confirm)
+    catalog.bind_action_handler("clear_device_name", on_device_name_clear)
     catalog.bind_action_handler("delete_all_devices", on_device_delete_all_confirm)
     catalog.bind_action_handler("reissue_subscription", on_reissue_subscription_confirm)
 
@@ -29,6 +31,8 @@ def register_subscriptions_catalog() -> None:
     register_seed_state("subscriptions.card", Subscriptions.CARD)
     # window keys keep their menu.* names: they are stored rows admins may have edited
     register_seed_state("menu.devices", Subscriptions.DEVICES)
+    register_seed_state("menu.device", Subscriptions.DEVICE)
+    register_seed_state("menu.device_rename", Subscriptions.DEVICE_RENAME)
     register_seed_state("menu.device_confirm_delete", Subscriptions.DEVICE_CONFIRM_DELETE)
     register_seed_state("menu.device_confirm_delete_all", Subscriptions.DEVICE_CONFIRM_DELETE_ALL)
     register_seed_state("menu.device_confirm_reissue", Subscriptions.DEVICE_CONFIRM_REISSUE)

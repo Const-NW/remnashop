@@ -11,6 +11,7 @@ def register_menu_metadata() -> None:
 
     catalog.register_action_key("get_trial")
     catalog.register_action_key("delete_device")
+    catalog.register_action_key("clear_device_name")
     catalog.register_action_key("delete_all_devices")
     catalog.register_action_key("reissue_subscription")
     for key in (
@@ -34,6 +35,7 @@ def register_menu_metadata() -> None:
         "connectable", lambda data: bool(data.get("connectable")) and bool(data.get("connect_url"))
     )
     catalog.register_condition("has_devices", lambda data: bool(data.get("has_devices")))
+    catalog.register_condition("device_has_name", lambda data: bool(data.get("device_has_name")))
     catalog.register_condition(
         "has_subscriptions", lambda data: data.get("subscriptions_count", 0) > 0
     )
@@ -286,6 +288,79 @@ def register_menu_metadata() -> None:
 
     catalog.register_window(
         catalog.CatalogWindow(
+            key="menu.device",
+            flow=DialogFlow.MENU,
+            text_keys=("msg-menu-device",),
+            banner_name=DEFAULT_BANNER_NAME,
+            text_variables=(
+                "device_name",
+                "device_model",
+                "device_system",
+                "device_app",
+                "device_created_at",
+            ),
+            buttons=(
+                catalog.CatalogButton(
+                    key="rename",
+                    text_key="btn-devices.rename",
+                    row=0,
+                    column=0,
+                    link_type=ButtonLinkType.NAVIGATE,
+                    target_window_key="menu.device_rename",
+                ),
+                catalog.CatalogButton(
+                    key="delete",
+                    text_key="btn-devices.delete",
+                    row=0,
+                    column=1,
+                    link_type=ButtonLinkType.NAVIGATE,
+                    target_window_key="menu.device_confirm_delete",
+                ),
+                catalog.CatalogButton(
+                    key="back",
+                    required=True,
+                    text_key="btn-back.general",
+                    row=1,
+                    column=0,
+                    link_type=ButtonLinkType.NAVIGATE,
+                    target_window_key="menu.devices",
+                ),
+            ),
+        )
+    )
+
+    catalog.register_window(
+        catalog.CatalogWindow(
+            key="menu.device_rename",
+            flow=DialogFlow.MENU,
+            text_keys=("msg-menu-device-rename",),
+            banner_name=DEFAULT_BANNER_NAME,
+            text_variables=("device_name", "device_name_max_length"),
+            buttons=(
+                catalog.CatalogButton(
+                    key="clear_name",
+                    text_key="btn-devices.clear-name",
+                    row=0,
+                    column=0,
+                    link_type=ButtonLinkType.ACTION,
+                    action_key="clear_device_name",
+                    visibility_condition="device_has_name",
+                ),
+                catalog.CatalogButton(
+                    key="back",
+                    required=True,
+                    text_key="btn-back.general",
+                    row=1,
+                    column=0,
+                    link_type=ButtonLinkType.NAVIGATE,
+                    target_window_key="menu.device",
+                ),
+            ),
+        )
+    )
+
+    catalog.register_window(
+        catalog.CatalogWindow(
             key="menu.device_confirm_delete",
             flow=DialogFlow.MENU,
             text_keys=("msg-menu-devices-confirm-delete",),
@@ -307,7 +382,7 @@ def register_menu_metadata() -> None:
                     row=0,
                     column=1,
                     link_type=ButtonLinkType.NAVIGATE,
-                    target_window_key="menu.devices",
+                    target_window_key="menu.device",
                 ),
             ),
         )

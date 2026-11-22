@@ -659,10 +659,23 @@ class GetAvailableTrialDto:
 
 class DeviceDto(BaseModel):
     hwid: str
+    # the customer's own, kept by the shop: the panel has none
+    name: Optional[str]
     platform: Optional[str]
+    os_version: Optional[str]
     device_model: Optional[str]
+    # the client app and its version, read off the user agent
+    app: Optional[str]
     user_agent: Optional[str]
     created_at: datetime
+
+
+@dataclass(frozen=True, kw_only=True)
+class RenameDeviceDto:
+    subscription_id: int
+    hwid: str
+    # empty or None drops the name
+    name: Optional[str]
 
 
 @dataclass(frozen=True, kw_only=True)
