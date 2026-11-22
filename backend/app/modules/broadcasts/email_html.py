@@ -159,10 +159,18 @@ def email_image_ids(html: str) -> set[int]:
     return walker.ids
 
 
+# only an <img> src, never the same token in the text
+_IMAGE_SRC_ATTR_RE: Final[re.Pattern[str]] = re.compile(
+    rf"""(<img\b[^>]*\bsrc=(["']?)){re.escape(EMAIL_IMAGE_SRC_PREFIX)}([0-9]+)(?=\2)"""
+)
+
+
 def replace_email_image_ids(html: str, new_ids: dict[int, int]) -> str:
-    return _IMAGE_SRC_RE.sub(
-        lambda m: f"{EMAIL_IMAGE_SRC_PREFIX}{new_ids.get(int(m.group(1)), m.group(1))}", html
-    )
+    def _swap(match: re.Match[str]) -> str:
+        image_id = new_ids.get(int(match.group(3)), int(match.group(3)))
+        return f"{match.group(1)}{EMAIL_IMAGE_SRC_PREFIX}{image_id}"
+
+    return _IMAGE_SRC_ATTR_RE.sub(_swap, html)
 
 
 class _Styler(_Walker):

@@ -7,7 +7,11 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import BroadcastDelivery, BroadcastMediaType, BroadcastStatus, Locale, Role
 from app.core.exceptions import NotFoundError, PermissionDeniedError
 from app.core.ports import EventPublisher
-from app.modules.broadcasts.dto import BroadcastEmailContentDto, BroadcastMediaDto
+from app.modules.broadcasts.dto import (
+    BroadcastEmailContentDto,
+    BroadcastMediaDto,
+    ListBroadcastsDto,
+)
 from app.modules.broadcasts.repository import BroadcastRepository
 from app.modules.broadcasts.storage import email_image_path, media_path
 from app.modules.broadcasts.usecases import DuplicateBroadcastUseCase
@@ -109,6 +113,54 @@ async def test_duplicate_copies_media_and_email_images(
     # the source keeps its own files and references
     assert media_path(media_dir, source.id, 3, "png").exists()
     assert (await broadcast_repository.get_by_id(source.id)).email_contents[Locale.EN].html == html
+
+
+async def test_duplicate_skips_a_file_missing_on_disk(
+    duplicate_use_case: DuplicateBroadcastUseCase,
+    broadcast_repository: BroadcastRepository,
+    media_config: AppConfig,
+    admin: UserDto,
+) -> None:
+    source = await _make(broadcast_repository)
+    await broadcast_repository.set_media(
+        source.id,
+        BroadcastMediaDto(
+            media_type=BroadcastMediaType.PHOTO,
+            content_type="image/png",
+            extension="png",
+            version=1,
+            size_bytes=5,
+        ),
+    )
+
+    copy = await duplicate_use_case(admin, source.id)
+
+    assert copy.status is BroadcastStatus.DRAFT
+    assert not media_path(media_config.media_dir, copy.id, 1, "png").exists()
+
+
+async def test_duplicate_whose_file_copy_fails_leaves_nothing(
+    duplicate_use_case: DuplicateBroadcastUseCase,
+    broadcast_repository: BroadcastRepository,
+    media_config: AppConfig,
+    admin: UserDto,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    media_dir = media_config.media_dir
+    source = await _make(broadcast_repository)
+    image = await broadcast_repository.add_email_image(source.id, "image/png", "png", 3)
+    _write(email_image_path(media_dir, source.id, image.id, "png"), b"img")
+
+    def _disk_full(*_: object) -> None:
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr("shutil.copyfile", _disk_full)
+    with pytest.raises(OSError):
+        await duplicate_use_case(admin, source.id)
+
+    items, _ = await broadcast_repository.list(ListBroadcastsDto())
+    assert [b.id for b in items] == [source.id]
+    assert [p.name for p in (media_dir / "broadcasts" / "email").iterdir()] == [str(source.id)]
 
 
 async def test_duplicate_while_sending(

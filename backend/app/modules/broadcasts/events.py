@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, Optional
 
 from app.core.events import ActorEvent, EventCategory, SystemEvent
 
@@ -18,6 +18,8 @@ class BroadcastChangedEvent(ActorEvent):
         "update",
     ]
     broadcast_id: int
+    # set on a duplicate: the broadcast it was copied from
+    source_broadcast_id: Optional[int] = None
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -183,7 +183,8 @@ function BroadcastDetails({ id }: { id: number }) {
     try {
       const copy = await duplicateBroadcast(b.id);
       toast.success(t("broadcasts.details.actions.duplicate.done"));
-      navigate(`${LIST_PATH}/${copy.id}/edit`);
+      // without the update permission the editor would be read-only
+      navigate(can("BROADCASTS_UPDATE") ? `${LIST_PATH}/${copy.id}/edit` : `${LIST_PATH}/${copy.id}`);
     } catch (err) {
       toast.error(getErrorMessage(err, t("common.errors.generic")));
       setIsBusy(false);
