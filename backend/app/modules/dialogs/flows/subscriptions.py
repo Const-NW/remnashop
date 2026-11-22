@@ -70,6 +70,8 @@ def register_subscriptions_metadata() -> None:
                 "is_trial",
                 "expire_at",
                 "expire_at_local",
+                "expire_at_unix",
+                "is_unlimited",
                 "traffic_limit",
                 "device_limit",
             ),

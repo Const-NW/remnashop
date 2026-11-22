@@ -86,14 +86,22 @@ def format_expiry(runner: TranslatorRunner, value: datetime, *, with_time: bool 
     return format_datetime(value) if with_time else format_date(value)
 
 
+def unix_time(value: datetime) -> str:
+    # a string, so Fluent doesn't group the digits
+    return str(int(value.timestamp()))
+
+
+def expiry_unix_time(value: datetime) -> str:
+    """Empty for an unlimited subscription: it has no date to show."""
+    return "" if is_unlimited_expiry(value) else unix_time(value)
+
+
 def format_date_tag(value: datetime, *, with_time: bool = False) -> TrustedHtml:
     """The date as <tg-time>, shown in the reader's own time zone; the inner
     text is for clients that don't know the tag."""
     text = format_datetime(value) if with_time else format_date(value)
     tg_format = _TG_DATETIME_FORMAT if with_time else _TG_DATE_FORMAT
-    return TrustedHtml(
-        f'<tg-time unix="{int(value.timestamp())}" format="{tg_format}">{text}</tg-time>'
-    )
+    return TrustedHtml(f'<tg-time unix="{unix_time(value)}" format="{tg_format}">{text}</tg-time>')
 
 
 def format_expiry_tag(

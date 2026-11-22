@@ -35,6 +35,8 @@ def test_regex_captures_glyph_and_id() -> None:
         "<b>{ $user_name }</b> [⭐](emoji:123)",
         '<tg-time unix="1797955380" format="dt">22.12.2026</tg-time>',
         '<tg-time unix="1797955380">x</tg-time>',
+        '<tg-time unix="{ $expire_at_unix }" format="wDT">x</tg-time>',
+        '<tg-time unix="1" format="r">x</tg-time>',
     ],
 )
 def test_valid_html(text: str) -> None:
@@ -58,6 +60,8 @@ def test_valid_html(text: str) -> None:
         "<![CDATA[x]]>",
         '<tg-time format="d">x</tg-time>',
         '<tg-time unix="abc">x</tg-time>',
+        '<tg-time unix="{ $a_unix } { $b_unix }">x</tg-time>',
+        '<tg-time unix="1" format="Dd">x</tg-time>',
         '<tg-time unix="{ $expire_at_local }">x</tg-time>',
         '<tg-time unix="1" format="rd">x</tg-time>',
     ],
