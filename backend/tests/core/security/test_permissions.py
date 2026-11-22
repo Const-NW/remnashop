@@ -168,6 +168,8 @@ def test_role_permissions_admin_matches_expected_defaults() -> None:
         Permission.BOT_PROXY_REMOVE,
         Permission.SHOP_SETTINGS_VIEW,
         Permission.SHOP_SETTINGS_MANAGE,
+        Permission.GRACE_SETTINGS_VIEW,
+        Permission.GRACE_SETTINGS_MANAGE,
         Permission.ACCESS_SETTINGS_VIEW,
         Permission.ACCESS_SETTINGS_MANAGE,
         Permission.PAYMENT_WAITLIST_VIEW,

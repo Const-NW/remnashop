@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from enum import auto
 from typing import Optional
+from uuid import UUID
 
 from pydantic import Field, SecretStr
+from remnapy.enums import TrafficLimitStrategy
 
 from app.core.constants import DEFAULT_ALLOWED_EMAIL_DOMAINS
 from app.core.dto import BaseDto, TimestampMixin
@@ -81,6 +83,16 @@ class ShopSettingsDto(BaseDto, TimestampMixin):
         return self.support_url
 
 
+class GraceSettingsDto(BaseDto, TimestampMixin):
+    enabled: bool = False
+    internal_squads: list[UUID] = Field(default_factory=list)
+    external_squad: Optional[UUID] = None
+    traffic_limit_mb: int = 0
+    traffic_limit_strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET
+    tag: Optional[str] = None
+    duration_days: int = 0
+
+
 @dataclass(frozen=True, kw_only=True)
 class CabinetSettingsDto:
     # the part of the shop settings a customer needs; the all-devices cooldown lets the cabinet
@@ -118,6 +130,19 @@ class UpdateShopSettingsDto:
     payment_email: Optional[str] = None
     plan_change_credit_enabled: Optional[bool] = None
     plan_change_traffic_cap_enabled: Optional[bool] = None
+    fields_set: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, kw_only=True)
+class UpdateGraceSettingsDto:
+    # None in external_squad and tag clears them; fields_set says which fields the caller sent.
+    enabled: Optional[bool] = None
+    internal_squads: Optional[list[UUID]] = None
+    external_squad: Optional[UUID] = None
+    traffic_limit_mb: Optional[int] = None
+    traffic_limit_strategy: Optional[TrafficLimitStrategy] = None
+    tag: Optional[str] = None
+    duration_days: Optional[int] = None
     fields_set: frozenset[str] = frozenset()
 
 

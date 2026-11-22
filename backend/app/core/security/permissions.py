@@ -39,6 +39,8 @@ class Permission(UpperStrEnum):
     BOT_PROXY_REMOVE = auto()
     SHOP_SETTINGS_VIEW = auto()
     SHOP_SETTINGS_MANAGE = auto()
+    GRACE_SETTINGS_VIEW = auto()
+    GRACE_SETTINGS_MANAGE = auto()
     ACCESS_SETTINGS_VIEW = auto()
     ACCESS_SETTINGS_MANAGE = auto()
     PAYMENT_WAITLIST_VIEW = auto()
@@ -290,6 +292,8 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.BOT_PROXY_REMOVE: PermissionMeta(resource="bot_settings", kind="write"),
     Permission.SHOP_SETTINGS_VIEW: PermissionMeta(resource="shop_settings", kind="read"),
     Permission.SHOP_SETTINGS_MANAGE: PermissionMeta(resource="shop_settings", kind="write"),
+    Permission.GRACE_SETTINGS_VIEW: PermissionMeta(resource="grace", kind="read"),
+    Permission.GRACE_SETTINGS_MANAGE: PermissionMeta(resource="grace", kind="write"),
     Permission.ACCESS_SETTINGS_VIEW: PermissionMeta(resource="access_settings", kind="read"),
     Permission.ACCESS_SETTINGS_MANAGE: PermissionMeta(resource="access_settings", kind="write"),
     Permission.PAYMENT_WAITLIST_VIEW: PermissionMeta(resource="access_settings", kind="read"),
@@ -667,6 +671,8 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.BOT_PROXY_REMOVE,
             Permission.SHOP_SETTINGS_VIEW,
             Permission.SHOP_SETTINGS_MANAGE,
+            Permission.GRACE_SETTINGS_VIEW,
+            Permission.GRACE_SETTINGS_MANAGE,
             Permission.ACCESS_SETTINGS_VIEW,
             Permission.ACCESS_SETTINGS_MANAGE,
             Permission.PAYMENT_WAITLIST_VIEW,
