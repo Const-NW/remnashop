@@ -1,6 +1,6 @@
 import secrets
 from dataclasses import replace
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional, Union, cast
 
@@ -894,6 +894,8 @@ async def _traffic_subscription(
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
     strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET,
     plan_id: int = 1,
+    is_trial: bool = False,
+    expire_at: Optional[datetime] = None,
 ) -> int:
     async with fx.uow:
         subscription = await SubscriptionRepository(fx.orders.session).create(
@@ -901,10 +903,11 @@ async def _traffic_subscription(
                 user_id=user.id,
                 remnawave_user_id=remnawave_user_id,
                 status=status,
+                is_trial=is_trial,
                 traffic_limit=100,
                 traffic_limit_strategy=strategy,
                 device_limit=0,
-                expire_at=datetime_now() + timedelta(days=20),
+                expire_at=expire_at or datetime_now() + timedelta(days=20),
                 url="https://example.test/sub",
                 plan_snapshot=make_plan_snapshot(plan_id=plan_id),
             )
@@ -1000,11 +1003,59 @@ async def test_traffic_threshold_gets_a_renew_button_where_it_suggests_renewing(
     assert [button["text"] for button in message["buttons"]] == ["Renew", "Close"]
 
 
-async def test_traffic_threshold_is_dropped_once_the_subscription_is_limited(fx: _Fixture) -> None:
-    user = await fx.create(name="tl", telegram_id=8403)
+@pytest.mark.parametrize(
+    ("expire_at", "plan_exists"),
+    [(datetime(2099, 1, 1, tzinfo=timezone.utc), True), (None, False)],
+    ids=["unlimited", "plan-deleted"],
+)
+async def test_traffic_threshold_offers_no_renewal_without_a_renewable_subscription(
+    expire_at: Optional[datetime], plan_exists: bool, fx: _Fixture
+) -> None:
+    user = await fx.create(name="tu", telegram_id=8405)
+    plan_id = await _plan(fx, "tu-plan", "5") if plan_exists else 999_999
     subscription_id = await _traffic_subscription(
-        fx, user, 880_403, status=SubscriptionStatus.LIMITED
+        fx, user, 880_405, plan_id=plan_id, expire_at=expire_at
     )
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    assert row.args["can_renew"] == "no"
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Close"]
+
+
+async def test_traffic_threshold_offers_a_trial_to_buy(fx: _Fixture) -> None:
+    user = await fx.create(name="tt2", telegram_id=8406)
+    subscription_id = await _traffic_subscription(fx, user, 880_406, is_trial=True)
+
+    await fx.notify(
+        user,
+        "SubscriptionTrafficThresholdEvent",
+        subscription_id=subscription_id,
+        args={"percent": 80},
+    )
+
+    (row,) = await fx.feed_rows(user)
+    assert (row.args["is_trial"], row.args["can_renew"]) == ("yes", "no")
+    (message,) = fx.telegram.messages
+    assert [button["text"] for button in message["buttons"]] == ["Buy", "Close"]
+
+
+@pytest.mark.parametrize(
+    "status",
+    [SubscriptionStatus.LIMITED, SubscriptionStatus.EXPIRED, SubscriptionStatus.DISABLED],
+)
+async def test_traffic_threshold_is_dropped_once_the_subscription_is_not_active(
+    status: SubscriptionStatus, fx: _Fixture
+) -> None:
+    user = await fx.create(name="tl", telegram_id=8403)
+    subscription_id = await _traffic_subscription(fx, user, 880_403, status=status)
 
     await fx.notify(
         user,

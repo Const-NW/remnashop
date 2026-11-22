@@ -23,7 +23,7 @@ def customer_render_args(
         # a feed row stored before the plan name was has none
         rendered["has_plan_name"] = "yes" if args.get("plan_name") else "no"
     if event_type == SubscriptionTrafficThresholdEvent.__name__:
-        # a feed row stored before these were has none: the old text, "renew to keep access"
+        # a feed row stored before these were has none: no percent or date, still offers renewing
         rendered.setdefault("percent", 0)
         rendered.setdefault("reset_date", "none")
         rendered.setdefault("can_renew", "yes")
