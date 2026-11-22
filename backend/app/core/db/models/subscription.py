@@ -21,6 +21,12 @@ class Subscription(BaseSql, TimestampMixin):
             unique=True,
             postgresql_where=text(f"status != '{SubscriptionStatus.DELETED.name}'"),
         ),
+        # the grace sweep's end lookup; almost every row has none
+        Index(
+            "ix_subscriptions_grace_until",
+            "grace_until",
+            postgresql_where=text("grace_until IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
