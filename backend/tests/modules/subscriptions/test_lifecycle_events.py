@@ -77,7 +77,7 @@ def _use_case(
     )
     end = EndGraceUseCase(subscription_repository, user_repository, sdk, uow, event_publisher)
     return ProcessRemnawaveWebhookUseCase(
-        sync, publish, enter, end, subscription_repository, uow, redis
+        sync, publish, enter, end, subscription_repository, SettingsRepository(session), uow, redis
     )
 
 

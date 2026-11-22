@@ -18,6 +18,7 @@ from app.core.exceptions import RetryableTaskError
 from app.core.panel_writes import WRITE_MARK_TTL_S, written_after
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import (
     ProcessRemnawaveWebhookDto,
     PublishPanelEventDto,
@@ -60,6 +61,7 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
         enter_grace_use_case: EnterGraceUseCase,
         end_grace_use_case: EndGraceUseCase,
         subscription_repository: SubscriptionRepository,
+        settings_repository: SettingsRepository,
         uow: UnitOfWork,
         redis: Redis,
     ) -> None:
@@ -68,6 +70,7 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
         self._enter_grace_use_case = enter_grace_use_case
         self._end_grace_use_case = end_grace_use_case
         self._subscription_repository = subscription_repository
+        self._settings_repository = settings_repository
         self._uow = uow
         self._redis = redis
 
@@ -137,12 +140,23 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
             subscription = await self._subscription_repository.find_by_remnawave_user_id(
                 remnawave_user_id
             )
+            settings = await self._settings_repository.get_grace_settings()
         if subscription is None or subscription.status is SubscriptionStatus.DELETED:
             return False
         if subscription.grace_until is None:
+            # the panel's own expiry after a sweep already ended grace and told the customer
+            if (
+                subscription.grace_ended_at is not None
+                and subscription.expire_at <= subscription.grace_ended_at
+            ):
+                return True
+            if not settings.enabled:
+                return False
             return await self._enter_grace_use_case.system(subscription.id)
-        # still in grace: the panel's own repeat; past it: the end publishes the expiry
-        if subscription.grace_until <= datetime_now():
+        if subscription.grace_until > datetime_now():
+            # the panel expires a grace user only when our grace push never landed
+            await self._enter_grace_use_case.system(subscription.id)
+        else:
             await self._end_grace_use_case.system(subscription.id)
         return True
 

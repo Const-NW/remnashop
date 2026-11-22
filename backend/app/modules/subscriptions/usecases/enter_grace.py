@@ -49,6 +49,8 @@ class EnterGraceUseCase(UseCase[int, bool]):
         now = datetime_now()
         async with self._uow:
             settings = await self._settings_repository.get_grace_settings()
+            if not settings.enabled:
+                return False
             subscription = await self._subscription_repository.get_by_id_for_update(data)
             claimed = subscription.grace_until is None
             if subscription.grace_until is not None:

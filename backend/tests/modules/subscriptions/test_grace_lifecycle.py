@@ -93,7 +93,14 @@ class _Grace:
         )
         publish = PublishPanelEventUseCase(subscriptions, users, uow, publisher)
         self.webhook = ProcessRemnawaveWebhookUseCase(
-            sync, publish, self.enter, self.end, subscriptions, uow, redis
+            sync,
+            publish,
+            self.enter,
+            self.end,
+            subscriptions,
+            SettingsRepository(session),
+            uow,
+            redis,
         )
 
 
@@ -487,10 +494,7 @@ async def test_no_reentry_after_end(
     after = await subscription_repository.get_by_id(subscription.id)
     assert after.grace_until is None
     assert remnawave_store[94_008]["status"] == "EXPIRED"
-    assert await _events(session, subscription.id) == [
-        "SubscriptionExpiredEvent",
-        "SubscriptionExpiredEvent",
-    ]
+    assert await _events(session, subscription.id) == ["SubscriptionExpiredEvent"]
 
 
 async def test_sweep_picks_missed_webhook(
@@ -556,3 +560,36 @@ async def test_expiration_and_limited_muted_in_grace(
     await grace.webhook.system(_webhook(config, "user.limited", 94_012, "LIMITED", grace_until))
 
     assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def test_expired_with_unpushed_claim_pushes_grace(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_013)
+    # the claim committed, the worker died before the push
+    claimed = await subscription_repository.set_grace_until(
+        before.id, datetime_now() + timedelta(days=3)
+    )
+    assert claimed.grace_until is not None
+
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_013, "EXPIRED", before.expire_at)
+    )
+
+    panel = remnawave_store[94_013]
+    assert panel["status"] == "ACTIVE"
+    assert panel["trafficLimitBytes"] == 512 * MB_TO_BYTES
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_013)) == truncate_to_ms(
+        claimed.grace_until
+    )
+    assert (await subscription_repository.get_by_id(before.id)).grace_until == claimed.grace_until
+    assert await _events(session, before.id) == []
