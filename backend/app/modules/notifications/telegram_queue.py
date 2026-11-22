@@ -1,8 +1,10 @@
+import time
 from dataclasses import dataclass
+from http import HTTPStatus
 from typing import Final, Optional
 
 from loguru import logger
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from redis.asyncio import Redis
 
 from app.core.constants import REDIS_KEY_PREFIX, TTL_1D
@@ -19,8 +21,17 @@ _QUEUE: Final[str] = f"{REDIS_KEY_PREFIX}notification_telegram_queue"
 # a flood lasting hours keeps the newest cards; older ones are what the bell still shows
 _MAX_QUEUED: Final[int] = 500
 _QUEUE_TTL_S: Final[int] = TTL_1D
-# one drain fits the flush task's minute; the rest waits for the next run
+# one drain fits well inside the flush task's 55 s lock; the rest waits for the next run
 _DRAIN_BATCH: Final[int] = 30
+_DRAIN_BUDGET_S: Final[float] = 30.0
+# pops the head only if it is still the card just sent: a trim by a concurrent push,
+# or another drain, may have moved it
+_POP_IF_HEAD: Final[str] = """
+if redis.call('LINDEX', KEYS[1], 0) == ARGV[1] then
+  return redis.call('LPOP', KEYS[1])
+end
+return false
+"""
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -43,7 +54,8 @@ async def _send(token: str, proxy: Optional[str], chat_id: int, text: str) -> Op
                 f"Telegram flood control: admin notifications held for {error.retry_after:.0f}s"
             )
             return error.retry_after
-        logger.info(f"Telegram notification to {chat_id} refused: {error.description}")
+        level = "INFO" if error.error_code == HTTPStatus.FORBIDDEN else "WARNING"
+        logger.log(level, f"Telegram notification to {chat_id} refused: {error.description}")
     except BOT_API_ERRORS as error:
         logger.warning(f"Telegram notification to {chat_id} failed: {bot_api_error_text(error)}")
     return None
@@ -67,20 +79,34 @@ class AdminTelegramQueue:
             await self._push(chat_id, text)
 
     async def drain(self, token: str, proxy: Optional[str]) -> int:
-        sent = 0
-        while sent < _DRAIN_BATCH and not await self._redis.exists(_HOLD):
+        """Returns how many cards left the queue, sent or refused for good."""
+        done = 0
+        deadline = time.monotonic() + _DRAIN_BUDGET_S
+        while (
+            done < _DRAIN_BATCH
+            and time.monotonic() < deadline
+            and not await self._redis.exists(_HOLD)
+        ):
             raw = await self._redis.lindex(_QUEUE, 0)  # type: ignore[misc]
             if raw is None:
                 break
-            card = _CARD_ADAPTER.validate_json(raw)
+            try:
+                card = _CARD_ADAPTER.validate_json(raw)
+            except ValidationError:
+                logger.warning("Unreadable admin Telegram card dropped from the queue")
+                await self._pop_if_head(raw)
+                continue
             retry_after = await _send(token, proxy, card.chat_id, card.text)
             if retry_after is not None:
                 await self._hold(retry_after)
                 break
             # peeked, not popped: a card refused for flood stays first in line
-            await self._redis.lpop(_QUEUE)  # type: ignore[misc]
-            sent += 1
-        return sent
+            await self._pop_if_head(raw)
+            done += 1
+        return done
+
+    async def _pop_if_head(self, raw: str) -> None:
+        await self._redis.eval(_POP_IF_HEAD, 1, _QUEUE, raw)  # type: ignore[misc]
 
     async def _hold(self, retry_after: float) -> None:
         await self._redis.set(_HOLD, "1", px=max(1, int(retry_after * 1000)))

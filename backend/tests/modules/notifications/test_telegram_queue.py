@@ -6,6 +6,7 @@ from redis.asyncio import Redis
 
 from app.modules.notifications import telegram_queue
 from app.modules.notifications.telegram_queue import AdminTelegramQueue
+from app.modules.notifications.usecases import DrainAdminTelegramUseCase
 from tests.fakes.telegram_bot import FakeBotSession, flood, refusal, use_fake_bot
 
 _TOKEN = "123:abc"
@@ -108,3 +109,47 @@ async def test_the_queue_keeps_only_the_newest_cards(
 
     queued = await redis.lrange(telegram_queue._QUEUE, 0, -1)  # type: ignore[misc]
     assert ['"chat_id":2' in queued[0], '"chat_id":3' in queued[1]] == [True, True]
+
+
+async def test_a_card_moved_under_the_drain_is_not_popped(
+    queue: AdminTelegramQueue, redis: Redis
+) -> None:
+    await redis.rpush(telegram_queue._QUEUE, "first", "second")  # type: ignore[misc]
+
+    # another drain or a trim already took "first": popping blindly would lose "second"
+    await redis.lpop(telegram_queue._QUEUE)  # type: ignore[misc]
+    await queue._pop_if_head("first")
+
+    assert await redis.lrange(telegram_queue._QUEUE, 0, -1) == ["second"]  # type: ignore[misc]
+
+
+async def test_an_unreadable_or_unreachable_card_leaves_the_queue(
+    monkeypatch: pytest.MonkeyPatch, queue: AdminTelegramQueue, redis: Redis
+) -> None:
+    session = use_fake_bot(monkeypatch, _replies(flood(5), TimeoutError()))
+    await queue.send(_TOKEN, None, 1, "a")
+    await redis.rpush(telegram_queue._QUEUE, "not json")  # type: ignore[misc]
+    await redis.delete(telegram_queue._HOLD)
+
+    assert await queue.drain(_TOKEN, None) == 1
+
+    assert _sent(session) == [(1, "a"), (1, "a")]
+    assert await redis.llen(telegram_queue._QUEUE) == 0  # type: ignore[misc]
+
+
+class _NoToken:
+    async def get_bot_token(self) -> tuple[None, None]:
+        return None, None
+
+
+async def test_without_a_token_the_queue_is_kept(
+    monkeypatch: pytest.MonkeyPatch, queue: AdminTelegramQueue, redis: Redis
+) -> None:
+    use_fake_bot(monkeypatch, _replies(flood(5)))
+    await queue.send(_TOKEN, None, 1, "a")
+    await redis.delete(telegram_queue._HOLD)
+
+    drain = DrainAdminTelegramUseCase(_NoToken(), queue)  # type: ignore[arg-type]
+
+    assert await drain.system() == 0
+    assert await redis.llen(telegram_queue._QUEUE) == 1  # type: ignore[misc]

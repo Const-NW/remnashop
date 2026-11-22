@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Final, Optional
 
 from dishka.integrations.taskiq import FromDishka, inject
+from loguru import logger
 from pydantic import TypeAdapter
 from redis.asyncio import Redis
 from redis.asyncio.client import Pipeline
@@ -199,5 +200,8 @@ async def flush_coalesced_notifications_task(
     ) as acquired:
         if acquired:
             # first, so the summaries queue behind cards held since before them
-            await drain_use_case.system()
+            try:
+                await drain_use_case.system()
+            except Exception:
+                logger.exception("Admin Telegram queue drain failed")
             await flush_coalesced(redis, use_case)
