@@ -12,6 +12,7 @@ from app.core.enums import CreditSegmentKind, Currency, SubscriptionStatus
 from app.modules.subscriptions import is_unlimited_expiry
 
 _TABLE: Final[str] = "subscriptions"
+_GRACE_STATUSES: Final[frozenset[str]] = frozenset({"ACTIVE", "EXPIRED"})
 _COPIED: Final[tuple[str, ...]] = (
     "id",
     "user_id",
@@ -107,7 +108,10 @@ def _grace_terms(
         return {"grace_until": None}
     # the panel holds the grace config and the grace end, never the row's
     terms = {"status": SubscriptionStatus.EXPIRED, "grace_until": grace_until}
-    if row["expire_at"] < grace_until:
+    if row["status"] not in _GRACE_STATUSES:
+        report.notes.append(f"subscriptions #{row['id']}: in grace with status {row['status']}")
+    # the panel echoes milliseconds, grace_until keeps microseconds
+    if row["expire_at"] < grace_until - timedelta(seconds=1):
         return {**terms, "expire_at": row["expire_at"]}
     if grace_days > 0 and not is_unlimited_expiry(grace_until):
         expire_at = grace_until - timedelta(days=grace_days)

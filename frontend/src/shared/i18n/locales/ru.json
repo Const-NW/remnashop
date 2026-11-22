@@ -1699,6 +1699,8 @@
         "GB": "ГБ"
       },
       "durationLabel": "Длительность, дней",
+      "internalSquadsHint": "Оставьте пустым, чтобы сохранить сквады подписки.",
+      "externalSquadHint": "«Нет» сохраняет внешний сквад подписки.",
       "durationUnlimited": "Бессрочно"
     },
     "shop": {

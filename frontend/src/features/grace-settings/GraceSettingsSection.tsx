@@ -115,7 +115,14 @@ export function GraceSettingsSection() {
               </Row>
             </SectionRows>
             <SectionFields divided>
-              <PlanSquadsField value={squads} onChange={setSquads} />
+              <PlanSquadsField
+                value={squads}
+                onChange={setSquads}
+                keepHints={{
+                  internal: t("settings.grace.internalSquadsHint"),
+                  external: t("settings.grace.externalSquadHint"),
+                }}
+              />
               <Field
                 label={t("settings.grace.trafficLabel")}
                 htmlFor="grace-traffic"

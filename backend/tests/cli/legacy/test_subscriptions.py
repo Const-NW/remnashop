@@ -325,3 +325,28 @@ def test_deleted_subscription_drops_grace() -> None:
 def test_row_without_grace_column() -> None:
     [item] = _run([_row(1)], {1}, MigrationReport())
     assert item["grace_until"] is None
+
+
+def test_grace_overwritten_row_with_panel_milliseconds() -> None:
+    until = GRACE_UNTIL.replace(microsecond=123456)
+    echoed = until.replace(microsecond=123000)
+    row = _row(1, grace_until=until, expire_at=echoed, tag="GRACE")
+    [item] = _run([row], {1}, MigrationReport(), index=GRACE_INDEX)
+    assert item["expire_at"] == until - timedelta(days=3)
+    assert item["tag"] == "PRO"
+
+
+def test_indefinite_grace_overwritten_row_with_panel_milliseconds() -> None:
+    forever = datetime(2099, 1, 1, 0, 0, 0, 654321, tzinfo=timezone.utc)
+    updated = datetime(2025, 12, 20, tzinfo=timezone.utc)
+    row = _row(
+        1, grace_until=forever, expire_at=forever.replace(microsecond=654000), updated_at=updated
+    )
+    [item] = _run([row], {1}, MigrationReport(), grace_days=0)
+    assert item["expire_at"] == updated
+
+
+def test_grace_row_with_an_unexpected_status_is_reported() -> None:
+    report = MigrationReport()
+    _run([_row(1, "LIMITED", grace_until=GRACE_UNTIL)], {1}, report)
+    assert any("#1: in grace with status LIMITED" in note for note in report.notes)

@@ -1617,6 +1617,8 @@
         "GB": "GB"
       },
       "durationLabel": "Duration, days",
+      "internalSquadsHint": "Leave empty to keep the subscription’s own squads.",
+      "externalSquadHint": "“None” keeps the subscription’s own external squad.",
       "durationUnlimited": "No end"
     },
     "shop": {

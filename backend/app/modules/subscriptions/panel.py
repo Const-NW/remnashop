@@ -172,9 +172,11 @@ def grace_panel_update(
         "traffic_limit_strategy": settings.traffic_limit_strategy,
         "hwid_device_limit": subscription.effective_device_limit,
         "active_internal_squads": settings.internal_squads or None,
-        "external_squad_uuid": settings.external_squad,
         "tag": settings.tag,
     }
+    # no squad in the grace settings keeps the subscription's own on the panel
+    if settings.external_squad is not None:
+        fields["external_squad_uuid"] = settings.external_squad
     return panel_update(**(fields | extra))
 
 

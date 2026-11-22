@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Optional
+from uuid import uuid4
 
 from remnapy.enums import TrafficLimitStrategy, UserStatus
 
@@ -102,6 +103,23 @@ def test_grace_panel_update() -> None:
     assert update.hwid_device_limit == 3
     assert update.active_internal_squads is None
     assert "tag" in update.model_fields_set and update.tag is None
+
+
+def test_grace_panel_update_without_squads_keeps_the_panel_ones() -> None:
+    update = grace_panel_update(_expired(), _settings(), _NOW)
+
+    assert "active_internal_squads" not in update.model_fields_set
+    assert "external_squad_uuid" not in update.model_fields_set
+
+
+def test_grace_panel_update_sends_configured_squads() -> None:
+    internal, external = uuid4(), uuid4()
+    settings = _settings(internal_squads=[internal], external_squad=external)
+
+    update = grace_panel_update(_expired(), settings, _NOW)
+
+    assert update.active_internal_squads == [internal]
+    assert update.external_squad_uuid == external
 
 
 async def _create(
