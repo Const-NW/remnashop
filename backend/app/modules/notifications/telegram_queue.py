@@ -21,8 +21,8 @@ _QUEUE: Final[str] = f"{REDIS_KEY_PREFIX}notification_telegram_queue"
 # a flood lasting hours keeps the newest cards; older ones are what the bell still shows
 _MAX_QUEUED: Final[int] = 500
 _QUEUE_TTL_S: Final[int] = TTL_1D
-# one drain fits well inside the flush task's 55 s lock; the rest waits for the next run
-_DRAIN_BATCH: Final[int] = 30
+# one drain fits well inside the flush task's 55 s lock; the rest waits for the next run,
+# and Telegram's own flood wait stops it sooner
 _DRAIN_BUDGET_S: Final[float] = 30.0
 # pops the head only if it is still the card just sent: a trim by a concurrent push,
 # or another drain, may have moved it
@@ -82,11 +82,7 @@ class AdminTelegramQueue:
         """Returns how many cards left the queue, sent or refused for good."""
         done = 0
         deadline = time.monotonic() + _DRAIN_BUDGET_S
-        while (
-            done < _DRAIN_BATCH
-            and time.monotonic() < deadline
-            and not await self._redis.exists(_HOLD)
-        ):
+        while time.monotonic() < deadline and not await self._redis.exists(_HOLD):
             raw = await self._redis.lindex(_QUEUE, 0)  # type: ignore[misc]
             if raw is None:
                 break
