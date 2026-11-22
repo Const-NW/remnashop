@@ -84,6 +84,7 @@ export interface BlacklistMatchUser {
   personal_discount: number;
   purchase_discount: number;
   loyalty_discount: number;
+  markup_percent: number;
   points: string;
   bonus_days: number;
   is_trial_available: boolean;

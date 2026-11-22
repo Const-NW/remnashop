@@ -455,6 +455,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 discount_percent=quote.discount_percent,
                 discount_source=quote.discount_source,
                 plan_discount_percent=quote.plan_discount_percent,
+                markup_percent=quote.markup_percent,
                 final_price=quote.final_price,
                 change_credit=quote.change_credit,
                 anchor_base_price=quote.anchor_base_price,

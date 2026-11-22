@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.core.constants import LOGIN_PATTERN
+from app.core.constants import LOGIN_PATTERN, MAX_MARKUP_PERCENT
 from app.core.enums import BlacklistKind, Locale, RegistrationSource
 from app.core.security import PASSWORD_MIN_LENGTH, PASSWORD_PATTERN
 from app.core.security.permissions import Permission
@@ -161,6 +161,10 @@ class UpdateSecurityRequest(BaseModel):
 class SetDiscountRequest(BaseModel):
     personal_discount: Optional[int] = Field(None, ge=0, le=100)
     purchase_discount: Optional[int] = Field(None, ge=0, le=100)
+
+
+class SetMarkupRequest(BaseModel):
+    markup_percent: int = Field(ge=0, le=MAX_MARKUP_PERCENT)
 
 
 class SetTrialAvailabilityRequest(BaseModel):

@@ -158,6 +158,7 @@ const EVENT_ICONS: Record<string, LucideIcon> = {
   UserPointsAdjustedEvent: Star,
   UserBonusDaysAdjustedEvent: CalendarPlus,
   UserPersonalDiscountChangedEvent: Percent,
+  UserMarkupChangedEvent: Percent,
   UserPurchaseDiscountChangedEvent: Percent,
   UserUnblockedEvent: LockOpen,
   UserEmailUndeliverableClearedEvent: MailCheck,

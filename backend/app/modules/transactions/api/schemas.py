@@ -90,6 +90,8 @@ class TransactionResponse(BaseModel):
     discount_percent: int
     discount_source: DiscountSource
     plan_discount_percent: int
+    # admin only: the customer never learns of a markup
+    markup_percent: int
     final_price: Decimal
     change_credit: Decimal
     customer_email: Optional[str]

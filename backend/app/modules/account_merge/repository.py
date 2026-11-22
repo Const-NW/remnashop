@@ -315,6 +315,7 @@ class AccountMergeRepository:
         db_user.personal_discount_promocode_id = merged.personal_discount_promocode_id
         db_user.purchase_discount = merged.purchase_discount
         db_user.purchase_discount_promocode_id = merged.purchase_discount_promocode_id
+        db_user.markup_percent = merged.markup_percent
         db_user.role = merged.role
         db_user.permission_grants = merged.permission_grants
         db_user.permission_revokes = merged.permission_revokes

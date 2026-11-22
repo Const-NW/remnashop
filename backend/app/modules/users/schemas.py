@@ -24,6 +24,7 @@ class UserResponse(BaseModel):
     personal_discount: int
     purchase_discount: int
     loyalty_discount: int
+    markup_percent: int
     referral_code: Optional[str]
     points: Decimal
     bonus_days: int

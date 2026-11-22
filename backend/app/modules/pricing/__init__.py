@@ -13,6 +13,7 @@ from app.modules.pricing.events import AnchorSwitchedEvent, BasePricesAdjustedEv
 from app.modules.pricing.repository import PricingRepository
 from app.modules.pricing.resolver import (
     apply_discounts,
+    apply_markup,
     assert_overridable_currency,
     convert_for_report,
     price_for,
@@ -36,6 +37,7 @@ __all__ = [
     "UpdateCurrencyRateDto",
     "UpdateCurrencyRateUseCase",
     "apply_discounts",
+    "apply_markup",
     "assert_overridable_currency",
     "convert_for_report",
     "get_pricing_providers",

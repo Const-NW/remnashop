@@ -25,6 +25,7 @@ from app.modules.users.api.schemas import (
     PromoteAdminRequest,
     SecurityResponse,
     SetDiscountRequest,
+    SetMarkupRequest,
     SetTrialAvailabilityRequest,
     UnblockBlacklistMatchesResponse,
     UpdateAdminRequest,
@@ -49,6 +50,7 @@ from app.modules.users.dto import (
     PromoteToAdminDto,
     ResetBotMenuDto,
     SetUserDiscountDto,
+    SetUserMarkupDto,
     SetUserTrialAvailabilityDto,
     UnbindTelegramDto,
     UnblockBlacklistMatchesDto,
@@ -82,6 +84,7 @@ from app.modules.users.usecases import (
     PromoteToAdminUseCase,
     ResetBotMenuUseCase,
     SetUserDiscountUseCase,
+    SetUserMarkupUseCase,
     SetUserTrialAvailabilityUseCase,
     UnbindTelegramIdUseCase,
     UnblockBlacklistMatchesUseCase,
@@ -273,6 +276,30 @@ async def set_user_discount(
             user_id=user_id,
             personal_discount=payload.personal_discount,
             purchase_discount=payload.purchase_discount,
+            client_ip=resolve_client_ip(request),
+        ),
+    )
+    return UserListItemResponse.model_validate(updated, from_attributes=True)
+
+
+@router.patch(
+    "/{user_id:int}/markup",
+    response_model=UserListItemResponse,
+    responses=error_responses(400, 404),
+)
+@inject
+async def set_user_markup(
+    user_id: int,
+    payload: SetMarkupRequest,
+    request: Request,
+    use_case: FromDishka[SetUserMarkupUseCase],
+    actor: Actor = Depends(require_admin),
+) -> UserListItemResponse:
+    updated = await use_case(
+        actor,
+        SetUserMarkupDto(
+            user_id=user_id,
+            markup_percent=payload.markup_percent,
             client_ip=resolve_client_ip(request),
         ),
     )

@@ -105,6 +105,8 @@ class Transaction(BaseSql, TimestampMixin):
     )
     # the PURCHASE discount came from a promocode (admin-granted ones are always handed back)
     discount_from_promocode: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # the customer's markup, already in base_price
+    markup_percent: Mapped[int] = mapped_column(default=0, server_default="0")
     # the plan's promotion, applied before discount_percent
     plan_discount_percent: Mapped[int] = mapped_column(default=0, server_default="0")
     final_price: Mapped[Decimal] = mapped_column(Numeric(10, 2))

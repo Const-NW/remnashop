@@ -201,8 +201,9 @@ function TransactionDetailsDialogBody({
               value={money(order.final_price)}
               valueSuffix={(hasDiscount(order) || hasCredit) && <s>{money(order.base_price)}</s>}
               hint={
-                hasDiscount(order) || hasCredit
+                hasDiscount(order) || hasCredit || order.markup_percent > 0
                   ? [
+                      order.markup_percent > 0 && t("transactions.details.markup", { percent: order.markup_percent }),
                       hasCredit && t("transactions.details.changeCredit", { amount: money(order.change_credit) }),
                       order.plan_discount_percent > 0 &&
                         t("transactions.details.planDiscount", { percent: order.plan_discount_percent }),

@@ -38,6 +38,8 @@ class PriceQuote:
     anchor_final_price: Decimal
     discount_promocode_id: Optional[int] = None
     plan_discount_percent: int = 0
+    # the customer's markup, already in base_price
+    markup_percent: int = 0
     # what the unlimited subscription being changed was paid, off base_price
     change_credit: Decimal = ZERO_AMOUNT
     # days a change to a fixed-term plan adds for the unused part of the old one
@@ -77,6 +79,7 @@ class TransactionDto(BaseDto, TimestampMixin):
     discount_percent: int = 0
     discount_source: DiscountSource = DiscountSource.NONE
     plan_discount_percent: int = 0
+    markup_percent: int = 0
     final_price: Decimal
     change_credit: Decimal = ZERO_AMOUNT
     anchor_base_price: Decimal
@@ -117,6 +120,7 @@ class CreateTransactionDto:
     discount_percent: int
     discount_source: DiscountSource
     plan_discount_percent: int = 0
+    markup_percent: int = 0
     final_price: Decimal
     anchor_base_price: Decimal
     anchor_final_price: Decimal

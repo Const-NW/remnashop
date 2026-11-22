@@ -65,6 +65,14 @@ def apply_discounts(price: Decimal, rate: CurrencyRateDto, *percents: int) -> De
     return round_amount(discounted / _HUNDRED ** len(percents), rate, charm=False)
 
 
+def apply_markup(price: Decimal, rate: CurrencyRateDto, percent: int) -> Decimal:
+    """The price raised by a customer's markup; free stays free."""
+    if price == 0 or percent <= 0:
+        return price
+    # no charm ending: on a price already ending in it, the next one up can be +30% for a +5% markup
+    return round_amount(price * (_HUNDRED + Decimal(percent)) / _HUNDRED, rate, charm=False)
+
+
 def resolve_price(
     base_anchor: Decimal,
     currency: Currency,

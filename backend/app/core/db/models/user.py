@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
-from app.core.constants import ZERO_AMOUNT
+from app.core.constants import MAX_MARKUP_PERCENT, ZERO_AMOUNT
 from app.core.db.base import BaseSql
 from app.core.db.timestamp import TimestampMixin
 from app.core.enums import Locale, Role
@@ -61,6 +61,9 @@ class User(BaseSql, TimestampMixin):
         CheckConstraint("personal_discount BETWEEN 0 AND 100", name="personal_discount_range"),
         CheckConstraint("purchase_discount BETWEEN 0 AND 100", name="purchase_discount_range"),
         CheckConstraint("loyalty_discount BETWEEN 0 AND 100", name="loyalty_discount_range"),
+        CheckConstraint(
+            f"markup_percent BETWEEN 0 AND {MAX_MARKUP_PERCENT}", name="markup_percent_range"
+        ),
         CheckConstraint("points >= 0", name="points_non_negative"),
         CheckConstraint("bonus_days >= 0", name="bonus_days_non_negative"),
     )
@@ -97,6 +100,8 @@ class User(BaseSql, TimestampMixin):
     )
     loyalty_discount: Mapped[int] = mapped_column(default=0, server_default="0")
     loyalty_excluded: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # set by an admin, never shown to the customer: plan prices go up by it before any discount
+    markup_percent: Mapped[int] = mapped_column(default=0, server_default="0")
     marketing_opt_out: Mapped[bool] = mapped_column(default=False, server_default="false")
     # set by a refused send or a "kicked" chat-member update, cleared by any message to the bot
     is_bot_blocked: Mapped[bool] = mapped_column(default=False, server_default="false")

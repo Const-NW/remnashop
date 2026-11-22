@@ -48,6 +48,9 @@ def customer_sides(current: UserDto, other: UserDto, links: MergeLinksDto) -> di
             sides[key] = (
                 "source" if other.purchase_discount > current.purchase_discount else "target"
             )
+        elif key == MergeConflictKey.MARKUP:
+            # the customer never sees it, so merging can't be a way to shed it
+            sides[key] = "source" if other.markup_percent > current.markup_percent else "target"
         elif key == MergeConflictKey.REFERRED_BY:
             earlier = (
                 links.source_referred_at is not None

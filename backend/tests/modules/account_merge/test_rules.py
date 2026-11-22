@@ -185,3 +185,16 @@ def test_fingerprint_tracks_privileged_flags() -> None:
         for t in (False, True)
     }
     assert len(seen) == 4
+
+
+def test_markup_is_an_admin_choice_and_a_lone_one_survives() -> None:
+    source = _user(id=1, markup_percent=30)
+    target = _user(id=2, markup_percent=10)
+
+    [conflict] = compute_conflicts(source, target, _NO_LINKS)
+    chosen = merged_user_fields(source, target, {"markup": "target"})
+    lone = merged_user_fields(source, _user(id=2), {})
+
+    assert (conflict.key, conflict.source_value, conflict.target_value) == ("markup", "30", "10")
+    assert chosen.markup_percent == 10
+    assert lone.markup_percent == 30

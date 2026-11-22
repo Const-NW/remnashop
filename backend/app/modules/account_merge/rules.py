@@ -24,6 +24,7 @@ _FIELD_CONFLICTS: Final[tuple[tuple[MergeConflictKey, Callable[[UserDto], object
     (MergeConflictKey.LANGUAGE, lambda user: user.language),
     (MergeConflictKey.PERSONAL_DISCOUNT, lambda user: user.personal_discount),
     (MergeConflictKey.PURCHASE_DISCOUNT, lambda user: user.purchase_discount),
+    (MergeConflictKey.MARKUP, lambda user: user.markup_percent),
 )
 _VALUE_OF: Final[dict[MergeConflictKey, Callable[[UserDto], object]]] = dict(_FIELD_CONFLICTS)
 
@@ -161,6 +162,7 @@ def merged_user_fields(
         personal_discount_promocode_id=personal.personal_discount_promocode_id,
         purchase_discount=purchase.purchase_discount,
         purchase_discount_promocode_id=purchase.purchase_discount_promocode_id,
+        markup_percent=winner(MergeConflictKey.MARKUP).markup_percent,
         # the staff side keeps its role, grants and notification setup
         role=staff.role,
         permission_grants=staff.permission_grants,

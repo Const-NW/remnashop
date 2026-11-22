@@ -39,6 +39,8 @@ export interface UserBase {
   personal_discount: number;
   purchase_discount: number;
   loyalty_discount: number;
+  /** admin only, the customer never sees it */
+  markup_percent: number;
   referral_code?: string | null;
   points: string;
   bonus_days: number;
@@ -123,6 +125,12 @@ export function getUserListStats(includeStaff: boolean, signal?: AbortSignal): P
 
 export function deleteUser(userId: number): Promise<void> {
   return apiDelete<void>(`/users/${userId}`);
+}
+
+export function setUserMarkup(userId: number, markupPercent: number): Promise<UserListItem> {
+  return apiPatch<UserListItem, { markup_percent: number }>(`/users/${userId}/markup`, {
+    markup_percent: markupPercent,
+  });
 }
 
 export function setUserDiscount(

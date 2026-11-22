@@ -38,6 +38,7 @@ from app.modules.users.dto import (
     PromoteToAdminDto,
     RegisterTelegramUserDto,
     SetUserDiscountDto,
+    SetUserMarkupDto,
     SetUserTrialAvailabilityDto,
     UpdateAdminDto,
     UpdateSecuritySettingsDto,
@@ -53,6 +54,7 @@ from app.modules.users.events import (
     TelegramRegistrationBlockedEvent,
     TelegramUserRegisteredEvent,
     UserDeletedEvent,
+    UserMarkupChangedEvent,
     UserPersonalDiscountChangedEvent,
     UserPurchaseDiscountChangedEvent,
     UserTrialAvailabilityChangedEvent,
@@ -71,6 +73,7 @@ from app.modules.users.usecases import (
     PromoteToAdminUseCase,
     RegisterTelegramUserUseCase,
     SetUserDiscountUseCase,
+    SetUserMarkupUseCase,
     SetUserTrialAvailabilityUseCase,
     UpdateAdminUseCase,
     UpdateOwnSecuritySettingsUseCase,
@@ -2386,3 +2389,64 @@ async def test_set_trial_availability_records_only_a_change(
     assert revoked.is_trial_available is False
     [row] = await _outbox_rows(session, UserTrialAvailabilityChangedEvent.__name__)
     assert row.payload["is_trial_available"] is False
+
+
+async def test_set_user_markup_updates_the_user_and_records_the_change(
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    session: AsyncSession,
+) -> None:
+    async with uow:
+        target = await user_repository.create(
+            CreateUserDto(name="markup-target", role=Role.USER, language=Locale.EN)
+        )
+        await uow.commit()
+    use_case = SetUserMarkupUseCase(user_repository, uow, event_publisher)
+
+    result = await use_case(
+        OWNER, SetUserMarkupDto(user_id=target.id, markup_percent=25, client_ip="127.0.0.1")
+    )
+    # the same value again changes nothing and records nothing
+    await use_case(
+        OWNER, SetUserMarkupDto(user_id=target.id, markup_percent=25, client_ip="127.0.0.1")
+    )
+
+    assert result.markup_percent == 25
+    [row] = await _outbox_rows(session, UserMarkupChangedEvent.__name__)
+    assert (row.payload["old_percent"], row.payload["new_percent"]) == (0, 25)
+
+
+@pytest.mark.parametrize("percent", [-1, 501])
+async def test_set_user_markup_rejects_out_of_range_percent(
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    percent: int,
+) -> None:
+    async with uow:
+        target = await user_repository.create(
+            CreateUserDto(name=f"markup-range{percent}", role=Role.USER, language=Locale.EN)
+        )
+        await uow.commit()
+
+    with pytest.raises(ValidationError):
+        await SetUserMarkupUseCase(user_repository, uow, event_publisher)(
+            OWNER,
+            SetUserMarkupDto(user_id=target.id, markup_percent=percent, client_ip="127.0.0.1"),
+        )
+
+
+async def test_an_admin_cannot_drop_their_own_markup_without_staff_self_manage(
+    user_repository: UserRepository, uow: UnitOfWork, event_publisher: EventPublisher
+) -> None:
+    async with uow:
+        admin = await user_repository.create(
+            CreateUserDto(login="self-markup", name="admin", role=Role.ADMIN, language=Locale.EN)
+        )
+        await uow.commit()
+
+    with pytest.raises(PermissionDeniedError):
+        await SetUserMarkupUseCase(user_repository, uow, event_publisher)(
+            admin, SetUserMarkupDto(user_id=admin.id, markup_percent=0, client_ip="127.0.0.1")
+        )

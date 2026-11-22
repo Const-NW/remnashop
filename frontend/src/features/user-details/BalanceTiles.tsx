@@ -6,7 +6,7 @@ import { listEventLog, type EventLogEntry } from "@entities/event-log/api";
 import { initiatorLabel } from "@entities/event-log/describe-entry";
 import { getUserLoyalty, setUserLoyaltyExcluded } from "@entities/loyalty/api";
 import { adjustUserBonusDays, adjustUserPoints } from "@entities/referrals/api";
-import { setUserDiscount, type UserBase } from "@entities/user/api";
+import { setUserDiscount, setUserMarkup, type UserBase } from "@entities/user/api";
 import { useAccountPermissions } from "@entities/user/use-current-user";
 import { EventDetailDialog } from "@features/event-details/EventDetailDialog";
 import { getErrorMessage } from "@shared/api/http";
@@ -30,6 +30,8 @@ import { Pressable } from "@shared/ui/Pressable";
 const POINT_DELTAS = [-50, -10, 10, 50];
 const DAY_DELTAS = [-7, -1, 1, 7];
 const DISCOUNT_PRESETS = [0, 5, 10, 15, 20];
+const MARKUP_PRESETS = [0, 10, 20, 30, 50];
+const MAX_MARKUP_PERCENT = 500;
 const POPOVER_HEIGHT = 240;
 
 type DiscountKind = "personal_discount" | "purchase_discount";
@@ -49,6 +51,10 @@ export function BalanceTiles({ user, onChanged }: { user: UserBase; onChanged?: 
   const canEditDiscount =
     Boolean(onChanged) &&
     permissions.includes("USERS_DISCOUNT_MANAGE") &&
+    (user.role === "USER" || permissions.includes("ADMINS_MANAGE"));
+  const canEditMarkup =
+    Boolean(onChanged) &&
+    permissions.includes("USERS_MARKUP_MANAGE") &&
     (user.role === "USER" || permissions.includes("ADMINS_MANAGE"));
   // the editor reads the tier and flips the exclusion, under the same staff rule as discounts
   const canEditLoyalty =
@@ -98,12 +104,43 @@ export function BalanceTiles({ user, onChanged }: { user: UserBase; onChanged?: 
     );
   };
 
+  const markupTile = () => {
+    const label = t("users.details.markup");
+    const value = `${user.markup_percent}%`;
+    if (!canEditMarkup) return <KpiTile glass label={label} value={value} />;
+    return (
+      <EditableKpi label={label} value={value}>
+        {(close) => (
+          <>
+            <ValueEditor
+              current={user.markup_percent}
+              max={MAX_MARKUP_PERCENT}
+              suffix="%"
+              hint={t("users.details.balance.markupHint")}
+              chips={MARKUP_PRESETS.map((preset) => ({ label: `${preset}%`, apply: () => preset }))}
+              onApply={async (next) => {
+                try {
+                  onChanged?.(await setUserMarkup(user.id, next));
+                  toast.success(t("users.details.balance.saved"));
+                  close();
+                } catch (err) {
+                  toast.error(getErrorMessage(err, t("users.details.balance.markupError")));
+                }
+              }}
+            />
+            {lastChange("UserMarkupChangedEvent", close)}
+          </>
+        )}
+      </EditableKpi>
+    );
+  };
+
   const points = Math.trunc(Number(user.points));
 
   return (
-    // balance on top two wide, the three discounts under it: five in a row didn't fit the dialog
+    // balance and markup on top, the three discounts under it: six in a row didn't fit the dialog
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-      <div className="min-w-0 sm:col-span-3">
+      <div className="min-w-0 sm:col-span-2">
         {canEditPoints ? (
           <EditableKpi label={t("users.details.points")} value={String(user.points)}>
             {(close) => (
@@ -135,7 +172,7 @@ export function BalanceTiles({ user, onChanged }: { user: UserBase; onChanged?: 
           <KpiTile glass label={t("users.details.points")} value={String(user.points)} />
         )}
       </div>
-      <div className="min-w-0 sm:col-span-3">
+      <div className="min-w-0 sm:col-span-2">
         {canEditBonusDays ? (
           <EditableKpi label={t("users.details.bonusDays")} value={String(user.bonus_days)}>
             {(close) => (
@@ -167,6 +204,7 @@ export function BalanceTiles({ user, onChanged }: { user: UserBase; onChanged?: 
           <KpiTile glass label={t("users.details.bonusDays")} value={String(user.bonus_days)} />
         )}
       </div>
+      <div className="col-span-2 min-w-0">{markupTile()}</div>
       <div className="min-w-0 sm:col-span-2">{discountTile("personal_discount", t("users.details.personalDiscount"))}</div>
       <div className="min-w-0 sm:col-span-2">{discountTile("purchase_discount", t("users.details.purchaseDiscount"))}</div>
       <div className="col-span-2 min-w-0">

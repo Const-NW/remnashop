@@ -1,8 +1,9 @@
+from decimal import Decimal
 from typing import Final
 
 from app.core.enums import Currency, PlanAvailability
 from app.modules.plans import PlanDto, PlanRepository
-from app.modules.pricing import PricingRepository, price_for
+from app.modules.pricing import PricingRepository, apply_markup, price_for
 from app.modules.subscriptions.dto import CatalogPriceDto, GetAvailableTrialDto
 from app.modules.subscriptions.eligibility import PurchaseEligibility
 from app.modules.users import UserDto
@@ -44,17 +45,18 @@ async def pick_trial(
     plan = sorted(eligible, key=_priority, reverse=True)[0]
     duration = plan.sellable_durations()[0]
     rates = await pricing_repository.get_rate_table()
+
+    def price(currency: Currency) -> Decimal:
+        listed = price_for(duration.base_price, duration.overrides, currency, rates)
+        return apply_markup(listed, rates.for_currency(currency), user.markup_percent)
+
     return GetAvailableTrialDto(
         plan=plan,
         is_trial_available=True,
         duration_days=duration.days,
-        price=price_for(duration.base_price, duration.overrides, rates.anchor, rates),
+        price=price(rates.anchor),
         currency=rates.anchor,
         prices=tuple(
-            CatalogPriceDto(
-                currency=currency,
-                price=price_for(duration.base_price, duration.overrides, currency, rates),
-            )
-            for currency in Currency
+            CatalogPriceDto(currency=currency, price=price(currency)) for currency in Currency
         ),
     )

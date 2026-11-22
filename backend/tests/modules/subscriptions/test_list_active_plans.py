@@ -22,7 +22,11 @@ from app.modules.pricing.repository import PricingRepository
 from app.modules.pricing.resolver import apply_discounts
 from app.modules.referrals import ReferralRepository
 from app.modules.subscriptions import SubscriptionRepository
-from app.modules.subscriptions.dto import CreateSubscriptionDto, ListActivePlansDto
+from app.modules.subscriptions.dto import (
+    CatalogPlanDto,
+    CreateSubscriptionDto,
+    ListActivePlansDto,
+)
 from app.modules.subscriptions.usecases import ListActivePlansUseCase
 from app.modules.translations import TranslationRepository
 from app.modules.users.dto import CreateUserDto, UserDto
@@ -629,3 +633,37 @@ async def test_catalog_shows_the_plan_in_the_users_language(
 
     assert (ru.name, ru.description) == ("Базовый", "Для всех")
     assert (en.name, en.description) == ("Basic", "For everyone")
+
+
+async def test_catalog_prices_carry_the_customers_markup(
+    plan_repository: PlanRepository,
+    subscription_repository: SubscriptionRepository,
+    referral_repository: ReferralRepository,
+    uow: UnitOfWork,
+) -> None:
+    created = await plan_repository.create(
+        CreatePlanDto(
+            public_code="basic", name="Basic", type=PlanType.BOTH, traffic_limit=100, device_limit=3
+        )
+    )
+    await _add_minimal_squad(plan_repository, created.id)
+    await _add_minimal_duration(plan_repository, created.id)
+    await plan_repository.update(UpdatePlanDto(plan_id=created.id, is_active=True))
+    use_case = ListActivePlansUseCase(
+        plan_repository,
+        PricingRepository(plan_repository.session),
+        make_eligibility(plan_repository.session),
+        uow,
+    )
+
+    def usd_price(catalog_plans: list[CatalogPlanDto]) -> Decimal:
+        prices = catalog_plans[0].durations[0].prices
+        return next(p.price for p in prices if p.currency is Currency.USD)
+
+    plain = usd_price((await use_case(REGULAR_USER)).plans)
+    marked = usd_price(
+        (await use_case(REGULAR_USER.model_copy(update={"markup_percent": 50}))).plans
+    )
+
+    assert plain == Decimal("9.99")
+    assert marked == Decimal("14.99")  # 9.99 + 50%, rounded to cents
