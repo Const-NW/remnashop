@@ -840,7 +840,7 @@ async def test_reset_bot_menu_route(
                 name="nobotreset",
                 role=Role.ADMIN,
                 language=Locale.EN,
-                permission_revokes=[Permission.USERS_BOT_RESTART.value],
+                permission_revokes=[Permission.USERS_BOT_MENU_RESET.value],
             )
         )
     admin_token = await _issue_token(admin.id, session_repository, config)

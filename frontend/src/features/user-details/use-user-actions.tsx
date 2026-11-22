@@ -148,7 +148,7 @@ export function useUserActions({
       ...(user.email_undeliverable_at && (canManage || isSelf) && permissions.includes("USERS_EMAIL_UNDELIVERABLE_CLEAR")
         ? ["clearEmailUndeliverable" as const]
         : []),
-      ...(user.telegram_id !== null && !user.is_blocked && canManage && permissions.includes("USERS_BOT_RESTART")
+      ...(user.telegram_id !== null && !user.is_blocked && !user.is_bot_blocked && canManage && permissions.includes("USERS_BOT_MENU_RESET")
         ? ["resetBotMenu" as const]
         : []),
       ...(canManageOwn && permissions.includes("USERS_TRIAL_MANAGE") ? ["toggleTrial" as const] : []),

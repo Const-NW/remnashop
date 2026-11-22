@@ -246,7 +246,7 @@ class Permission(UpperStrEnum):
     BLACKLIST_MATCHES_VIEW = auto()
     USERS_BLOCK = auto()
     USERS_EMAIL_UNDELIVERABLE_CLEAR = auto()
-    USERS_BOT_RESTART = auto()
+    USERS_BOT_MENU_RESET = auto()
     USERS_TRIAL_MANAGE = auto()
     USERS_UNBLOCK = auto()
     USERS_UNBLOCK_BLACKLIST_MATCHES = auto()
@@ -507,7 +507,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.BLACKLIST_MATCHES_VIEW: PermissionMeta(resource="blacklist", kind="read"),
     Permission.USERS_BLOCK: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_EMAIL_UNDELIVERABLE_CLEAR: PermissionMeta(resource="users", kind="write"),
-    Permission.USERS_BOT_RESTART: PermissionMeta(resource="users", kind="write"),
+    Permission.USERS_BOT_MENU_RESET: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_TRIAL_MANAGE: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_UNBLOCK: PermissionMeta(resource="users", kind="write"),
     Permission.USERS_MERGE_PREVIEW: PermissionMeta(resource="users", kind="read"),
@@ -586,6 +586,8 @@ _TOKEN_EXCLUDED_PERMISSIONS: Final[frozenset[Permission]] = frozenset(
         # a Telegram id is how a customer logs into the bot
         Permission.USERS_TELEGRAM_BIND,
         Permission.USERS_TELEGRAM_UNBIND,
+        # a message to the customer's chat on every call
+        Permission.USERS_BOT_MENU_RESET,
         Permission.SUBSCRIPTIONS_LINK_REISSUE,
         Permission.SUBSCRIPTIONS_DELETE_ALL,
         Permission.SUBSCRIPTIONS_DEVICES_DELETE,
@@ -788,7 +790,7 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.USERS_REGISTRATION_VIEW,
             Permission.USERS_DISCOUNT_MANAGE,
             Permission.USERS_EMAIL_UNDELIVERABLE_CLEAR,
-            Permission.USERS_BOT_RESTART,
+            Permission.USERS_BOT_MENU_RESET,
             Permission.USERS_TRIAL_MANAGE,
             Permission.USERS_LOYALTY_VIEW,
             Permission.USERS_LOYALTY_MANAGE,

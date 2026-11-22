@@ -321,6 +321,8 @@ class ErrorCode(UpperStrEnum):
     USER_NOT_DELETABLE = auto()
     USER_NOT_FOUND = auto()
     USER_NO_TELEGRAM = auto()
+    USER_TARGET_BLOCKED = auto()
+    USER_TARGET_BOT_BLOCKED = auto()
     WEBHOOK_MALFORMED = auto()
     WEBHOOK_NOT_CONFIGURED = auto()
     WEBHOOK_SIGNATURE_INVALID = auto()

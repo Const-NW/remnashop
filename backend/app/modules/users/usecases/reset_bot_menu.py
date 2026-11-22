@@ -16,7 +16,7 @@ from app.modules.users.visibility import assert_manageable, get_visible_target
 class ResetBotMenuUseCase(UseCase[ResetBotMenuDto, None]):
     """Support's way out of a stuck bot: the customer's dialog starts over at the main menu."""
 
-    required_permission = Permission.USERS_BOT_RESTART
+    required_permission = Permission.USERS_BOT_MENU_RESET
 
     def __init__(
         self,
@@ -38,7 +38,10 @@ class ResetBotMenuUseCase(UseCase[ResetBotMenuDto, None]):
             raise ValidationError("User has no Telegram account", code=ErrorCode.USER_NO_TELEGRAM)
         if target.is_blocked:
             # the bot answers a blocked user with nothing but the block notice
-            raise ValidationError("User is blocked", code=ErrorCode.USER_BLOCKED)
+            raise ValidationError("User is blocked", code=ErrorCode.USER_TARGET_BLOCKED)
+        if target.is_bot_blocked:
+            # Telegram refuses every message to a chat that blocked the bot
+            raise ValidationError("User blocked the bot", code=ErrorCode.USER_TARGET_BOT_BLOCKED)
 
         if await self._bot_signals.reset_customer_menu(target.telegram_id) == 0:
             raise ConflictError("The bot is not running", code=ErrorCode.BOT_NOT_RUNNING)

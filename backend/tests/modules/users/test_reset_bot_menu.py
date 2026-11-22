@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,7 +8,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, Role
 from app.core.error_codes import ErrorCode
-from app.core.exceptions import ConflictError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.ports import EventPublisher
 from app.modules.users.dto import CreateUserDto, ResetBotMenuDto, UserDto
 from app.modules.users.repository import UserRepository
@@ -61,13 +63,18 @@ async def test_resets_the_customers_menu_and_records_it(
 
 
 @pytest.mark.parametrize(
-    ("telegram_id", "blocked", "code"),
-    [(None, False, ErrorCode.USER_NO_TELEGRAM), (555_002, True, ErrorCode.USER_BLOCKED)],
-    ids=["no-telegram", "blocked"],
+    ("telegram_id", "blocked", "bot_blocked", "code"),
+    [
+        (None, False, False, ErrorCode.USER_NO_TELEGRAM),
+        (555_002, True, False, ErrorCode.USER_TARGET_BLOCKED),
+        (555_004, False, True, ErrorCode.USER_TARGET_BOT_BLOCKED),
+    ],
+    ids=["no-telegram", "blocked", "bot-blocked"],
 )
 async def test_refuses_a_customer_the_bot_cant_reach(
-    telegram_id: int,
+    telegram_id: Optional[int],
     blocked: bool,
+    bot_blocked: bool,
     code: ErrorCode,
     owner: UserDto,
     user_repository: UserRepository,
@@ -81,6 +88,8 @@ async def test_refuses_a_customer_the_bot_cant_reach(
         )
         if blocked:
             await user_repository.set_blocked(customer.id, True)
+        if bot_blocked:
+            await user_repository.set_bot_blocked(customer.id, True)
     signals = _Signals()
 
     with pytest.raises(ValidationError) as error:
@@ -110,3 +119,23 @@ async def test_says_so_when_no_bot_process_took_the_signal(
 
     assert error.value.code is ErrorCode.BOT_NOT_RUNNING
     assert "UserBotMenuResetEvent" not in await _events(session)
+
+
+async def test_an_admin_cant_reach_the_owner(
+    owner: UserDto,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    async with uow:
+        admin = await user_repository.create(
+            CreateUserDto(login="reset-admin", name="admin", role=Role.ADMIN, language=Locale.EN)
+        )
+        await user_repository.set_telegram_id(owner.id, 555_005)
+    signals = _Signals()
+
+    with pytest.raises(NotFoundError):
+        await _use_case(user_repository, uow, event_publisher, signals)(
+            admin, ResetBotMenuDto(user_id=owner.id, client_ip="127.0.0.1")
+        )
+    assert signals.reset == []

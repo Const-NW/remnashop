@@ -23,7 +23,7 @@ from app.core.constants import (
 from app.core.enums import Locale, PaymentOutcome
 from app.modules.translations import strip_serializer_escapes
 from app.telegram import signal_listener
-from app.telegram.bot_signals import live_update_handlers, payment_outcome_handlers
+from app.telegram.bot_signals import customer_dialog_handlers, live_update_handlers
 from app.telegram.i18n import build_translator_hub
 from app.telegram.signal_listener import listen_for_bot_signals
 from app.telegram.states import MainMenu, PaymentResult
@@ -220,7 +220,7 @@ async def test_payment_outcome_handler_starts_window(outcome, state) -> None:
     factory = MagicMock()
     factory.bg.return_value = manager
     bot = MagicMock()
-    handler = payment_outcome_handlers(bot, factory)[PAYMENT_OUTCOME_CHANNEL]
+    handler = customer_dialog_handlers(bot, factory)[PAYMENT_OUTCOME_CHANNEL]
 
     await handler(json.dumps({"telegram_id": 5, "order_id": 7, "outcome": outcome.value}))
 
@@ -238,7 +238,7 @@ async def test_customer_menu_reset_handler_starts_the_main_menu() -> None:
     factory = MagicMock()
     factory.bg.return_value = manager
     bot = MagicMock()
-    handler = payment_outcome_handlers(bot, factory)[CUSTOMER_MENU_RESET_CHANNEL]
+    handler = customer_dialog_handlers(bot, factory)[CUSTOMER_MENU_RESET_CHANNEL]
 
     await handler(json.dumps({"telegram_id": 5}))
 

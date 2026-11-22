@@ -56,7 +56,7 @@ def live_update_handlers(
     }
 
 
-def payment_outcome_handlers(bot: Bot, factory: BgManagerFactory) -> dict[str, SignalHandler]:
+def customer_dialog_handlers(bot: Bot, factory: BgManagerFactory) -> dict[str, SignalHandler]:
     async def show_outcome(data: str) -> None:
         payload = json.loads(data)
         telegram_id = payload["telegram_id"]

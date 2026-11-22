@@ -886,7 +886,7 @@
       "UserPersonalDiscountChangedEvent": "Персональная скидка изменена",
       "UserPurchaseDiscountChangedEvent": "Скидка на покупку изменена",
       "UserUnblockedEvent": "Пользователь разблокирован",
-      "UserBotMenuResetEvent": "Бот клиента перезапущен",
+      "UserBotMenuResetEvent": "Меню бота клиента сброшено",
       "UserEmailUndeliverableClearedEvent": "Отметка о недоставке почты снята",
       "UserTrialAvailabilityChangedEvent": "Доступ к пробному периоду изменён",
       "UsersBulkUnblockedEvent": "Пользователи разблокированы массово",
@@ -1451,7 +1451,7 @@
       "badge": "Бот заблокирован"
     },
     "botMenu": {
-      "action": "Перезапустить бота",
+      "action": "Сбросить меню бота",
       "done": "Клиенту отправлено главное меню."
     },
     "emailUndeliverable": {
@@ -2482,7 +2482,7 @@
     "BLACKLIST_SYNC": "Синхронизация источников чёрного списка",
     "BLACKLIST_MATCHES_VIEW": "Просмотр пользователей из чёрного списка",
     "USERS_BLOCK": "Блокировка пользователей",
-    "USERS_BOT_RESTART": "Перезапуск бота у клиента",
+    "USERS_BOT_MENU_RESET": "Сброс меню бота у клиента",
     "USERS_EMAIL_UNDELIVERABLE_CLEAR": "Снятие отметки о недоставке почты",
     "USERS_TRIAL_MANAGE": "Разрешение и запрет пробного периода",
     "USERS_UNBLOCK": "Разблокировка пользователей",
@@ -4807,6 +4807,8 @@
     "USER_NOT_DELETABLE": "Этого пользователя нельзя удалить.",
     "USER_NOT_FOUND": "Пользователь не найден.",
     "USER_NO_TELEGRAM": "У пользователя нет Telegram.",
+    "USER_TARGET_BLOCKED": "Пользователь заблокирован.",
+    "USER_TARGET_BOT_BLOCKED": "Пользователь заблокировал бота.",
     "WEBHOOK_MALFORMED": "Некорректный вебхук.",
     "WEBHOOK_NOT_CONFIGURED": "Секрет вебхука не настроен.",
     "WEBHOOK_SIGNATURE_INVALID": "Неверная подпись вебхука.",
