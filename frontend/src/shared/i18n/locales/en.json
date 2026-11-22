@@ -954,7 +954,8 @@
         "retry": "Broadcast retried",
         "set_media": "Broadcast media changed",
         "delete_media": "Broadcast media removed",
-        "add_email_image": "Email image added"
+        "add_email_image": "Email image added",
+        "duplicate": "Broadcast copied"
       },
       "ConnectGuideChangedEvent": {
         "update": "Connect guide changed",
@@ -2337,6 +2338,7 @@
     "BROADCASTS_VIEW": "View broadcasts",
     "BROADCASTS_DETAIL_VIEW": "View broadcast details",
     "BROADCASTS_CREATE": "Create broadcasts",
+    "BROADCASTS_DUPLICATE": "Copy broadcasts",
     "BROADCASTS_UPDATE": "Edit broadcasts",
     "BROADCASTS_DELETE": "Delete broadcasts",
     "BROADCASTS_SEND": "Send broadcasts",
@@ -5078,6 +5080,10 @@
           "message": "Messages that haven’t been sent yet won’t go out. Delivered ones stay.",
           "confirm": "Stop",
           "done": "Broadcast stopped."
+        },
+        "duplicate": {
+          "button": "Make a copy",
+          "done": "Copy saved as a draft."
         },
         "retry": {
           "button": "Retry failed",

@@ -250,6 +250,10 @@ export function retryBroadcast(id: number): Promise<Broadcast> {
   return apiPost<Broadcast, Record<string, never>>(`/broadcasts/${id}/actions/retry`, {});
 }
 
+export function duplicateBroadcast(id: number): Promise<Broadcast> {
+  return apiPost<Broadcast, Record<string, never>>(`/broadcasts/${id}/actions/duplicate`, {});
+}
+
 export function recallBroadcast(id: number): Promise<Broadcast> {
   return apiPost<Broadcast, Record<string, never>>(`/broadcasts/${id}/actions/recall`, {});
 }

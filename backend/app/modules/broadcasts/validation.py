@@ -1,4 +1,4 @@
-from typing import Final, Optional
+from typing import Final, Optional, Union
 
 from app.core.enums import BroadcastButtonKind, BroadcastDelivery, Locale
 from app.core.error_codes import ErrorCode
@@ -20,6 +20,7 @@ from app.modules.broadcasts.dto import (
     BroadcastAudienceDto,
     BroadcastButtonDto,
     BroadcastContentDto,
+    BroadcastDto,
     SaveBroadcastDto,
 )
 from app.modules.broadcasts.email_html import email_image_ids, validate_email_html
@@ -235,7 +236,7 @@ async def promocode_is_usable(
 
 
 async def assert_references(
-    data: SaveBroadcastDto,
+    data: Union[SaveBroadcastDto, BroadcastDto],
     broadcast_repository: BroadcastRepository,
     promocode_repository: PromocodeRepository,
 ) -> None:

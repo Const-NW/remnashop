@@ -491,6 +491,7 @@ def recall_dispatch() -> RecordingDispatch:
 @pytest.fixture
 def send_use_case(
     broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
     settings_repository: SettingsRepository,
     config: AppConfig,
     start_dispatch: RecordingDispatch,
@@ -498,7 +499,13 @@ def send_use_case(
     event_publisher: EventPublisher,
 ) -> SendBroadcastUseCase:
     return SendBroadcastUseCase(
-        broadcast_repository, settings_repository, config, start_dispatch, uow, event_publisher
+        broadcast_repository,
+        promocode_repository,
+        settings_repository,
+        config,
+        start_dispatch,
+        uow,
+        event_publisher,
     )
 
 
@@ -604,6 +611,20 @@ async def test_send_now_schedules_and_kicks_start(
     assert start_dispatch.messages == [{"broadcast_id": draft.id}]
 
 
+async def test_send_refuses_a_draft_whose_plan_is_gone(
+    send_use_case: SendBroadcastUseCase,
+    start_dispatch: RecordingDispatch,
+    broadcast_repository: BroadcastRepository,
+    admin: UserDto,
+    with_token: None,
+) -> None:
+    draft = await _make(broadcast_repository, audience=BroadcastAudienceDto(plan_ids=[999_999]))
+    with pytest.raises(ValidationError) as caught:
+        await send_use_case(admin, SendBroadcastDto(broadcast_id=draft.id))
+    assert caught.value.code is ErrorCode.BROADCAST_AUDIENCE_INVALID
+    assert start_dispatch.messages == []
+
+
 async def test_send_later_does_not_kick(
     send_use_case: SendBroadcastUseCase,
     start_dispatch: RecordingDispatch,
@@ -682,6 +703,7 @@ async def test_send_email_without_smtp_fails(
 
 async def test_send_marketing_email_without_cabinet_url_fails(
     broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
     settings_repository: SettingsRepository,
     config: AppConfig,
     start_dispatch: RecordingDispatch,
@@ -692,6 +714,7 @@ async def test_send_marketing_email_without_cabinet_url_fails(
 ) -> None:
     use_case = SendBroadcastUseCase(
         broadcast_repository,
+        promocode_repository,
         settings_repository,
         config.model_copy(update={"cabinet": CabinetConfig(domain=None)}),
         start_dispatch,
@@ -706,6 +729,7 @@ async def test_send_marketing_email_without_cabinet_url_fails(
 
 async def test_send_service_email_without_cabinet_url_ok(
     broadcast_repository: BroadcastRepository,
+    promocode_repository: PromocodeRepository,
     settings_repository: SettingsRepository,
     config: AppConfig,
     start_dispatch: RecordingDispatch,
@@ -716,6 +740,7 @@ async def test_send_service_email_without_cabinet_url_ok(
 ) -> None:
     use_case = SendBroadcastUseCase(
         broadcast_repository,
+        promocode_repository,
         settings_repository,
         config.model_copy(update={"cabinet": CabinetConfig(domain=None)}),
         start_dispatch,

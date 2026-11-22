@@ -18,6 +18,8 @@ from app.modules.broadcasts.dispatch import StartBroadcastDispatch
 from app.modules.broadcasts.dto import BroadcastDto, SendBroadcastDto
 from app.modules.broadcasts.events import BroadcastScheduledEvent
 from app.modules.broadcasts.repository import BroadcastRepository
+from app.modules.broadcasts.validation import assert_references
+from app.modules.promocodes import PromocodeRepository
 from app.modules.settings import SettingsRepository
 
 SCHEDULE_TOLERANCE: Final[timedelta] = timedelta(minutes=1)
@@ -29,6 +31,7 @@ class SendBroadcastUseCase(UseCase[SendBroadcastDto, BroadcastDto]):
     def __init__(
         self,
         broadcast_repository: BroadcastRepository,
+        promocode_repository: PromocodeRepository,
         settings_repository: SettingsRepository,
         config: AppConfig,
         start_dispatch: StartBroadcastDispatch,
@@ -36,6 +39,7 @@ class SendBroadcastUseCase(UseCase[SendBroadcastDto, BroadcastDto]):
         event_publisher: EventPublisher,
     ) -> None:
         self._broadcast_repository = broadcast_repository
+        self._promocode_repository = promocode_repository
         self._settings_repository = settings_repository
         self._config = config
         self._start_dispatch = start_dispatch
@@ -56,6 +60,10 @@ class SendBroadcastUseCase(UseCase[SendBroadcastDto, BroadcastDto]):
                     f"Broadcast '{broadcast.id}' is {broadcast.status}",
                     code=ErrorCode.BROADCAST_INVALID_STATUS,
                 )
+            # a plan, ad link, user or promocode may be gone since the draft was saved
+            await assert_references(
+                broadcast, self._broadcast_repository, self._promocode_repository
+            )
             if broadcast.sends_telegram:
                 await self._check_bot(broadcast)
             if broadcast.sends_email:

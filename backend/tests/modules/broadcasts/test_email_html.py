@@ -6,6 +6,7 @@ from app.modules.broadcasts.content import render_text
 from app.modules.broadcasts.email_html import (
     email_image_ids,
     email_text,
+    replace_email_image_ids,
     style_email_html,
     validate_email_html,
 )
@@ -136,3 +137,10 @@ def test_styler_drops_foreign_tags() -> None:
     )
     assert "tg-emoji" not in styled
     assert ">a x<" in styled
+
+
+def test_replace_email_image_ids_touches_only_img_src() -> None:
+    html = '<p>bc-image:1</p><img src="bc-image:1" alt=""><img alt="x" src=\'bc-image:12\'>'
+    assert replace_email_image_ids(html, {1: 9, 12: 7}) == (
+        '<p>bc-image:1</p><img src="bc-image:9" alt=""><img alt="x" src=\'bc-image:7\'>'
+    )

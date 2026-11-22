@@ -183,6 +183,7 @@ class Permission(UpperStrEnum):
     BROADCASTS_VIEW = auto()
     BROADCASTS_DETAIL_VIEW = auto()
     BROADCASTS_CREATE = auto()
+    BROADCASTS_DUPLICATE = auto()
     BROADCASTS_UPDATE = auto()
     BROADCASTS_DELETE = auto()
     BROADCASTS_SEND = auto()
@@ -446,6 +447,7 @@ PERMISSION_METADATA: Final[dict[Permission, PermissionMeta]] = {
     Permission.BROADCASTS_VIEW: PermissionMeta(resource="broadcasts", kind="read"),
     Permission.BROADCASTS_DETAIL_VIEW: PermissionMeta(resource="broadcasts", kind="read"),
     Permission.BROADCASTS_CREATE: PermissionMeta(resource="broadcasts", kind="write"),
+    Permission.BROADCASTS_DUPLICATE: PermissionMeta(resource="broadcasts", kind="write"),
     Permission.BROADCASTS_UPDATE: PermissionMeta(resource="broadcasts", kind="write"),
     Permission.BROADCASTS_DELETE: PermissionMeta(resource="broadcasts", kind="write"),
     Permission.BROADCASTS_SEND: PermissionMeta(resource="broadcasts", kind="write"),
@@ -769,6 +771,7 @@ ROLE_PERMISSIONS: Final[dict[Role, frozenset[Permission]]] = {
             Permission.BROADCASTS_VIEW,
             Permission.BROADCASTS_DETAIL_VIEW,
             Permission.BROADCASTS_CREATE,
+            Permission.BROADCASTS_DUPLICATE,
             Permission.BROADCASTS_UPDATE,
             Permission.BROADCASTS_DELETE,
             Permission.BROADCASTS_SEND,

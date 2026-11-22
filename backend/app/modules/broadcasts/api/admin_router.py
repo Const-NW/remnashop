@@ -62,6 +62,7 @@ from app.modules.broadcasts.usecases import (
     CreateBroadcastUseCase,
     DeleteBroadcastMediaUseCase,
     DeleteBroadcastUseCase,
+    DuplicateBroadcastUseCase,
     GetBroadcastEmailImageUseCase,
     GetBroadcastSummaryUseCase,
     GetBroadcastUseCase,
@@ -484,6 +485,23 @@ async def cancel_broadcast(
 async def retry_broadcast(
     broadcast_id: int,
     use_case: FromDishka[RetryBroadcastUseCase],
+    actor: Actor = Depends(require_admin),
+) -> BroadcastResponse:
+    return BroadcastResponse.model_validate(
+        await use_case(actor, broadcast_id), from_attributes=True
+    )
+
+
+@router.post(
+    "/{broadcast_id:int}/actions/duplicate",
+    response_model=BroadcastResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=error_responses(404),
+)
+@inject
+async def duplicate_broadcast(
+    broadcast_id: int,
+    use_case: FromDishka[DuplicateBroadcastUseCase],
     actor: Actor = Depends(require_admin),
 ) -> BroadcastResponse:
     return BroadcastResponse.model_validate(

@@ -25,6 +25,7 @@ from app.modules.broadcasts.usecases import (
     DeleteBroadcastUseCase,
     DeliverBroadcastBatchUseCase,
     DeliverBroadcastEmailBatchUseCase,
+    DuplicateBroadcastUseCase,
     GetBroadcastEmailImageUseCase,
     GetBroadcastPromocodeUseCase,
     GetBroadcastSummaryUseCase,
@@ -55,6 +56,7 @@ class BroadcastsProvider(Provider):
     telegram_client_factory = provide(TelegramClientFactory, scope=Scope.APP)
     use_cases = provide_all(
         CreateBroadcastUseCase,
+        DuplicateBroadcastUseCase,
         UpdateBroadcastUseCase,
         DeleteBroadcastUseCase,
         GetBroadcastUseCase,

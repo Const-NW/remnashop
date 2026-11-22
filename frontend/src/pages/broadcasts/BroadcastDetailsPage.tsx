@@ -7,6 +7,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   cancelBroadcast,
   deleteBroadcast,
+  duplicateBroadcast,
   getBroadcast,
   recallBroadcast,
   retryBroadcast,
@@ -175,6 +176,21 @@ function BroadcastDetails({ id }: { id: number }) {
   const canEdit = isEditable(b) && can("BROADCASTS_UPDATE");
   const canDelete = b.status !== "SENDING" && can("BROADCASTS_DELETE");
 
+  const canDuplicate = can("BROADCASTS_DUPLICATE");
+
+  const duplicate = async () => {
+    setIsBusy(true);
+    try {
+      const copy = await duplicateBroadcast(b.id);
+      toast.success(t("broadcasts.details.actions.duplicate.done"));
+      // without the update permission the editor would be read-only
+      navigate(can("BROADCASTS_UPDATE") ? `${LIST_PATH}/${copy.id}/edit` : `${LIST_PATH}/${copy.id}`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, t("common.errors.generic")));
+      setIsBusy(false);
+    }
+  };
+
   const run = async (action: Action) => {
     setPending(null);
     setIsBusy(true);
@@ -216,6 +232,11 @@ function BroadcastDetails({ id }: { id: number }) {
           {canEdit && (
             <Button variant="glass" onClick={() => navigate(`${LIST_PATH}/${b.id}/edit`)}>
               {t("common.edit")}
+            </Button>
+          )}
+          {canDuplicate && (
+            <Button variant="glass" disabled={isBusy} onClick={() => void duplicate()}>
+              {t("broadcasts.details.actions.duplicate.button")}
             </Button>
           )}
           {canCancel && (

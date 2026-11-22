@@ -23,6 +23,7 @@ from app.core.db.models.user import User
 from app.core.enums import (
     BroadcastRecipientStatus,
     BroadcastStatus,
+    Locale,
 )
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import NotFoundError
@@ -33,6 +34,7 @@ from app.modules.broadcasts.audience import (
 from app.modules.broadcasts.dto import (
     BroadcastAudienceDto,
     BroadcastDto,
+    BroadcastEmailContentDto,
     BroadcastMediaDto,
     BroadcastSummaryDto,
     EmailImageDto,
@@ -43,6 +45,25 @@ from app.modules.broadcasts.dto import (
 SUMMARY_WINDOW: Final[timedelta] = timedelta(days=30)
 # only the message texts, so a search for "text" or "_" doesn't hit the JSON keys
 _TEXTS_PATH: Final[str] = "$.*.text"
+# what a duplicate takes over; media_file_id is left out, a new draft uploads its own copy
+_DUPLICATED_COLUMNS: Final[tuple[str, ...]] = (
+    "title",
+    "category",
+    "audience",
+    "default_locale",
+    "contents",
+    "buttons",
+    "promocode_id",
+    "post_to_channel",
+    "delivery",
+    "email_fallback",
+    "email_contents",
+    "media_type",
+    "media_content_type",
+    "media_extension",
+    "media_version",
+    "media_size_bytes",
+)
 # pg_advisory_xact_lock key: one broadcast starts at a time
 _START_LOCK_KEY: Final[int] = 8221941
 
@@ -112,6 +133,31 @@ class BroadcastRepository:
         await self.session.flush()
         await self.session.refresh(row)
         return await self._with_creator(row)
+
+    async def duplicate(self, source_id: int, created_by: Optional[int]) -> BroadcastDto:
+        source = await self._get_row(source_id)
+        row = Broadcast(
+            status=BroadcastStatus.DRAFT,
+            created_by=created_by,
+            **{column: getattr(source, column) for column in _DUPLICATED_COLUMNS},
+        )
+        self.session.add(row)
+        await self.session.flush()
+        await self.session.refresh(row)
+        return await self._with_creator(row)
+
+    async def set_email_contents(
+        self, broadcast_id: int, email_contents: dict[Locale, BroadcastEmailContentDto]
+    ) -> None:
+        await self._write(
+            broadcast_id,
+            {
+                "email_contents": {
+                    locale.value: content.model_dump(mode="json")
+                    for locale, content in email_contents.items()
+                }
+            },
+        )
 
     async def find_by_id(self, broadcast_id: int) -> Optional[BroadcastDto]:
         # fresh read: the worker re-checks status written by another process

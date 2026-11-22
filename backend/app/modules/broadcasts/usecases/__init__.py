@@ -9,6 +9,7 @@ from app.modules.broadcasts.usecases.deliver_broadcast_batch import DeliverBroad
 from app.modules.broadcasts.usecases.deliver_broadcast_email_batch import (
     DeliverBroadcastEmailBatchUseCase,
 )
+from app.modules.broadcasts.usecases.duplicate_broadcast import DuplicateBroadcastUseCase
 from app.modules.broadcasts.usecases.get_broadcast import GetBroadcastUseCase
 from app.modules.broadcasts.usecases.get_broadcast_email_image import (
     GetBroadcastEmailImageUseCase,
@@ -47,6 +48,7 @@ __all__ = [
     "DeleteBroadcastUseCase",
     "DeliverBroadcastBatchUseCase",
     "DeliverBroadcastEmailBatchUseCase",
+    "DuplicateBroadcastUseCase",
     "GetBroadcastEmailImageUseCase",
     "GetBroadcastPromocodeUseCase",
     "GetBroadcastSummaryUseCase",
