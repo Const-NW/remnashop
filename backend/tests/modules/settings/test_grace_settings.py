@@ -146,3 +146,12 @@ async def test_requires_manage_permission(
 
     assert (await client.get(_URL, headers=headers)).status_code == 200
     assert (await client.patch(_URL, json={"enabled": True}, headers=headers)).status_code == 403
+
+
+@pytest.mark.parametrize("tag", ["lower case", "x" * 100])
+async def test_rejects_invalid_tag(
+    client: httpx.AsyncClient, owner_headers: dict[str, str], tag: str
+) -> None:
+    response = await client.patch(_URL, json={"tag": tag}, headers=owner_headers)
+
+    assert response.status_code == 422
