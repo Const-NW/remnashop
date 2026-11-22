@@ -145,6 +145,13 @@ def assert_translation_value(message_id: str, value: str, default_value: str) ->
             code=ErrorCode.TRANSLATION_HAS_NEWLINES,
         )
     allowed_variables = placeable_variables(default_value)
+    # usually a value edited before a release dropped the variable from the shipped text
+    unknown = placeable_variables(value) - allowed_variables
+    if unknown:
+        raise ValidationError(
+            ", ".join(f"${name}" for name in sorted(unknown)),
+            code=ErrorCode.TRANSLATION_VARIABLE_UNKNOWN,
+        )
     disallowed = _find_disallowed(
         value, lambda expression: _check_translation_expression(expression, allowed_variables)
     )

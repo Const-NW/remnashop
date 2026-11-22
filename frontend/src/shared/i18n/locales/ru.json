@@ -4806,7 +4806,8 @@
     "WEBHOOK_SOURCE_UNTRUSTED": "Источник вебхука не доверенный.",
     "WEBHOOK_STALE": "Вебхук устарел.",
     "BOT_PROXY_URL_INVALID": "Неверный адрес прокси: нужен socks5, socks5h или http с хостом и портом.",
-    "TRANSLATION_VARIABLE_NOT_ALLOWED": "В тексте есть переменная или выражение, которых нет в исходном тексте."
+    "TRANSLATION_VARIABLE_NOT_ALLOWED": "В тексте есть переменная или выражение, которых нет в исходном тексте.",
+    "TRANSLATION_VARIABLE_UNKNOWN": "Переменных {{detail}} нет в исходном тексте. Если текст правили до обновления, сбросьте его и внесите правки заново."
   },
   "loyalty": {
     "settings": {

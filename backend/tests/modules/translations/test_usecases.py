@@ -451,7 +451,8 @@ async def test_import_rejects_a_foreign_export_version(
     ("value", "code"),
     [
         ("two\nlines", ErrorCode.TRANSLATION_HAS_NEWLINES),
-        ("{ $name }", ErrorCode.TRANSLATION_VARIABLE_NOT_ALLOWED),
+        ("{ $name }", ErrorCode.TRANSLATION_VARIABLE_UNKNOWN),
+        ("{ -brand }", ErrorCode.TRANSLATION_VARIABLE_NOT_ALLOWED),
         ("broken }", ErrorCode.FLUENT_SYNTAX_INVALID),
     ],
 )

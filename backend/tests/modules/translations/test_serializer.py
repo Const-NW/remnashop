@@ -239,11 +239,9 @@ def test_translation_value_may_use_the_default_variables(value: str) -> None:
 @pytest.mark.parametrize(
     "value",
     [
-        "Hi { $name }",
         "{ ntf-other }",
         "{ -brand }",
         "{ NUMBER($count) }",
-        "{ $count ->\n   *[other] { $name }\n}",
         "{ ntf-other ->\n   *[other] x\n}",
     ],
 )
@@ -252,6 +250,17 @@ def test_translation_value_refuses_what_the_default_lacks(value: str) -> None:
         assert_translation_value("ntf-login-failed", value, "{ $count } " + _PLURAL_DEFAULT)
 
     assert error.value.code is ErrorCode.TRANSLATION_VARIABLE_NOT_ALLOWED
+
+
+@pytest.mark.parametrize(
+    "value", ["Hi { $name } { $age }", "{ $count ->\n   *[other] { $name }\n}"]
+)
+def test_translation_value_names_variables_the_default_lacks(value: str) -> None:
+    with pytest.raises(ValidationError) as error:
+        assert_translation_value("ntf-login-failed", value, "{ $count } " + _PLURAL_DEFAULT)
+
+    assert error.value.code is ErrorCode.TRANSLATION_VARIABLE_UNKNOWN
+    assert str(error.value) == ("$age, $name" if "$age" in value else "$name")
 
 
 def test_bot_command_descriptions_stay_single_line() -> None:

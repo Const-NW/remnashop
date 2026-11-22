@@ -4688,7 +4688,8 @@
     "WEBHOOK_SOURCE_UNTRUSTED": "The webhook source isn’t trusted.",
     "WEBHOOK_STALE": "The webhook is outdated.",
     "BOT_PROXY_URL_INVALID": "Invalid proxy address: use socks5, socks5h or http with a host and a port.",
-    "TRANSLATION_VARIABLE_NOT_ALLOWED": "The text uses a variable or expression the original text doesn’t have."
+    "TRANSLATION_VARIABLE_NOT_ALLOWED": "The text uses a variable or expression the original text doesn’t have.",
+    "TRANSLATION_VARIABLE_UNKNOWN": "The original text has no {{detail}}. If you edited this text before an update, reset it and make your changes again."
   },
   "loyalty": {
     "settings": {
