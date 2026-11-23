@@ -35,20 +35,20 @@ ntf-subscription-renewed = { $duration_days ->
        *[other] { $user } renewed for { $duration_days } days
     }
     .title = Subscription renewed!
-ntf-transaction-refunded = Order #{ $order_id }: { $amount } { $currency } refunded via { $gateway_type }
+ntf-transaction-refunded = Order #{ $order_id }: { $money } refunded via { $gateway_type }
     .title = Payment refunded!
     .emoji = ⚠️
-ntf-transaction-partially-refunded = Order #{ $order_id }: partial refund { $amount } { $currency } via { $gateway_type }, check it manually
+ntf-transaction-partially-refunded = Order #{ $order_id }: partial refund { $money } via { $gateway_type }, check it manually
     .title = Payment refunded!
     .emoji = ⚠️
 ntf-transaction-fulfilled-manually = { $actor } issued order #{ $order_id } for { $target } by hand
     .title = Subscription issued manually!
-ntf-paid-order-not-fulfilled = Order #{ $order_id }: { $amount } { $currency } via { $gateway_type } is paid, but no subscription was issued yet; check it.
+ntf-paid-order-not-fulfilled = Order #{ $order_id }: { $money } via { $gateway_type } is paid, but no subscription was issued yet; check it.
     .title = Payment processing error!
     .emoji = ⚠️
 ntf-broadcast-completed = Broadcast #{ $broadcast_id } finished: { $sent } delivered, { $failed } failed, { $blocked } blocked the bot.
     .title = Broadcast finished!
-ntf-daily-report = { $new_users } new users, { $new_payers } new payers, revenue { $revenue } { $currency }.
+ntf-daily-report = { $new_users } new users, { $new_payers } new payers, revenue { $revenue_money }.
     .title = Report for { $day }
     .emoji = 📊
 ntf-broadcast-failed = Broadcast #{ $broadcast_id } stopped: { $error }

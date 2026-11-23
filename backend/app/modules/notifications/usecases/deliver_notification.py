@@ -117,7 +117,7 @@ class DeliverNotificationUseCase(UseCase[DeliverNotificationDto, None]):
         card_data = await self._card_data(data, targets) if token else CardData()
         for user, channels in targets:
             ip = visible_event_ip(user, data.event_type, data.payload, data.ip_address)
-            args = notification_args(data.payload, ip)
+            args = notification_args(data.payload, ip, user.language)
             title, body = renderer.render(user.language, data.event_type, args)
             if len(body) > MAX_BODY_LENGTH:
                 body = body[: MAX_BODY_LENGTH - 1] + "…"

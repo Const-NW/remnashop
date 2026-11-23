@@ -174,7 +174,7 @@ async def test_report_counts_the_day_once(
     texts = {Locale.RU: _RU_NOTIFICATIONS.read_text()}
     renderer = NotificationRenderer(texts, default_locale=Locale.RU)
     stored = stored_event(report)
-    args = notification_args(stored.payload, None)
+    args = notification_args(stored.payload, None, Locale.RU)
     title, body = renderer.render(Locale.RU, stored.event_type, args)
     card = build_telegram_card(
         renderer,

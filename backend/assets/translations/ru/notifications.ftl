@@ -35,20 +35,20 @@ ntf-subscription-renewed = { $duration_days ->
        *[other] { $user } продлил подписку на { $duration_days } дн.
     }
     .title = Продление подписки!
-ntf-transaction-refunded = Заказ #{ $order_id }: возврат { $amount } { $currency } через { $gateway_type }
+ntf-transaction-refunded = Заказ #{ $order_id }: возврат { $money } через { $gateway_type }
     .title = Платёж возвращён!
     .emoji = ⚠️
-ntf-transaction-partially-refunded = Заказ #{ $order_id }: частичный возврат { $amount } { $currency } через { $gateway_type }, проверьте вручную
+ntf-transaction-partially-refunded = Заказ #{ $order_id }: частичный возврат { $money } через { $gateway_type }, проверьте вручную
     .title = Платёж возвращён!
     .emoji = ⚠️
 ntf-transaction-fulfilled-manually = { $actor } вручную выдал заказ #{ $order_id } пользователю { $target }
     .title = Ручная выдача подписки!
-ntf-paid-order-not-fulfilled = Заказ #{ $order_id }: { $amount } { $currency } через { $gateway_type } оплачен, но подписка ещё не выдана. Проверьте заказ.
+ntf-paid-order-not-fulfilled = Заказ #{ $order_id }: { $money } через { $gateway_type } оплачен, но подписка ещё не выдана. Проверьте заказ.
     .title = Ошибка обработки платежа!
     .emoji = ⚠️
 ntf-broadcast-completed = Рассылка #{ $broadcast_id } завершена: доставлено { $sent }, ошибок { $failed }, заблокировали бота { $blocked }.
     .title = Рассылка завершена!
-ntf-daily-report = Новых пользователей: { $new_users }, новых платящих: { $new_payers }, выручка { $revenue } { $currency }.
+ntf-daily-report = Новых пользователей: { $new_users }, новых платящих: { $new_payers }, выручка { $revenue_money }.
     .title = Отчёт за { $day }
     .emoji = 📊
 ntf-broadcast-failed = Рассылка #{ $broadcast_id } остановлена: { $error }
