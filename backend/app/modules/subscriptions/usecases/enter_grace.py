@@ -4,6 +4,7 @@ from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
@@ -11,9 +12,10 @@ from app.core.enums import SubscriptionStatus
 from app.core.exceptions import NotFoundError, RetryableTaskError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
-from app.core.utils.time import datetime_now
+from app.core.utils.time import datetime_now, truncate_to_ms
 from app.modules.plans import PlanDto, PlanRepository
 from app.modules.settings import GraceSettingsDto, SettingsRepository
+from app.modules.subscriptions.dto import SubscriptionDto
 from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import SubscriptionGraceStartedEvent
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
@@ -79,10 +81,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
                 )
             )
         except Exception as error:
-            if claimed:
-                async with self._uow:
-                    await self._subscription_repository.set_grace_until(data, None)
-            raise RetryableTaskError(f"Grace push of subscription '{data}' failed") from error
+            await self._recover_failed_push(subscription, grace_until, error, claimed=claimed)
 
         if not await self._still_in_grace(data, grace_until, settings, claimed=claimed):
             return False
@@ -96,6 +95,38 @@ class EnterGraceUseCase(UseCase[int, bool]):
             logger.exception(f"Failed to reset traffic of subscription '{data}' entering grace")
         logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
         return True
+
+    async def _recover_failed_push(
+        self,
+        subscription: SubscriptionDto,
+        grace_until: datetime,
+        error: Exception,
+        *,
+        claimed: bool,
+    ) -> None:
+        """Returns when the push landed after all; raises a retryable error otherwise."""
+        failed = f"Grace push of subscription '{subscription.id}' failed"
+        if not claimed:
+            raise RetryableTaskError(failed) from error
+        # a timeout or a 5xx may still have applied the write
+        if not await self._push_landed(subscription, grace_until):
+            async with self._uow:
+                await self._subscription_repository.set_grace_until(subscription.id, None)
+            raise RetryableTaskError(failed) from error
+
+    async def _push_landed(self, subscription: SubscriptionDto, grace_until: datetime) -> bool:
+        try:
+            panel_user = await self._remnawave_sdk.users.get_user_by_id(
+                subscription.remnawave_user_id
+            )
+        except RemnawaveNotFoundError:
+            return False
+        except Exception as error:
+            # unknown: the claim stays, and the retry pushes the same grace again
+            raise RetryableTaskError(
+                f"Grace push of subscription '{subscription.id}' failed, the panel is unreadable"
+            ) from error
+        return truncate_to_ms(panel_user.expire_at) == truncate_to_ms(grace_until)
 
     async def _still_in_grace(
         self, data: int, grace_until: datetime, settings: GraceSettingsDto, *, claimed: bool

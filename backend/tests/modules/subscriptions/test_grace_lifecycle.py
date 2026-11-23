@@ -8,6 +8,7 @@ import pytest
 from redis.asyncio import Redis
 from remnapy import RemnawaveSDK
 from remnapy.enums import TrafficLimitStrategy
+from remnapy.exceptions import ApiError, ApiErrorResponse
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -317,7 +318,70 @@ async def test_trial_gets_no_grace(
     assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
 
 
-async def test_panel_refusal_clears_claim(
+def _panel_error(status: int) -> ApiError:
+    return ApiError(status, ApiErrorResponse(message="fake panel"))
+
+
+async def test_failed_grace_push_that_never_landed_clears_claim(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_004)
+
+    async def _down(_request: Any) -> Any:
+        raise _panel_error(500)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _down)
+
+    with pytest.raises(RetryableTaskError):
+        await grace.enter.system(before.id)
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    assert await _events(session, before.id) == []
+
+
+async def test_timed_out_grace_push_that_landed_keeps_the_claim(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_014)
+    real_update_user = remnawave_sdk.users.update_user
+
+    async def _applied_then_timeout(request: Any) -> Any:
+        await real_update_user(request)
+        raise httpx.ReadTimeout("fake panel")
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _applied_then_timeout)
+
+    assert await grace.enter.system(before.id) is True
+
+    after = await subscription_repository.get_by_id(before.id)
+    assert after.grace_until is not None
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_014)) == truncate_to_ms(
+        after.grace_until
+    )
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def test_unreadable_panel_after_a_failed_grace_push_keeps_the_claim(
     session: AsyncSession,
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
@@ -330,7 +394,7 @@ async def test_panel_refusal_clears_claim(
 ) -> None:
     await _enable_grace(settings_repository)
     plan = await _paid_plan(plan_repository)
-    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_004)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_015)
     broken = RemnawaveSDK(
         client=httpx.AsyncClient(
             transport=httpx.MockTransport(
@@ -343,7 +407,8 @@ async def test_panel_refusal_clears_claim(
     with pytest.raises(RetryableTaskError):
         await _Grace(session, broken, uow, event_publisher, redis).enter.system(before.id)
 
-    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    # the write may have landed: the retry pushes the same grace again
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is not None
     assert await _events(session, before.id) == []
 
 
