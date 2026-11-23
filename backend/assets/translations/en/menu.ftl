@@ -75,6 +75,7 @@ frg-subscription-status = { $status ->
 frg-subscription-unlimited = Unlimited
 frg-subscription-traffic-limit = { $traffic_limit } GB
 msg-window-gone = This screen is no longer available.
+msg-start-welcome = Welcome!
 msg-paysupport = To request a refund, contact support.
 msg-menu-devices = Your devices ({ $devices_max ->
     [0] { $devices_current }

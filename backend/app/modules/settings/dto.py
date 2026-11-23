@@ -23,6 +23,7 @@ class BotSettingsDto(BaseDto, TimestampMixin):
     username: Optional[str] = None
     commands_hash: Optional[str] = None
     drop_pending_updates: bool = False
+    remove_reply_keyboard: bool = False
 
     @property
     def is_configured(self) -> bool:
@@ -54,6 +55,7 @@ class UpdateBotSettingsDto:
     token: Optional[str] = None
     secret_token: Optional[str] = None
     drop_pending_updates: Optional[bool] = None
+    remove_reply_keyboard: Optional[bool] = None
 
 
 class ShopSettingsDto(BaseDto, TimestampMixin):

@@ -1458,6 +1458,8 @@
       "errorInvalidToken": "Invalid bot token format.",
       "dropPendingUpdatesLabel": "Drop pending updates when setting the webhook",
       "dropPendingUpdatesHint": "Discards any updates Telegram queued up before the webhook was set, instead of delivering that backlog once it goes live.",
+      "removeReplyKeyboardLabel": "Remove a previous bot’s keyboard on /start",
+      "removeReplyKeyboardHint": "On every /start the bot sends a welcome message that hides the button keyboard a bot previously running on this token left under the input field. The message stays in the chat: deleting it brings the old keyboard back. Text: msg-start-welcome key. Takes effect after a bot restart.",
       "applyChangesDescription": "Restarts the bot process so it picks up the saved token and proxy. Has no effect if the process isn’t currently running.",
       "restartBot": "Restart",
       "restartRequested": "Restart requested. The bot process will come back up with the saved settings shortly.",
