@@ -70,7 +70,8 @@ class EnterGraceUseCase(UseCase[int, bool]):
 
         grace_until = subscription.grace_until
         assert grace_until is not None
-        # a redelivered run finds its own claim: it pushes again, nothing more
+        # a repeat run (redelivery, sweep, duplicate webhook) finds the claim: it pushes
+        # the grace config again and leaves the traffic counter alone
         try:
             await self._remnawave_sdk.users.update_user(
                 grace_panel_update(
@@ -85,14 +86,15 @@ class EnterGraceUseCase(UseCase[int, bool]):
 
         if not await self._still_in_grace(data, grace_until, settings, claimed=claimed):
             return False
+        if not claimed:
+            return True
 
         # grace traffic counts from zero; a failed reset leaves the old counter running
         try:
             await self._remnawave_sdk.users.reset_user_traffic(subscription.remnawave_user_id)
         except Exception:
             logger.exception(f"Failed to reset traffic of subscription '{data}' entering grace")
-        if claimed:
-            logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
+        logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
         return True
 
     async def _still_in_grace(

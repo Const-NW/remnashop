@@ -58,10 +58,12 @@ class EndGraceUseCase(UseCase[int, None]):
             if not _ended(subscription.grace_until):
                 return
             await self._subscription_repository.end_grace(data)
-            owner = await subscription_owner(self._user_repository, subscription)
-            await self._event_publisher.publish(
-                SubscriptionExpiredEvent(user=owner, subscription_id=data)
-            )
+            # an admin's switch-off during grace: access ends, but it didn't expire
+            if subscription.status is SubscriptionStatus.EXPIRED:
+                owner = await subscription_owner(self._user_repository, subscription)
+                await self._event_publisher.publish(
+                    SubscriptionExpiredEvent(user=owner, subscription_id=data)
+                )
         logger.info(f"Grace of subscription '{data}' ended")
 
 

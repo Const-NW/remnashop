@@ -8,12 +8,12 @@ import pytest
 from redis.asyncio import Redis
 from remnapy import RemnawaveSDK
 from remnapy.enums import TrafficLimitStrategy
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
-from app.core.db.models import EventOutboxEntry
+from app.core.db.models import EventOutboxEntry, Subscription
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, PlanType, Role, SubscriptionStatus
 from app.core.exceptions import RetryableTaskError
@@ -806,3 +806,64 @@ async def test_a_row_that_keeps_failing_does_not_hold_up_grace_entry(
 
     assert (await subscription_repository.get_by_id(stuck.id)).grace_until is None
     assert (await subscription_repository.get_by_id(waiting.id)).grace_until is not None
+
+
+async def test_repeat_grace_entry_does_not_reset_traffic_again(
+    grace: _Grace,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    subscription = await _expired(
+        subscription_repository, user_repository, plan, remnawave_store, 94_505
+    )
+    resets: list[int] = []
+
+    async def _reset(user_id: int) -> object:
+        resets.append(user_id)
+        return None
+
+    monkeypatch.setattr(remnawave_sdk.users, "reset_user_traffic", _reset)
+
+    assert await grace.enter.system(subscription.id)
+    assert await grace.enter.system(subscription.id)
+
+    assert resets == [94_505]
+
+
+async def test_grace_end_of_a_disabled_subscription_sends_no_expiry_notice(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    subscription, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_506,
+    )
+    # an admin switched it off during grace
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == subscription.id)
+        .values(status=SubscriptionStatus.DISABLED)
+    )
+
+    await grace.end.system(subscription.id)
+
+    after = await subscription_repository.get_by_id(subscription.id)
+    assert after.grace_until is None
+    assert after.status is SubscriptionStatus.DISABLED
+    assert await _events(session, subscription.id) == []
