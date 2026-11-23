@@ -66,6 +66,8 @@ class Subscription(BaseSql, TimestampMixin):
     # the last grace's end: the panel keeps it as its expiry, so a sync brings it into
     # expire_at and the row would look freshly expired again
     grace_ended_at: Mapped[Optional[datetime]]
+    # the grace sweep's last pick: a row that keeps failing goes to the back of its queue
+    grace_attempted_at: Mapped[Optional[datetime]]
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
     # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets

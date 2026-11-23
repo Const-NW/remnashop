@@ -45,6 +45,10 @@ class SweepGraceUseCase(UseCase[None, None]):
                 else []
             )
             ending = await self._subscription_repository.list_grace_ended(now, _BATCH)
+            # a row that keeps failing must not hold the rest of the queue back
+            await self._subscription_repository.mark_grace_attempted(
+                [subscription.id for subscription in entering + ending], now
+            )
 
         for subscription in entering:
             try:

@@ -742,3 +742,67 @@ async def test_sweep_reaches_an_eligible_row_past_a_batch_of_free_and_closed_pla
     await grace.sweep.system()
 
     assert (await subscription_repository.get_by_id(eligible.id)).grace_until is not None
+
+
+async def test_a_row_that_keeps_failing_does_not_hold_up_the_grace_end(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.modules.subscriptions.usecases.sweep_grace._BATCH", 1)
+    stuck, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_501,
+    )
+    waiting, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_502,
+    )
+    # gone from the panel: every end push is refused
+    del remnawave_store[94_501]
+
+    await grace.sweep.system()
+    await grace.sweep.system()
+
+    assert (await subscription_repository.get_by_id(stuck.id)).grace_until is not None
+    assert (await subscription_repository.get_by_id(waiting.id)).grace_until is None
+    assert await _events(session, waiting.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_a_row_that_keeps_failing_does_not_hold_up_grace_entry(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.modules.subscriptions.usecases.sweep_grace._BATCH", 1)
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    stuck = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_503)
+    waiting = await _expired(
+        subscription_repository, user_repository, plan, remnawave_store, 94_504
+    )
+    del remnawave_store[94_503]
+
+    await grace.sweep.system()
+    await grace.sweep.system()
+
+    assert (await subscription_repository.get_by_id(stuck.id)).grace_until is None
+    assert (await subscription_repository.get_by_id(waiting.id)).grace_until is not None

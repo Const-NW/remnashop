@@ -573,7 +573,10 @@ class SubscriptionRepository:
 
     async def _list_where(self, *conditions: Any, limit: int) -> list[SubscriptionDto]:
         result = await self.session.execute(
-            select(Subscription).where(*conditions).order_by(Subscription.id).limit(limit)
+            select(Subscription)
+            .where(*conditions)
+            .order_by(Subscription.grace_attempted_at.asc().nulls_first(), Subscription.id)
+            .limit(limit)
         )
         rows = result.scalars().all()
         entitlements_by_subscription = await self._load_entitlements([row.id for row in rows])
@@ -611,6 +614,13 @@ class SubscriptionRepository:
             Subscription.grace_until <= now,
             Subscription.status != SubscriptionStatus.DELETED,
             limit=limit,
+        )
+
+    async def mark_grace_attempted(self, subscription_ids: list[int], now: datetime) -> None:
+        await self.session.execute(
+            update(Subscription)
+            .where(in_ids(Subscription.id, subscription_ids))
+            .values(grace_attempted_at=now)
         )
 
     async def set_first_connected_at(self, remnawave_user_id: int, at: datetime) -> None:
