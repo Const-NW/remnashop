@@ -59,4 +59,5 @@ class DailyReportEvent(SystemEvent):
     changes_amount: str
     paid_never_connected: int
     # "@username" or the name, with the number invited that day; best first
-    top_referrers: list[tuple[str, int]] = field(default_factory=list)
+    # (user id, name, invited); an empty name shows as "User #id"
+    top_referrers: list[tuple[int, str, int]] = field(default_factory=list)

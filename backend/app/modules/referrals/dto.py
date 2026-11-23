@@ -60,7 +60,6 @@ class ReferralSettingsDto(BaseDto, TimestampMixin):
 @dataclass(frozen=True, kw_only=True)
 class TopReferrerDto:
     user_id: int
-    username: Optional[str]
     name: str
     invited: int
 

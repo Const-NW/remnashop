@@ -450,6 +450,7 @@ ntf-telegram-label =
     .renewals = Продления
     .changes = Смены тарифа
     .report-referrers = Топ по приглашениям
+    .unnamed-user = Пользователь
 ntf-telegram-subscription-status = { $value ->
         [ACTIVE] Активна
         [LIMITED] Исчерпан трафик

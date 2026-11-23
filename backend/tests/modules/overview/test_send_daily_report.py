@@ -150,9 +150,16 @@ async def test_report_counts_the_day_once(
     )
     await _pay(transaction_repository, uow, trial.user_id, plan_id, PurchaseType.NEW, "0", "dr-3")
     invited = await user_repository.create(CreateUserDto(name="Invited", telegram_id=880_002))
+    unnamed = await user_repository.create(CreateUserDto(name="", telegram_id=880_003))
+    invited_by_unnamed = await user_repository.create(
+        CreateUserDto(name="Second", telegram_id=880_004)
+    )
     async with uow:
         await referral_repository.create_referral(
             referrer_id=trial.user_id, referred_id=invited.id, level=1
+        )
+        await referral_repository.create_referral(
+            referrer_id=unnamed.id, referred_id=invited_by_unnamed.id, level=1
         )
 
     await use_case.system()
@@ -162,14 +169,15 @@ async def test_report_counts_the_day_once(
     report = publisher.events[-1]
     assert isinstance(report, DailyReportEvent)
     assert report.day == (tomorrow.date() - timedelta(days=1)).isoformat()
-    assert report.new_users == before.new_users + 2
+    assert report.new_users == before.new_users + 4
     assert report.new_trials == before.new_trials + 1
     assert report.new_payers == before.new_payers + 1
     assert report.trial_conversions == before.trial_conversions + 1
     assert report.purchases == before.purchases + 1
     assert report.renewals == before.renewals + 1
     assert Decimal(report.revenue) == Decimal(before.revenue) + Decimal("800")
-    assert ("buyer", 1) in report.top_referrers
+    assert (trial.user_id, "buyer", 1) in report.top_referrers
+    assert (unnamed.id, "", 1) in report.top_referrers
 
     texts = {Locale.RU: _RU_NOTIFICATIONS.read_text()}
     renderer = NotificationRenderer(texts, default_locale=Locale.RU)
@@ -190,4 +198,5 @@ async def test_report_counts_the_day_once(
     )
     assert "Отчёт за" in card
     assert "Продления" in card
-    assert "1. buyer" in card
+    assert "buyer</b>: 1" in card
+    assert f"Пользователь #{unnamed.id}</b>: 1" in card

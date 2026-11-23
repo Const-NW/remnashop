@@ -514,7 +514,8 @@ def _report_referrers(card: _Card) -> Optional[CardBlock]:
     if not isinstance(top, list):
         return None
     rows: list[CardRow] = [
-        (f"{place}. {name}", str(invited), False) for place, (name, invited) in enumerate(top, 1)
+        (f"{place}. {name or card.label('unnamed-user') + f' #{user_id}'}", str(invited), False)
+        for place, (user_id, name, invited) in enumerate(top, 1)
     ]
     return "🤝", card.label("report-referrers"), rows
 

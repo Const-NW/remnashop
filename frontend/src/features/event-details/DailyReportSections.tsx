@@ -17,6 +17,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import type { EventLogEntry } from "@entities/event-log/api";
+import { nameOrUnnamed } from "@entities/user/display";
 import { formatMoney } from "@shared/lib/format";
 import { InfoRow } from "@shared/ui/InfoRow";
 import { DialogCard } from "@shared/ui/glass/DialogCard";
@@ -38,7 +39,8 @@ interface DailyReportPayload {
   renewals_amount: string;
   changes: number;
   changes_amount: string;
-  top_referrers: [string, number][];
+  /** (user id, name, invited) */
+  top_referrers: [number, string, number][];
 }
 
 export function DailyReportSections({ entry }: { entry: EventLogEntry }) {
@@ -94,8 +96,8 @@ export function DailyReportSections({ entry }: { entry: EventLogEntry }) {
 
       {report.top_referrers.length > 0 && (
         <DialogCard title={t("eventLog.detail.report.referrers")} icon={Handshake}>
-          {report.top_referrers.map(([name, invited], index) => (
-            <InfoRow key={name} icon={UserPlus} label={`${index + 1}. ${name}`}>
+          {report.top_referrers.map(([userId, name, invited], index) => (
+            <InfoRow key={userId} icon={UserPlus} label={`${index + 1}. ${nameOrUnnamed(name, userId, t)}`}>
               {count(invited)}
             </InfoRow>
           ))}

@@ -125,8 +125,6 @@ class SendDailyReportUseCase(UseCase[None, None]):
                     changes=counts[PurchaseType.CHANGE],
                     changes_amount=str(round_cents(amounts[PurchaseType.CHANGE])),
                     paid_never_connected=never_connected,
-                    top_referrers=[
-                        (f"@{r.username}" if r.username else r.name, r.invited) for r in referrers
-                    ],
+                    top_referrers=[(r.user_id, r.name, r.invited) for r in referrers],
                 )
             )

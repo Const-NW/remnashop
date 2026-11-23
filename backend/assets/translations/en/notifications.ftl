@@ -442,6 +442,7 @@ ntf-telegram-label =
     .renewals = Renewals
     .changes = Plan changes
     .report-referrers = Top referrers
+    .unnamed-user = User
 ntf-telegram-subscription-status = { $value ->
         [ACTIVE] Active
         [LIMITED] Out of traffic

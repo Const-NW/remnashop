@@ -165,7 +165,7 @@ class ReferralRepository:
     ) -> list[TopReferrerDto]:
         invited = func.count()
         stmt = (
-            select(User.id, User.username, User.name, invited)
+            select(User.id, User.name, invited)
             .join(Referral, Referral.referrer_id == User.id)
             .where(Referral.created_at >= start, Referral.created_at < end)
             .group_by(User.id)
@@ -173,7 +173,7 @@ class ReferralRepository:
             .limit(limit)
         )
         return [
-            TopReferrerDto(user_id=row[0], username=row[1], name=row[2], invited=row[3])
+            TopReferrerDto(user_id=row[0], name=row[1], invited=row[2])
             for row in (await self.session.execute(stmt)).all()
         ]
 
