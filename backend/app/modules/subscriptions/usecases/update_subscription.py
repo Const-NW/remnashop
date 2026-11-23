@@ -101,7 +101,9 @@ class UpdateSubscriptionUseCase(UseCase[UpdateSubscriptionDto, SubscriptionDto])
             )
             if exits_grace:
                 # the panel holds the grace config: the row's own goes back with the edit
-                request = restore(old).model_copy(update=request.model_dump(exclude_unset=True))
+                request = restore(old, left_grace=grace).model_copy(
+                    update=request.model_dump(exclude_unset=True)
+                )
             panel_user = await self._remnawave_sdk.users.update_user(request)
             panel_status = SubscriptionStatus(panel_user.status)
 

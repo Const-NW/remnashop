@@ -101,6 +101,7 @@ def _reconcile_use_case(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
         remnawave_sdk,
+        SettingsRepository(subscription_repository.session),
     )
     return SyncAllFromPanelUseCase(
         subscription_repository,

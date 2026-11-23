@@ -221,6 +221,8 @@ class EnterGraceUseCase(UseCase[int, bool]):
                 self._remnawave_sdk, self._subscription_repository, self._uow, current, settings
             )
         else:
-            await self._remnawave_sdk.users.update_user(restore(current, grace=settings))
+            await self._remnawave_sdk.users.update_user(
+                restore(current, grace=settings, left_grace=settings)
+            )
         logger.info(f"Subscription '{data}' left grace while it was being pushed")
         return False

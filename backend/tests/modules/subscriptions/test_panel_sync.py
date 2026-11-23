@@ -93,6 +93,7 @@ def _sync(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
         unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
 

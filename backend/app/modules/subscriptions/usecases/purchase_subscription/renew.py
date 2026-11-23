@@ -226,7 +226,9 @@ class RenewPurchase:
                 )
             # grace entered, or pushed again, while the panel call ran: the grace config
             # may sit on the panel over this renewal's write
-            left_grace = target.grace_until is not None or locked.grace_until is not None
+            left_grace: Optional[GraceSettingsDto] = None
+            if target.grace_until is not None or locked.grace_until is not None:
+                left_grace = await self._settings_repository.get_grace_settings()
             subscription = await self._lifecycle_service.renew(
                 locked.id,
                 expire_at,
@@ -264,20 +266,25 @@ class RenewPurchase:
                 )
             )
 
-        if left_grace:
-            # overwrites a grace push that landed after this renewal's write, whether grace
-            # was entered mid-flight or pushed again. Known gap: grace entered mid-flight,
-            # the days may still count from the grace end the panel showed. The renewal is
-            # committed, so a failed push is left to the next sync
-            try:
-                await self._remnawave_sdk.users.update_user(restore(subscription))
-            except Exception:
-                logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
+        if left_grace is not None:
+            await self._push_out_of_grace(subscription, left_grace)
 
         logger.info(
             f"{actor.log} Renewed subscription '{subscription.id}' by {data.duration_days}d"
         )
         return subscription, True
+
+    async def _push_out_of_grace(
+        self, subscription: SubscriptionDto, grace: GraceSettingsDto
+    ) -> None:
+        # overwrites a grace push that landed after this renewal's write, whether grace
+        # was entered mid-flight or pushed again. Known gap: grace entered mid-flight,
+        # the days may still count from the grace end the panel showed. The renewal is
+        # committed, so a failed push is left to the next sync
+        try:
+            await self._remnawave_sdk.users.update_user(restore(subscription, left_grace=grace))
+        except Exception:
+            logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
 
     async def _apply_current_plan(
         self, data: PurchaseSubscriptionDto, target: SubscriptionDto
@@ -426,7 +433,9 @@ class RenewPurchase:
         as an admin's extension, and the sync would take the grace config into the row."""
         request = UpdateUserRequestDto(id=target.remnawave_user_id, expire_at=expire_at)
         if target.grace_until is not None:
-            request = _out_of_grace(target, data).model_copy(update={"expire_at": expire_at})
+            async with self._uow:
+                grace = await self._settings_repository.get_grace_settings()
+            request = _out_of_grace(target, data, grace).model_copy(update={"expire_at": expire_at})
         return await self._remnawave_sdk.users.update_user(request)
 
 
@@ -443,10 +452,12 @@ def _term_start(target: SubscriptionDto, data: PurchaseSubscriptionDto) -> datet
     return max(target.expire_at, datetime_now())
 
 
-def _out_of_grace(target: SubscriptionDto, data: PurchaseSubscriptionDto) -> UpdateUserRequestDto:
+def _out_of_grace(
+    target: SubscriptionDto, data: PurchaseSubscriptionDto, grace: GraceSettingsDto
+) -> UpdateUserRequestDto:
     """The config a renewal takes the panel back to from grace: the row's, with an
     order's plan tag, and the plan's terms only where they changed since the sale."""
-    request = restore(target)
+    request = restore(target, left_grace=grace)
     if not data.apply_current_plan:
         return request
     plan = data.plan_snapshot

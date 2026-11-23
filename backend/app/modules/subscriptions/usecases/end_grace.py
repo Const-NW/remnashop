@@ -11,6 +11,7 @@ from app.core.exceptions import RetryableTaskError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import SubscriptionExpiredEvent
 from app.modules.subscriptions.panel import restore, revert_panel_to_owner
@@ -29,12 +30,14 @@ class EndGraceUseCase(UseCase[int, None]):
         self,
         subscription_repository: SubscriptionRepository,
         user_repository: UserRepository,
+        settings_repository: SettingsRepository,
         remnawave_sdk: RemnawaveSDK,
         uow: UnitOfWork,
         event_publisher: EventPublisher,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
+        self._settings_repository = settings_repository
         self._remnawave_sdk = remnawave_sdk
         self._uow = uow
         self._event_publisher = event_publisher
@@ -42,13 +45,14 @@ class EndGraceUseCase(UseCase[int, None]):
     async def _execute(self, actor: Actor, data: int) -> None:
         async with self._uow:
             subscription = await self._subscription_repository.get_by_id(data)
+            settings = await self._settings_repository.get_grace_settings()
         if not _ended(subscription.grace_until) or (
             subscription.status is SubscriptionStatus.DELETED
         ):
             return
         try:
-            # without grace settings: the row's own config, its past expiry left out
-            await self._remnawave_sdk.users.update_user(restore(subscription))
+            # the row's own config, its past expiry left out
+            await self._remnawave_sdk.users.update_user(restore(subscription, left_grace=settings))
         except Exception as error:
             raise RetryableTaskError(f"Grace end push of subscription '{data}' failed") from error
 

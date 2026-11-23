@@ -57,6 +57,7 @@ def _use_case(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
         unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     publish = PublishPanelEventUseCase(
         subscription_repository, user_repository, uow, event_publisher
@@ -77,7 +78,14 @@ def _use_case(
         uow,
         event_publisher,
     )
-    end = EndGraceUseCase(subscription_repository, user_repository, sdk, uow, event_publisher)
+    end = EndGraceUseCase(
+        subscription_repository,
+        user_repository,
+        SettingsRepository(subscription_repository.session),
+        sdk,
+        uow,
+        event_publisher,
+    )
     return ProcessRemnawaveWebhookUseCase(
         sync, publish, enter, end, subscription_repository, SettingsRepository(session), uow, redis
     )

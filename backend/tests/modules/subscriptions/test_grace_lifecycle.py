@@ -87,7 +87,9 @@ class _Grace:
             uow,
             publisher,
         )
-        self.end = EndGraceUseCase(subscriptions, users, sdk, uow, publisher)
+        self.end = EndGraceUseCase(
+            subscriptions, users, SettingsRepository(session), sdk, uow, publisher
+        )
         self.sweep = SweepGraceUseCase(
             subscriptions, SettingsRepository(session), uow, self.enter, self.end
         )
@@ -97,6 +99,7 @@ class _Grace:
             publisher,
             SubscriptionLifecycleService(subscriptions, CreditSegmentRepository(session)),
             sdk,
+            SettingsRepository(session),
         )
         publish = PublishPanelEventUseCase(subscriptions, users, uow, publisher)
         self.webhook = ProcessRemnawaveWebhookUseCase(
@@ -1315,3 +1318,30 @@ async def test_grace_push_rejected_for_the_panel_token_keeps_grace_open(
     after = await subscription_repository.get_by_id(before.id)
     assert after.grace_ended_at is None
     assert await _events(session, before.id) == []
+
+
+async def test_grace_end_empties_the_grace_squads_of_a_row_without_any(
+    grace: _Grace,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    subscription, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_401,
+    )
+    await subscription_repository.update_squads(
+        UpdateSubscriptionSquadsDto(
+            subscription_id=subscription.id, internal_squads=[], external_squad=None
+        )
+    )
+
+    await grace.end.system(subscription.id)
+
+    assert remnawave_store[94_401]["activeInternalSquads"] == []

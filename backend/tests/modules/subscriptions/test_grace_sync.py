@@ -57,6 +57,7 @@ def _sync(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
         sdk or unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
 
@@ -357,3 +358,20 @@ def test_restore_after_the_grace_end_leaves_out_the_past_expiry() -> None:
     )
 
     assert restore(lapsed, grace=settings).expire_at is None
+
+
+def test_restore_of_a_row_without_squads_leaves_the_panel_squads_alone() -> None:
+    settings = GraceSettingsDto(enabled=True, internal_squads=[_GRACE_SQUAD])
+    row = make_subscription_dto(status=SubscriptionStatus.ACTIVE, internal_squads=[])
+
+    assert "active_internal_squads" not in restore(row).model_fields_set
+    assert "active_internal_squads" not in restore(row, grace=settings).model_fields_set
+
+
+def test_restore_leaving_grace_empties_the_grace_squads() -> None:
+    row = make_subscription_dto(status=SubscriptionStatus.EXPIRED, internal_squads=[])
+    with_squads = GraceSettingsDto(enabled=True, internal_squads=[_GRACE_SQUAD])
+    without_squads = GraceSettingsDto(enabled=True)
+
+    assert restore(row, left_grace=with_squads).active_internal_squads == []
+    assert "active_internal_squads" not in restore(row, left_grace=without_squads).model_fields_set

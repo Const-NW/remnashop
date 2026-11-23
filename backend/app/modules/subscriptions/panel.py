@@ -185,10 +185,12 @@ def restore(
     owner: Optional[UserDto] = None,
     *,
     grace: Optional[GraceSettingsDto] = None,
+    left_grace: Optional[GraceSettingsDto] = None,
 ) -> UpdateUserRequestDto:
     """Puts a panel user back to the configuration its subscription row holds,
     or to the grace config while the row is in grace; with `owner`, also to the
-    owner's Telegram and email where the shop knows them."""
+    owner's Telegram and email where the shop knows them. `left_grace`: the grace
+    settings the row is just leaving, whose squads the panel still holds."""
     contact: dict[str, Any] = {
         "id": subscription.remnawave_user_id,
         "telegram_id": owner.telegram_id if owner else None,
@@ -209,8 +211,12 @@ def restore(
         traffic_limit_bytes=subscription.effective_traffic_limit * GB_TO_BYTES,
         hwid_device_limit=subscription.effective_device_limit,
         traffic_limit_strategy=subscription.traffic_limit_strategy,
-        # an empty list too: left out, the panel keeps whatever squads it had
-        active_internal_squads=subscription.internal_squads,
+        # left out when empty, the panel keeps its own; out of grace those are grace's
+        active_internal_squads=(
+            subscription.internal_squads
+            if left_grace is not None and left_grace.internal_squads
+            else subscription.internal_squads or None
+        ),
         external_squad_uuid=subscription.external_squad,
         tag=subscription.tag,
     )

@@ -9,6 +9,7 @@ from app.core.enums import SubscriptionStatus
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now, truncate_to_ms
+from app.modules.settings import GraceSettingsDto, SettingsRepository
 from app.modules.subscriptions.dto import (
     PanelConfigDto,
     SubscriptionDto,
@@ -35,8 +36,10 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
         event_publisher: EventPublisher,
         lifecycle_service: SubscriptionLifecycleService,
         remnawave_sdk: RemnawaveSDK,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
+        self._settings_repository = settings_repository
         self._uow = uow
         self._event_publisher = event_publisher
         self._lifecycle_service = lifecycle_service
@@ -72,13 +75,13 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
                     data.remnawave_user_id, data.panel_created_at
                 )
 
-            left_grace = False
+            left_grace: Optional[GraceSettingsDto] = None
             if live and subscription.grace_until is not None:
                 if not _leaves_grace(subscription, data):
                     # the panel holds the grace config, not the row's terms
                     subscription = await self._sync_grace_status(subscription, data)
                     return await self._sync_url(subscription, data)
-                left_grace = True
+                left_grace = await self._settings_repository.get_grace_settings()
                 subscription = await self._subscription_repository.set_grace_until(
                     subscription.id, None
                 )
@@ -86,21 +89,23 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             subscription = await self._sync_status(subscription, data)
             if subscription.status is SubscriptionStatus.DELETED:
                 return subscription
-            if left_grace:
+            if left_grace is not None:
                 # only the expiry and status are the panel's: its config is still grace's
                 subscription = await self._sync_url(subscription, data)
             elif data.config is not None:
                 subscription = await self._sync_config(subscription, data.config, data.source)
 
-        if left_grace:
-            await self._push_out_of_grace(subscription)
+        if left_grace is not None:
+            await self._push_out_of_grace(subscription, left_grace)
         return subscription
 
-    async def _push_out_of_grace(self, subscription: SubscriptionDto) -> None:
+    async def _push_out_of_grace(
+        self, subscription: SubscriptionDto, grace: GraceSettingsDto
+    ) -> None:
         # after the commit: a retried sync would take the grace config into the row,
         # so a failed push is only logged
         try:
-            await self._remnawave_sdk.users.update_user(restore(subscription))
+            await self._remnawave_sdk.users.update_user(restore(subscription, left_grace=grace))
         except Exception:
             logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
 
