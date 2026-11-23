@@ -72,6 +72,7 @@ def _use_case(
         PlanRepository(session),
         SettingsRepository(session),
         user_repository,
+        SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
         sdk,
         uow,
         event_publisher,

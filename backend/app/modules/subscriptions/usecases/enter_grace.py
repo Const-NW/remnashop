@@ -23,6 +23,7 @@ from app.modules.subscriptions.events import (
     SubscriptionGraceStartedEvent,
 )
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
+from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import grace_panel_update, restore, revert_panel_to_owner
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
@@ -53,6 +54,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
         plan_repository: PlanRepository,
         settings_repository: SettingsRepository,
         user_repository: UserRepository,
+        lifecycle_service: SubscriptionLifecycleService,
         remnawave_sdk: RemnawaveSDK,
         uow: UnitOfWork,
         event_publisher: EventPublisher,
@@ -61,6 +63,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
         self._plan_repository = plan_repository
         self._settings_repository = settings_repository
         self._user_repository = user_repository
+        self._lifecycle_service = lifecycle_service
         self._remnawave_sdk = remnawave_sdk
         self._uow = uow
         self._event_publisher = event_publisher
@@ -77,14 +80,10 @@ class EnterGraceUseCase(UseCase[int, bool]):
                 if subscription.grace_until <= now:
                     return False
             else:
-                plan: Optional[PlanDto] = None
-                with suppress(NotFoundError):
-                    plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
-                if not grace_entry_allowed(subscription, plan, settings, now):
+                claim = await self._claim(subscription, settings, now)
+                if claim is None:
                     return False
-                subscription = await self._subscription_repository.set_grace_until(
-                    data, grace_until_for(settings, now)
-                )
+                subscription = claim
 
         grace_until = subscription.grace_until
         assert grace_until is not None
@@ -114,6 +113,21 @@ class EnterGraceUseCase(UseCase[int, bool]):
             logger.exception(f"Failed to reset traffic of subscription '{data}' entering grace")
         logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
         return True
+
+    async def _claim(
+        self, subscription: SubscriptionDto, settings: GraceSettingsDto, now: datetime
+    ) -> Optional[SubscriptionDto]:
+        plan: Optional[PlanDto] = None
+        with suppress(NotFoundError):
+            plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
+        if not grace_entry_allowed(subscription, plan, settings, now):
+            return None
+        if subscription.status is SubscriptionStatus.ACTIVE:
+            # the expiry webhook was lost: its sync would have set this
+            await self._lifecycle_service.sync_status(subscription.id, SubscriptionStatus.EXPIRED)
+        return await self._subscription_repository.set_grace_until(
+            subscription.id, grace_until_for(settings, now)
+        )
 
     async def _recover_failed_push(
         self,

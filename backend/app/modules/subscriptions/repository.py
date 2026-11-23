@@ -593,7 +593,14 @@ class SubscriptionRepository:
 
     async def list_grace_entry_candidates(self, now: datetime, limit: int) -> list[SubscriptionDto]:
         return await self._list_where(
-            Subscription.status == SubscriptionStatus.EXPIRED,
+            or_(
+                Subscription.status == SubscriptionStatus.EXPIRED,
+                # its expiry webhook was lost (`grace.grace_entry_allowed`)
+                and_(
+                    Subscription.status == SubscriptionStatus.ACTIVE,
+                    Subscription.expire_at <= now,
+                ),
+            ),
             Subscription.grace_until.is_(None),
             Subscription.expire_at > now - GRACE_ENTRY_WINDOW,
             or_(

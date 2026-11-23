@@ -82,6 +82,7 @@ class _Grace:
             PlanRepository(session),
             SettingsRepository(session),
             users,
+            SubscriptionLifecycleService(subscriptions, CreditSegmentRepository(session)),
             sdk,
             uow,
             publisher,
@@ -1117,3 +1118,31 @@ async def test_grace_push_refused_on_the_sweep_sends_the_expiry_notice(
 
     assert (await subscription_repository.get_by_id(before.id)).grace_until is None
     assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_sweep_enters_grace_for_a_row_whose_expiry_webhook_never_came(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_801)
+    # the row never heard of the expiry
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == before.id)
+        .values(status=SubscriptionStatus.ACTIVE)
+    )
+
+    await grace.sweep.system()
+
+    after = await subscription_repository.get_by_id(before.id)
+    assert after.status is SubscriptionStatus.EXPIRED
+    assert after.grace_until is not None
+    assert remnawave_store[94_801]["tag"] == "GRACE"
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]

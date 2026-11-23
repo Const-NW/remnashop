@@ -79,6 +79,12 @@ def test_grace_entry_allowed_for_fresh_expired() -> None:
     assert grace_entry_allowed(_expired(), _plan(), _settings(), _NOW) is True
 
 
+def test_grace_entry_allowed_for_active_past_expiry() -> None:
+    # the expiry webhook was lost: the row still says ACTIVE
+    lapsed = _expired(status=SubscriptionStatus.ACTIVE)
+    assert grace_entry_allowed(lapsed, _plan(), _settings(), _NOW) is True
+
+
 def test_grace_entry_refusals() -> None:
     plan = _plan()
     assert grace_entry_allowed(_expired(), plan, _settings(enabled=False), _NOW) is False
@@ -86,8 +92,10 @@ def test_grace_entry_refusals() -> None:
     assert grace_entry_allowed(old, plan, _settings(), _NOW) is False
     given = _expired(grace_until=_NOW + timedelta(days=1))
     assert grace_entry_allowed(given, plan, _settings(), _NOW) is False
-    active = make_subscription_dto(expire_at=_NOW - timedelta(hours=2))
+    active = make_subscription_dto(expire_at=_NOW + timedelta(hours=2))
     assert grace_entry_allowed(active, plan, _settings(), _NOW) is False
+    limited = _expired(status=SubscriptionStatus.LIMITED)
+    assert grace_entry_allowed(limited, plan, _settings(), _NOW) is False
     assert grace_entry_allowed(_expired(), None, _settings(), _NOW) is False
 
 

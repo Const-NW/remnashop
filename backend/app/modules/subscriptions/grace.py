@@ -24,7 +24,11 @@ def grace_entry_allowed(
 ) -> bool:
     return (
         settings.enabled
-        and subscription.status is SubscriptionStatus.EXPIRED
+        and (
+            subscription.status is SubscriptionStatus.EXPIRED
+            # a lost expiry webhook leaves the row ACTIVE past its expiry
+            or (subscription.status is SubscriptionStatus.ACTIVE and subscription.expire_at <= now)
+        )
         and subscription.grace_until is None
         # an expiry no later than the last grace's end is that grace's own
         and (
