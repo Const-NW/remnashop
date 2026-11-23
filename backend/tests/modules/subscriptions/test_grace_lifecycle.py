@@ -77,6 +77,14 @@ class _Grace:
     ) -> None:
         subscriptions = SubscriptionRepository(session)
         users = UserRepository(session)
+        sync = SyncSubscriptionStatusUseCase(
+            subscriptions,
+            uow,
+            publisher,
+            SubscriptionLifecycleService(subscriptions, CreditSegmentRepository(session)),
+            sdk,
+            SettingsRepository(session),
+        )
         self.enter = EnterGraceUseCase(
             subscriptions,
             PlanRepository(session),
@@ -86,20 +94,13 @@ class _Grace:
             sdk,
             uow,
             publisher,
+            sync,
         )
         self.end = EndGraceUseCase(
             subscriptions, users, SettingsRepository(session), sdk, uow, publisher
         )
         self.sweep = SweepGraceUseCase(
             subscriptions, SettingsRepository(session), uow, self.enter, self.end
-        )
-        sync = SyncSubscriptionStatusUseCase(
-            subscriptions,
-            uow,
-            publisher,
-            SubscriptionLifecycleService(subscriptions, CreditSegmentRepository(session)),
-            sdk,
-            SettingsRepository(session),
         )
         publish = PublishPanelEventUseCase(subscriptions, users, uow, publisher)
         self.webhook = ProcessRemnawaveWebhookUseCase(
@@ -1431,3 +1432,34 @@ async def test_grace_end_of_a_panel_user_deleted_without_a_webhook(
 
     assert (await subscription_repository.get_by_id(subscription.id)).grace_until is None
     assert await _events(session, subscription.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_sweep_takes_a_panel_extension_instead_of_entering_grace(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_404)
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == before.id)
+        .values(status=SubscriptionStatus.ACTIVE)
+    )
+    # extended in the panel, both webhooks lost
+    extended_until = truncate_to_ms(datetime_now() + timedelta(days=30))
+    remnawave_store[94_404].update({"expireAt": extended_until.isoformat(), "status": "ACTIVE"})
+
+    await grace.sweep.system()
+
+    after = await subscription_repository.get_by_id(before.id)
+    assert after.grace_until is None
+    assert after.status is SubscriptionStatus.ACTIVE
+    assert truncate_to_ms(after.expire_at) == extended_until
+    assert remnawave_store[94_404]["tag"] == "PLAN"
+    assert await _events(session, before.id) == []

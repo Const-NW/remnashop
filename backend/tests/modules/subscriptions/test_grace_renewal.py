@@ -787,6 +787,14 @@ async def test_grace_entered_mid_renewal_leaves_the_panel_on_the_plan_config(
         remnawave_sdk,
         uow,
         event_publisher,
+        SyncSubscriptionStatusUseCase(
+            subscription_repository,
+            uow,
+            event_publisher,
+            SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
+            remnawave_sdk,
+            settings_repository,
+        ),
     )
     real_get_user_by_id = remnawave_sdk.users.get_user_by_id
 
@@ -907,6 +915,14 @@ async def test_repeat_grace_push_during_a_renewal_in_grace_is_undone(
         remnawave_sdk,
         uow,
         event_publisher,
+        SyncSubscriptionStatusUseCase(
+            subscription_repository,
+            uow,
+            event_publisher,
+            SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
+            remnawave_sdk,
+            settings_repository,
+        ),
     )
     real_update = remnawave_sdk.users.update_user
     raced: list[bool] = []

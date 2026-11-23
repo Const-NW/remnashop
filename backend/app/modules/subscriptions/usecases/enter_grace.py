@@ -27,7 +27,11 @@ from app.modules.subscriptions.events import (
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import grace_panel_update, restore, revert_panel_to_owner
+from app.modules.subscriptions.panel_sync import from_panel
 from app.modules.subscriptions.repository import SubscriptionRepository
+from app.modules.subscriptions.usecases.sync_subscription_status import (
+    SyncSubscriptionStatusUseCase,
+)
 from app.modules.users import UserRepository
 
 _NEVER_SENT: Final[tuple[type[Exception], ...]] = (httpx.ConnectError, httpx.ConnectTimeout)
@@ -58,9 +62,11 @@ class EnterGraceUseCase(UseCase[int, bool]):
         remnawave_sdk: RemnawaveSDK,
         uow: UnitOfWork,
         event_publisher: EventPublisher,
+        sync_subscription_status_use_case: SyncSubscriptionStatusUseCase,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._plan_repository = plan_repository
+        self._sync_subscription_status_use_case = sync_subscription_status_use_case
         self._settings_repository = settings_repository
         self._user_repository = user_repository
         self._lifecycle_service = lifecycle_service
@@ -69,6 +75,8 @@ class EnterGraceUseCase(UseCase[int, bool]):
         self._event_publisher = event_publisher
 
     async def _execute(self, actor: Actor, data: int) -> bool:
+        if await self._extended_in_panel(data):
+            return False
         now = datetime_now()
         async with self._uow:
             settings = await self._settings_repository.get_grace_settings()
@@ -101,6 +109,17 @@ class EnterGraceUseCase(UseCase[int, bool]):
             ):
                 return True
 
+        return await self._finish(subscription, grace_until, settings, claimed=claimed)
+
+    async def _finish(
+        self,
+        subscription: SubscriptionDto,
+        grace_until: datetime,
+        settings: GraceSettingsDto,
+        *,
+        claimed: bool,
+    ) -> bool:
+        data = subscription.id
         if not await self._still_in_grace(data, grace_until, settings, claimed=claimed):
             return False
         if not claimed:
@@ -112,6 +131,36 @@ class EnterGraceUseCase(UseCase[int, bool]):
         except Exception:
             logger.exception(f"Failed to reset traffic of subscription '{data}' entering grace")
         logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
+        return True
+
+    async def _extended_in_panel(self, data: int) -> bool:
+        """A row left ACTIVE past its expiry lost its expiry webhook, and maybe the
+        panel extension after it: the panel's date is read before grace cuts it short.
+        True when the row isn't to enter grace now."""
+        async with self._uow:
+            settings = await self._settings_repository.get_grace_settings()
+            subscription = await self._subscription_repository.get_by_id(data)
+        if not (
+            settings.enabled
+            and subscription.status is SubscriptionStatus.ACTIVE
+            and subscription.grace_until is None
+            and subscription.expire_at <= datetime_now()
+        ):
+            return False
+        try:
+            panel_user = await self._remnawave_sdk.users.get_user_by_id(
+                subscription.remnawave_user_id
+            )
+        except Exception:
+            # the sweep's attempt rotation comes back to it
+            logger.exception(f"Failed to read the panel user of subscription '{data}'")
+            return True
+        if panel_user.expire_at <= datetime_now():
+            return False
+        await self._sync_subscription_status_use_case.system(
+            from_panel(panel_user, subscription.remnawave_user_id, "grace_sweep")
+        )
+        logger.info(f"Subscription '{data}' was extended in the panel, no grace")
         return True
 
     async def _claim(

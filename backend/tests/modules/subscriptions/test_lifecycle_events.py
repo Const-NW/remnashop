@@ -77,6 +77,7 @@ def _use_case(
         sdk,
         uow,
         event_publisher,
+        sync,
     )
     end = EndGraceUseCase(
         subscription_repository,
