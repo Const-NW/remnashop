@@ -114,7 +114,7 @@ export function GraceSettingsSection() {
                 <Switch checked={enabled} onChange={setEnabled} />
               </Row>
             </SectionRows>
-            <SectionFields divided>
+            <SectionFields>
               <PlanSquadsField
                 value={squads}
                 onChange={setSquads}
