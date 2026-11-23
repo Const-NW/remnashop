@@ -156,7 +156,7 @@ export function GraceSettingsSection() {
                   ))}
                 </div>
               </Field>
-              <Field label={t("plans.edit.tagLabel")} htmlFor="grace-tag" hint={t("plans.edit.tagHint")}>
+              <Field label={t("plans.edit.tagLabel")} htmlFor="grace-tag" info={t("plans.edit.tagHint")}>
                 <Input
                   id="grace-tag"
                   value={tag}
