@@ -88,8 +88,8 @@ def test_grace_line_is_trusted_html() -> None:
 
 def test_grace_line_names_the_date_or_nothing() -> None:
     dated = _grace_line(datetime(2026, 12, 5, tzinfo=timezone.utc))
-    assert dated == "• <b>Grace period</b> until 05.12.2026"
-    assert _grace_line(datetime(2099, 12, 5, tzinfo=timezone.utc)) == "• <b>Grace period</b>"
+    assert dated == "• Grace period until 05.12.2026"
+    assert _grace_line(datetime(2099, 12, 5, tzinfo=timezone.utc)) == "• Grace period"
     assert _grace_line(None) == ""
 
 

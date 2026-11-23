@@ -74,7 +74,11 @@ frg-subscription-status = { $status ->
        *[other] { $status }
     }
 frg-subscription-unlimited = Безлимит
-frg-subscription-grace = • <b>Льготный период</b>{ $grace_until ->
+frg-subscription-grace = • Льготный период{ $grace_until ->
+        [none] {""}
+       *[other] {" "}до { $grace_until }
+    }
+frg-subscription-card-grace = • <b>Льготный период</b>{ $grace_until ->
         [none] {""}
        *[other] {" "}до { $grace_until }
     }

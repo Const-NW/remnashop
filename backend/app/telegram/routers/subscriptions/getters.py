@@ -56,7 +56,7 @@ _KNOWN_PLATFORMS: Final[frozenset[str]] = frozenset({"ios", "android", "windows"
 def card_grace(runner: TranslatorRunner, subscription: SubscriptionDto) -> str:
     """The grace line set off from the limits by an empty line. The empty line can't
     live in the template: with no grace the line drops and the gap would stay."""
-    line = grace_line(runner, subscription)
+    line = grace_line(runner, subscription, "frg-subscription-card-grace")
     return TrustedHtml(f"\n{line}") if line else ""
 
 
@@ -65,14 +65,18 @@ def _platform_icon_key(platform: Optional[str]) -> str:
     return normalized if normalized in _KNOWN_PLATFORMS else "default"
 
 
-def grace_line(runner: TranslatorRunner, subscription: SubscriptionDto) -> str:
-    """The card's grace-period line; empty (so the line drops) outside a grace."""
+def grace_line(
+    runner: TranslatorRunner,
+    subscription: SubscriptionDto,
+    key: str = "frg-subscription-grace",
+) -> str:
+    """A grace-period line from `key`; empty (so the line drops) outside a grace."""
     if subscription.grace_until is None:
         return ""
     return TrustedHtml(
         render_window_text(
             runner,
-            "frg-subscription-grace",
+            key,
             grace_until="none"
             if is_unlimited_expiry(subscription.grace_until)
             else format_date(subscription.grace_until),
