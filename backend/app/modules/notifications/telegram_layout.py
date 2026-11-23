@@ -301,6 +301,16 @@ LAYOUTS: Final[dict[str, CardLayout]] = {
     "SubscriptionDeviceAddedEvent": CardLayout(sections=frozenset({CardSection.DEVICE})),
     "SubscriptionDeviceRemovedEvent": CardLayout(sections=frozenset({CardSection.DEVICE})),
     "PromocodeActivatedEvent": CardLayout(sections=frozenset({CardSection.PROMOCODE})),
+    "DailyReportEvent": CardLayout(
+        sections=frozenset(
+            {
+                CardSection.REPORT_DAY,
+                CardSection.REPORT_SUBSCRIPTIONS,
+                CardSection.REPORT_PAYMENTS,
+                CardSection.REPORT_REFERRERS,
+            }
+        )
+    ),
 }
 _REFUNDS: Final[dict[str, str]] = {
     "TransactionRefundedEvent": "refund-full",
@@ -468,6 +478,48 @@ def _access(card: _Card) -> Optional[CardBlock]:
     return "🔓", card.label("access"), rows
 
 
+def _report_day(card: _Card) -> Optional[CardBlock]:
+    currency = card.payload.get("currency")
+    rows: list[CardRow] = [
+        (card.label(key), card.arg(key.replace("-", "_")), False)
+        for key in ("new-users", "new-trials", "trial-conversions", "new-payers")
+    ]
+    rows.append((card.label("revenue"), card.money(card.payload.get("revenue"), currency), False))
+    return "🧭", card.label("report-day"), rows
+
+
+def _report_subscriptions(card: _Card) -> Optional[CardBlock]:
+    rows: list[CardRow] = [
+        (card.label(key), card.arg(key.replace("-", "_")), False)
+        for key in ("active-trials", "active-paid", "paid-never-connected")
+    ]
+    return "💎", card.label("report-subscriptions"), rows
+
+
+def _report_payments(card: _Card) -> Optional[CardBlock]:
+    currency = card.payload.get("currency")
+    rows: list[CardRow] = [
+        (
+            card.label(kind),
+            f"{card.arg(kind)} · {card.money(card.payload.get(f'{kind}_amount'), currency)}",
+            False,
+        )
+        for kind in ("purchases", "renewals", "changes")
+    ]
+    return "💰", card.label("report-payments"), rows
+
+
+def _report_referrers(card: _Card) -> Optional[CardBlock]:
+    top = card.payload.get("top_referrers")
+    if not isinstance(top, list):
+        return None
+    rows: list[CardRow] = [
+        (f"{place}. {name or card.label('unnamed-user') + f' #{user_id}'}", str(invited), False)
+        for place, (user_id, name, invited) in enumerate(top, 1)
+    ]
+    return "🤝", card.label("report-referrers"), rows
+
+
 # in the order they appear on the card
 _SECTIONS: Final[tuple[tuple[CardSection, Callable[[_Card], Optional[CardBlock]]], ...]] = (
     (CardSection.PAYMENT, _payment),
@@ -477,6 +529,10 @@ _SECTIONS: Final[tuple[tuple[CardSection, Callable[[_Card], Optional[CardBlock]]
     (CardSection.DEVICE, _device),
     (CardSection.BUILD, _build),
     (CardSection.ACCESS, _access),
+    (CardSection.REPORT_DAY, _report_day),
+    (CardSection.REPORT_SUBSCRIPTIONS, _report_subscriptions),
+    (CardSection.REPORT_PAYMENTS, _report_payments),
+    (CardSection.REPORT_REFERRERS, _report_referrers),
 )
 
 

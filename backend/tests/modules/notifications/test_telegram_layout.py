@@ -159,7 +159,7 @@ _PAYLOAD: dict[str, Any] = {
 
 
 def _card(renderer: NotificationRenderer, locale: Locale, event_type: str) -> str:
-    args = notification_args(_PAYLOAD, "185.12.44.7")
+    args = notification_args(_PAYLOAD, "185.12.44.7", Locale.EN)
     title, body = renderer.render(locale, event_type, args)
     return build_telegram_card(
         renderer,
@@ -219,7 +219,7 @@ def test_an_unlimited_purchase_card_says_no_end_date() -> None:
             "plan_snapshot": replace(_plan(), duration_days=0),
         }
     )
-    args = notification_args(_PAYLOAD, "185.12.44.7")
+    args = notification_args(_PAYLOAD, "185.12.44.7", Locale.EN)
     title, body = renderer.render(Locale.RU, "SubscriptionPurchasedEvent", args)
 
     card = build_telegram_card(
@@ -244,7 +244,7 @@ def test_a_plan_change_shows_old_and_new_plan_side_by_side() -> None:
     renderer = _renderer(Locale.RU)
     previous = {"name": "Базовый", "traffic_limit": 0, "device_limit": 3, "duration_days": 30}
     payload = {**_PAYLOAD, "previous_plan_snapshot": previous}
-    args = notification_args(payload, None)
+    args = notification_args(payload, None, Locale.EN)
     title, body = renderer.render(Locale.RU, "SubscriptionChangedEvent", args)
 
     card = build_telegram_card(
@@ -293,7 +293,7 @@ def test_a_bare_user_id_becomes_the_user_block_without_empty_rows() -> None:
 def test_a_system_event_has_no_user_block(event_type: str) -> None:
     renderer = _renderer(Locale.RU)
     payload = {k: v for k, v in _PAYLOAD.items() if k != "user"}
-    args = notification_args(payload, None)
+    args = notification_args(payload, None, Locale.EN)
     title, body = renderer.render(Locale.RU, event_type, args)
 
     card = build_telegram_card(
@@ -340,7 +340,7 @@ def test_traffic_starts_at_megabytes(size: int, shown: str) -> None:
         access=data.access,
     )
     renderer = _renderer(Locale.RU)
-    args = notification_args(_PAYLOAD, None)
+    args = notification_args(_PAYLOAD, None, Locale.EN)
     title, body = renderer.render(Locale.RU, "SubscriptionExpiredEvent", args)
     card = build_telegram_card(
         renderer,
@@ -368,7 +368,7 @@ def test_a_change_from_a_panel_import_shows_no_old_term() -> None:
         "duration_days": 0,
     }
     payload = {**_PAYLOAD, "previous_plan_snapshot": previous}
-    args = notification_args(payload, None)
+    args = notification_args(payload, None, Locale.EN)
     title, body = renderer.render(Locale.RU, "SubscriptionChangedEvent", args)
 
     card = build_telegram_card(

@@ -1,5 +1,6 @@
 import { usePermissions } from "@entities/user/use-current-user";
 import { AccessSettingsForm } from "@features/access-settings/AccessSettingsForm";
+import { DailyReportSettingsForm } from "@features/daily-report-settings/DailyReportSettingsForm";
 import { LegalDocumentsEditor } from "@features/legal-documents-editor/LegalDocumentsEditor";
 import { OAuthSettingsForm } from "@features/oauth-settings/OAuthSettingsForm";
 import { ShopSettingsForm } from "@features/shop-settings/ShopSettingsForm";
@@ -15,6 +16,7 @@ export function GeneralSettingsPage() {
       {permissions.includes("SHOP_SETTINGS_VIEW") && <ShopSettingsForm />}
       {permissions.includes("SHOP_SETTINGS_VIEW") && <SupportSettingsForm />}
       {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <WebPushSettingsForm />}
+      {permissions.includes("NOTIFICATION_SETTINGS_VIEW") && <DailyReportSettingsForm />}
       {permissions.includes("LEGAL_DOCUMENTS_VIEW") && <LegalDocumentsEditor />}
     </div>
   );

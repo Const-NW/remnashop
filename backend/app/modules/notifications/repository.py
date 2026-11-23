@@ -49,6 +49,10 @@ class NotificationRepository:
         row = await get_or_create_singleton(self.session, NotificationSettings, SINGLETON_ID)
         if data.vapid_contact is not None:
             row.vapid_contact = data.vapid_contact or None
+        if data.report_timezone is not None:
+            row.report_timezone = data.report_timezone
+        if data.daily_report_hour is not None:
+            row.daily_report_hour = data.daily_report_hour
         await self.session.flush()
         await self.session.refresh(row)
         return self._to_settings_dto(row)

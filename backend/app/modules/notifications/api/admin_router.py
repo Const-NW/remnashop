@@ -176,7 +176,12 @@ async def update_notification_settings(
     actor: Actor = Depends(require_admin),
 ) -> NotificationSettingsResponse:
     settings = await use_case(
-        actor, UpdateNotificationSettingsDto(vapid_contact=body.vapid_contact)
+        actor,
+        UpdateNotificationSettingsDto(
+            vapid_contact=body.vapid_contact,
+            report_timezone=body.report_timezone,
+            daily_report_hour=body.daily_report_hour,
+        ),
     )
     return NotificationSettingsResponse.model_validate(settings, from_attributes=True)
 

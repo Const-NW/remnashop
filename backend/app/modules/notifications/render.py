@@ -7,6 +7,7 @@ from fluent_compiler.bundle import FluentBundle
 from loguru import logger
 
 from app.core.enums import Locale
+from app.core.utils.money import format_money
 from app.core.utils.telegram_text import premium_emoji_html
 
 # rendered by the test push; message_id() turns it into ntf-test
@@ -16,6 +17,8 @@ _CAMEL_BOUNDARY: Final[re.Pattern[str]] = re.compile(
 )
 _USER_KEYS: Final[tuple[str, ...]] = ("user", "target", "actor")
 _EMPTY: Final[str] = "—"
+# an amount in the payload → the arg the templates print it as, with its currency
+_MONEY_ARGS: Final[dict[str, str]] = {"amount": "money", "revenue": "revenue_money"}
 _NON_WORD: Final[re.Pattern[str]] = re.compile(r"\W")
 
 
@@ -80,7 +83,7 @@ def telegram_card(
 
 
 def notification_args(
-    payload: dict[str, Any], ip_address: Optional[str]
+    payload: dict[str, Any], ip_address: Optional[str], locale: Locale
 ) -> dict[str, Union[str, int]]:
     args: dict[str, Union[str, int]] = {
         # a flag reads as a selector: { $is_trial -> [yes] ... }
@@ -92,6 +95,11 @@ def notification_args(
         snapshot = payload.get(key)
         if isinstance(snapshot, dict):
             args[key] = _display(snapshot)
+    currency = payload.get("currency")
+    if currency:
+        for key, name in _MONEY_ARGS.items():
+            if payload.get(key) is not None:
+                args[name] = format_money(str(payload[key]), str(currency), locale)
     # templates print it unconditionally; without it Fluent would print "ip"
     args["ip"] = ip_address or _EMPTY
     return args
