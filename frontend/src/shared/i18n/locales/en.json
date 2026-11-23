@@ -1638,6 +1638,7 @@
       "durationLabel": "Duration, days",
       "internalSquadsHint": "Leave empty to keep the subscription’s own squads.",
       "externalSquadHint": "“None” keeps the subscription’s own external squad.",
+      "tagHint": "Leave empty to keep the subscription’s tag. Capital Latin letters, digits and “_”.",
       "durationUnlimited": "No end"
     },
     "shop": {

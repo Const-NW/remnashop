@@ -117,7 +117,7 @@ def test_grace_panel_update() -> None:
     assert update.traffic_limit_strategy == TrafficLimitStrategy.NO_RESET
     assert update.hwid_device_limit == 3
     assert update.active_internal_squads is None
-    assert "tag" in update.model_fields_set and update.tag is None
+    assert "tag" not in update.model_fields_set
 
 
 def test_grace_panel_update_without_squads_keeps_the_panel_ones() -> None:
@@ -125,6 +125,10 @@ def test_grace_panel_update_without_squads_keeps_the_panel_ones() -> None:
 
     assert "active_internal_squads" not in update.model_fields_set
     assert "external_squad_uuid" not in update.model_fields_set
+
+
+def test_grace_panel_update_sends_a_configured_tag() -> None:
+    assert grace_panel_update(_expired(), _settings(tag="GRACE"), _NOW).tag == "GRACE"
 
 
 def test_grace_panel_update_sends_configured_squads() -> None:
