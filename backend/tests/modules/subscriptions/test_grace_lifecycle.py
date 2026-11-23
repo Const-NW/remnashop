@@ -1146,3 +1146,34 @@ async def test_sweep_enters_grace_for_a_row_whose_expiry_webhook_never_came(
     assert after.grace_until is not None
     assert remnawave_store[94_801]["tag"] == "GRACE"
     assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def test_panel_disable_during_grace_reaches_the_row(
+    grace: _Grace,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_901)
+    assert await grace.enter.system(before.id)
+    grace_until = (await subscription_repository.get_by_id(before.id)).grace_until
+    assert grace_until is not None
+
+    await grace.webhook.system(_webhook(config, "user.disabled", 94_901, "DISABLED", grace_until))
+
+    disabled = await subscription_repository.get_by_id(before.id)
+    assert disabled.status is SubscriptionStatus.DISABLED
+    assert disabled.grace_until == grace_until
+
+    await grace.webhook.system(
+        _webhook(config, "user.enabled", 94_901, "ACTIVE", grace_until, onlineAt=None)
+    )
+
+    enabled = await subscription_repository.get_by_id(before.id)
+    assert enabled.status is SubscriptionStatus.EXPIRED
+    assert enabled.grace_until == grace_until

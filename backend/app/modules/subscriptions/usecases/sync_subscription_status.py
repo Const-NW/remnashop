@@ -76,6 +76,7 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             if live and subscription.grace_until is not None:
                 if not _leaves_grace(subscription, data):
                     # the panel holds the grace config, not the row's terms
+                    subscription = await self._sync_grace_status(subscription, data)
                     return await self._sync_url(subscription, data)
                 left_grace = True
                 subscription = await self._subscription_repository.set_grace_until(
@@ -102,6 +103,31 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             await self._remnawave_sdk.users.update_user(restore(subscription))
         except Exception:
             logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
+
+    async def _sync_grace_status(
+        self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
+    ) -> SubscriptionDto:
+        """In grace the panel user runs ACTIVE on the grace config while the row stays
+        EXPIRED: only a switch-off in the panel, or its undoing, is the row's."""
+        target = (
+            SubscriptionStatus.DISABLED
+            if data.status is SubscriptionStatus.DISABLED
+            else SubscriptionStatus.EXPIRED
+        )
+        if subscription.status is target:
+            return subscription
+        old_status = subscription.status
+        subscription = await self._lifecycle_service.sync_status(subscription.id, target)
+        await self._event_publisher.publish(
+            SubscriptionStatusSyncedEvent(
+                subscription_id=subscription.id,
+                old_status=old_status,
+                new_status=subscription.status,
+                source=data.source,
+                user_id=subscription.user_id,
+            )
+        )
+        return subscription
 
     async def _sync_url(
         self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
