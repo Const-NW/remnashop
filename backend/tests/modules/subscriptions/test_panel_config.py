@@ -19,6 +19,7 @@ from app.modules.subscriptions.panel_config import _base_limit, panel_config
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import SyncSubscriptionStatusUseCase
 from app.modules.users.repository import UserRepository
+from tests.fakes.remnawave import unused_sdk
 from tests.modules.subscriptions.factories import create_subscription
 
 
@@ -82,6 +83,7 @@ def _use_case(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
     )
 
 

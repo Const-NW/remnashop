@@ -1,5 +1,8 @@
 from typing import Optional
 
+from loguru import logger
+from remnapy import RemnawaveSDK
+
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
@@ -17,6 +20,7 @@ from app.modules.subscriptions.events import (
     SubscriptionStatusSyncedEvent,
 )
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.panel import restore
 from app.modules.subscriptions.panel_config import changed_config_fields, config_update
 from app.modules.subscriptions.repository import SubscriptionRepository
 
@@ -30,11 +34,13 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
         uow: UnitOfWork,
         event_publisher: EventPublisher,
         lifecycle_service: SubscriptionLifecycleService,
+        remnawave_sdk: RemnawaveSDK,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._uow = uow
         self._event_publisher = event_publisher
         self._lifecycle_service = lifecycle_service
+        self._remnawave_sdk = remnawave_sdk
 
     async def _execute(
         self, actor: Actor, data: SyncSubscriptionStatusDto
@@ -66,31 +72,47 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
                     data.remnawave_user_id, data.panel_created_at
                 )
 
+            left_grace = False
             if live and subscription.grace_until is not None:
                 if not _leaves_grace(subscription, data):
                     # the panel holds the grace config, not the row's terms
-                    if data.config is not None and data.config.url != subscription.url:
-                        subscription = await self._sync_url(
-                            subscription, data.config.url, data.source
-                        )
-                    return subscription
+                    return await self._sync_url(subscription, data)
+                left_grace = True
                 subscription = await self._subscription_repository.set_grace_until(
                     subscription.id, None
                 )
 
             subscription = await self._sync_status(subscription, data)
-            if data.config is not None and subscription.status is not SubscriptionStatus.DELETED:
+            if subscription.status is SubscriptionStatus.DELETED:
+                return subscription
+            if left_grace:
+                # only the expiry and status are the panel's: its config is still grace's
+                subscription = await self._sync_url(subscription, data)
+            elif data.config is not None:
                 subscription = await self._sync_config(subscription, data.config, data.source)
-            return subscription
+
+        if left_grace:
+            await self._push_out_of_grace(subscription)
+        return subscription
+
+    async def _push_out_of_grace(self, subscription: SubscriptionDto) -> None:
+        # after the commit: a retried sync would take the grace config into the row,
+        # so a failed push is only logged
+        try:
+            await self._remnawave_sdk.users.update_user(restore(subscription))
+        except Exception:
+            logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
 
     async def _sync_url(
-        self, subscription: SubscriptionDto, url: str, source: StatusSyncSource
+        self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
     ) -> SubscriptionDto:
-        subscription = await self._subscription_repository.set_url(subscription.id, url)
+        if data.config is None or data.config.url == subscription.url:
+            return subscription
+        subscription = await self._subscription_repository.set_url(subscription.id, data.config.url)
         await self._event_publisher.publish(
             SubscriptionConfigSyncedEvent(
                 subscription_id=subscription.id,
-                source=source,
+                source=data.source,
                 changed_fields=["url"],
                 removed_addon_types=[],
                 user_id=subscription.user_id,

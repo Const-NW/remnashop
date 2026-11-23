@@ -4,6 +4,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 import httpx
+from remnapy import RemnawaveSDK
 
 FakeUserStore = dict[int, dict[str, Any]]
 FakeHwidStore = dict[int, list[dict[str, Any]]]
@@ -327,3 +328,8 @@ def make_fake_remnawave_transport(
         return httpx.Response(404, json={"error": f"fake transport: no handler for {path}"})
 
     return httpx.MockTransport(handler), store, hwid_store
+
+
+def unused_sdk() -> RemnawaveSDK:
+    """For a use case whose test never reaches the panel."""
+    return RemnawaveSDK(client=httpx.AsyncClient(base_url="http://unused"))

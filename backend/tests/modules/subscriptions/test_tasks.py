@@ -100,6 +100,7 @@ def _reconcile_use_case(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        remnawave_sdk,
     )
     return SyncAllFromPanelUseCase(
         subscription_repository,

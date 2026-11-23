@@ -94,6 +94,7 @@ class _Grace:
             uow,
             publisher,
             SubscriptionLifecycleService(subscriptions, CreditSegmentRepository(session)),
+            sdk,
         )
         publish = PublishPanelEventUseCase(subscriptions, users, uow, publisher)
         self.webhook = ProcessRemnawaveWebhookUseCase(

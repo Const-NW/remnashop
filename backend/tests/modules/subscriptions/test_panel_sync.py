@@ -60,7 +60,7 @@ from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
 from tests.fakes.dispatch import RecordingDispatch
 from tests.fakes.panel_squads import FixedPanelSquads
-from tests.fakes.remnawave import FakeUserStore, _user_payload
+from tests.fakes.remnawave import FakeUserStore, _user_payload, unused_sdk
 from tests.modules.subscriptions.factories import create_subscription, make_eligibility
 
 _FROM = SyncFromPanelOptionsDto(adopt_unnamed=True, respect_subscription_limit=True)
@@ -92,6 +92,7 @@ def _sync(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
     )
 
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Optional
 from uuid import uuid4
 
 from redis.asyncio import Redis
@@ -21,6 +21,7 @@ from app.modules.subscriptions.dto import (
     SubscriptionDto,
     SyncSubscriptionStatusDto,
     SyncToPanelOptionsDto,
+    UpdateSubscriptionSquadsDto,
 )
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import restore
@@ -34,15 +35,19 @@ from app.modules.subscriptions.usecases import (
 )
 from app.modules.users.dto import UserDto
 from app.modules.users.repository import UserRepository
-from tests.fakes.remnawave import FakeUserStore, _user_payload
+from tests.fakes.remnawave import FakeUserStore, _user_payload, unused_sdk
 from tests.modules.subscriptions.factories import create_subscription, make_subscription_dto
 
 OWNER = UserDto(login="owner", name="owner", role=Role.OWNER, language=Locale.EN)
 _GRACE_SQUAD = uuid4()
+_PLAN_SQUAD = uuid4()
 
 
 def _sync(
-    subscription_repository: SubscriptionRepository, uow: UnitOfWork, publisher: EventPublisher
+    subscription_repository: SubscriptionRepository,
+    uow: UnitOfWork,
+    publisher: EventPublisher,
+    sdk: Optional[RemnawaveSDK] = None,
 ) -> SyncSubscriptionStatusUseCase:
     return SyncSubscriptionStatusUseCase(
         subscription_repository,
@@ -51,6 +56,7 @@ def _sync(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        sdk or unused_sdk(),
     )
 
 
@@ -159,7 +165,7 @@ async def test_pull_during_grace_keeps_row(
         subscription_repository,
         user_repository,
         remnawave_sdk,
-        _sync(subscription_repository, uow, event_publisher),
+        _sync(subscription_repository, uow, event_publisher, remnawave_sdk),
         event_publisher,
         uow,
     )(OWNER, before.id)
@@ -167,27 +173,28 @@ async def test_pull_during_grace_keeps_row(
     _assert_row_kept(before, after)
 
 
-async def test_panel_extension_exits_grace(
+async def test_panel_extension_exits_grace_on_the_rows_config(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
     settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
     uow: UnitOfWork,
     event_publisher: EventPublisher,
 ) -> None:
-    before = await _in_grace(subscription_repository, user_repository, settings_repository, 93_003)
-    extended = datetime_now() + timedelta(days=30)
-    panel = UserResponseDto.model_validate(
-        _grace_panel_user(
-            before,
-            extended,
-            trafficLimitBytes=50 * GB_TO_BYTES,
-            trafficLimitStrategy="MONTH",
-            tag=None,
-            activeInternalSquads=[],
+    graced = await _in_grace(subscription_repository, user_repository, settings_repository, 93_003)
+    await subscription_repository.update_squads(
+        UpdateSubscriptionSquadsDto(
+            subscription_id=graced.id, internal_squads=[_PLAN_SQUAD], external_squad=None
         )
     )
+    before = await subscription_repository.set_tag(graced.id, "PLAN")
+    extended = datetime_now() + timedelta(days=30)
+    # an admin moved only the date: the rest is still the grace config
+    remnawave_store[93_003] = _grace_panel_user(before, extended)
+    panel = UserResponseDto.model_validate(remnawave_store[93_003])
 
-    after = await _sync(subscription_repository, uow, event_publisher).system(
+    after = await _sync(subscription_repository, uow, event_publisher, remnawave_sdk).system(
         from_panel(panel, before.remnawave_user_id, "webhook")
     )
 
@@ -196,11 +203,19 @@ async def test_panel_extension_exits_grace(
     assert after.status is SubscriptionStatus.ACTIVE
     assert truncate_to_ms(after.expire_at) == truncate_to_ms(extended)
     assert (after.traffic_limit, after.traffic_limit_strategy, after.tag) == (
-        50,
-        TrafficLimitStrategy.MONTH,
-        None,
+        100,
+        before.traffic_limit_strategy,
+        "PLAN",
     )
-    assert after.internal_squads == []
+    assert after.internal_squads == [_PLAN_SQUAD]
+    pushed = remnawave_store[93_003]
+    assert pushed["trafficLimitBytes"] == 100 * GB_TO_BYTES
+    assert pushed["trafficLimitStrategy"] == before.traffic_limit_strategy.value
+    assert pushed["tag"] == "PLAN"
+    assert [s["uuid"] for s in pushed["activeInternalSquads"]] == [str(_PLAN_SQUAD)]
+    assert truncate_to_ms(
+        datetime.fromisoformat(str(pushed["expireAt"]).replace("Z", "+00:00"))
+    ) == truncate_to_ms(extended)
 
 
 async def test_push_during_grace_sends_grace_config(

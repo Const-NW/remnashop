@@ -30,7 +30,7 @@ from app.modules.subscriptions.usecases import (
     SyncSubscriptionStatusUseCase,
 )
 from app.modules.users.repository import UserRepository
-from tests.fakes.remnawave import make_fake_remnawave_transport
+from tests.fakes.remnawave import make_fake_remnawave_transport, unused_sdk
 from tests.fakes.remnawave_webhook import sign_webhook, user_event_payload
 from tests.modules.subscriptions.factories import create_subscription
 
@@ -56,6 +56,7 @@ def _use_case(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
     )
     publish = PublishPanelEventUseCase(
         subscription_repository, user_repository, uow, event_publisher

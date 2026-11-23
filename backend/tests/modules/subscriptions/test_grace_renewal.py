@@ -636,6 +636,7 @@ async def test_renewal_echo_in_grace_keeps_add_ons_and_the_plan_config(
         uow,
         event_publisher,
         SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
+        remnawave_sdk,
     )
     real_update = remnawave_sdk.users.update_user
     echoed: list[UserResponseDto] = []
