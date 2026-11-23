@@ -66,3 +66,35 @@ Cloudflare, restore it with `real_ip_header CF-Connecting-IP` first.
 | CloudPayments | 185.98.81.0/28, 87.251.91.160/27, 46.46.175.96/27, 46.46.168.160/27, 162.55.174.97, 91.216.178.243 |
 
 Other gateways publish no addresses.
+
+## 2328.io
+
+`PAY_2328` uses a project UUID and an encrypted API key. The default invoice
+currency is RUB; the standard currency override also accepts USD. The adapter
+uses hosted checkout, so the payer chooses the crypto currency and network on
+2328.io. Invoice lifetime follows the local order expiry, bounded by the
+provider's 300–86400 second range; there is no separate gateway TTL setting.
+
+Requests and notifications use HMAC-SHA256 over Base64 of compact JSON, with
+Unicode and slashes unescaped and object field order preserved. Both paid and
+non-paid notifications are checked against `/api/v1/payment/info` by the stored
+order key. Only `paid` and `overpaid` can settle an order; missing amounts,
+currency, references or payment identifiers are refused. A retry uses the same
+order key and a conflicting returned invoice is refused.
+
+`underpaid` and `aml_lock` report failure without fulfillment; `cancel` reports
+cancellation. Intermediate statuses, including `awaiting_confirmation` and
+`underpaid_check`, do not settle the order. `refund_paid` uses the existing
+refund flow after API verification. The provider documents no fiat partial
+refund amount in this notification: it remains unknown to the shop, whose
+existing policy handles an unknown refund amount as a full refund. Refunds
+are not initiated by this adapter.
+
+The enum migration adds no active gateway or credentials. Do not downgrade
+while any transaction references `PAY_2328`; the enum rebuild refuses it.
+No legacy payment records or settings are imported by this change.
+
+Provider references: [payments](https://2328.io/api/payments),
+[signing](https://2328.io/api/authentication),
+[webhooks](https://2328.io/api/webhooks). Brandmark source:
+`https://2328.io/brand-assets/logo-mark-dark.svg` (also shipped in the cabinet).

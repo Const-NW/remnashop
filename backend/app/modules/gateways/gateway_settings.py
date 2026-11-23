@@ -169,6 +169,12 @@ class PayPearSettings(GatewaySettings):
     currency: Optional[str] = None
 
 
+class Pay2328Settings(GatewaySettings):
+    project_uuid: str
+    api_key: SecretStr
+    currency: Optional[str] = None
+
+
 class CisPaySettings(GatewaySettings):
     shop_id: str
     api_key: SecretStr
@@ -200,4 +206,5 @@ GATEWAY_SETTINGS: Final[dict[PaymentGatewayType, type[GatewaySettings]]] = {
     PaymentGatewayType.CLOUDPAYMENTS: CloudPaymentsSettings,
     PaymentGatewayType.PAYPEAR: PayPearSettings,
     PaymentGatewayType.CISPAY: CisPaySettings,
+    PaymentGatewayType.PAY_2328: Pay2328Settings,
 }
