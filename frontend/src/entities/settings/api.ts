@@ -4,11 +4,13 @@ export interface BotSettings {
   is_configured: boolean;
   is_proxy_configured: boolean;
   drop_pending_updates: boolean;
+  remove_reply_keyboard: boolean;
 }
 
 export interface UpdateBotSettingsPayload {
   token?: string;
   drop_pending_updates?: boolean;
+  remove_reply_keyboard?: boolean;
 }
 
 export function getBotSettings(signal?: AbortSignal): Promise<BotSettings> {

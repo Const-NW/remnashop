@@ -1,7 +1,7 @@
 from aiogram import Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from aiogram_dialog import DialogManager, ShowMode, StartMode
 from aiogram_dialog.widgets.kbd import Keyboard
 from dishka import FromDishka
@@ -37,8 +37,22 @@ router = Router(name=__name__)
 
 
 @router.message(CommandStart())
-async def on_start_command(message: Message, user: UserDto, dialog_manager: DialogManager) -> None:
+async def on_start_command(
+    message: Message,
+    user: UserDto,
+    dialog_manager: DialogManager,
+    remove_reply_keyboard: bool,
+    i18n: FromDishka[TranslatorHub],
+) -> None:
     logger.info(f"{user.log} Started menu dialog")
+    if remove_reply_keyboard:
+        # stays in the chat: a client rebuilding its cache takes the keyboard
+        # from the latest message that set one, and an old bot's would win again
+        await message.answer(
+            render_window_text(get_translator(i18n, user), "msg-start-welcome"),
+            parse_mode=ParseMode.HTML,
+            reply_markup=ReplyKeyboardRemove(),
+        )
     await dialog_manager.start(
         state=MainMenu.MAIN,
         mode=StartMode.RESET_STACK,

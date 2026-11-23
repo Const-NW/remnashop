@@ -34,6 +34,8 @@ def build_live_app(
     # which only exists once dishka's outer middleware has populated it.
     setup_aiogram_dishka(container, dispatcher, auto_inject=True)
     setup_dispatcher(dispatcher)
+    # read once like the rest of bot settings: applied by a restart
+    dispatcher["remove_reply_keyboard"] = bot_settings.remove_reply_keyboard
 
     app = get_app(
         config,

@@ -1,4 +1,4 @@
-import { Bot, Check, Copy, RefreshCw, ScrollText, Trash2 } from "lucide-react";
+import { Bot, Check, Copy, KeyboardOff, RefreshCw, ScrollText, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -156,10 +156,14 @@ export function BotSettingsForm() {
   const [isRemovingProxy, setIsRemovingProxy] = useState(false);
   const [dropPendingUpdates, setDropPendingUpdates] = useState(false);
   const [initialDropPendingUpdates, setInitialDropPendingUpdates] = useState(false);
+  const [removeReplyKeyboard, setRemoveReplyKeyboard] = useState(false);
+  const [initialRemoveReplyKeyboard, setInitialRemoveReplyKeyboard] = useState(false);
   const [state, , setData] = useAsyncResource(getBotSettings, {
     onSuccess: (settings) => {
       setDropPendingUpdates(settings.drop_pending_updates);
       setInitialDropPendingUpdates(settings.drop_pending_updates);
+      setRemoveReplyKeyboard(settings.remove_reply_keyboard);
+      setInitialRemoveReplyKeyboard(settings.remove_reply_keyboard);
     },
   });
   // without the permission the status stays "loading" forever and its badge is hidden
@@ -191,7 +195,10 @@ export function BotSettingsForm() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const hasSettingsChanges = Boolean(token) || dropPendingUpdates !== initialDropPendingUpdates;
+    const hasSettingsChanges =
+      Boolean(token) ||
+      dropPendingUpdates !== initialDropPendingUpdates ||
+      removeReplyKeyboard !== initialRemoveReplyKeyboard;
     const proxy = proxyUrl.trim();
     validation.submit();
     if ((!hasSettingsChanges && !proxy) || Object.values(errors).some((error) => error !== null)) return;
@@ -204,9 +211,11 @@ export function BotSettingsForm() {
         settings = await updateBotSettings({
           token: token || undefined,
           drop_pending_updates: dropPendingUpdates,
+          remove_reply_keyboard: removeReplyKeyboard,
         });
         setToken("");
         setInitialDropPendingUpdates(settings.drop_pending_updates);
+        setInitialRemoveReplyKeyboard(settings.remove_reply_keyboard);
       }
       if (proxy) {
         settings = await setBotProxy(proxy);
@@ -260,7 +269,9 @@ export function BotSettingsForm() {
   };
 
   const dirty =
-    Boolean(token || proxyUrl.trim()) || dropPendingUpdates !== initialDropPendingUpdates;
+    Boolean(token || proxyUrl.trim()) ||
+    dropPendingUpdates !== initialDropPendingUpdates ||
+    removeReplyKeyboard !== initialRemoveReplyKeyboard;
   const canSave = canManage || canSetProxy;
   // without a token the process restarts into the same idle app: nothing to apply yet
   const isConfigured = state.kind === "ready" && state.data.is_configured;
@@ -353,6 +364,9 @@ export function BotSettingsForm() {
           <SectionRows divided>
             <Row icon={Trash2} label={t("settings.bot.dropPendingUpdatesLabel")} hint={t("settings.bot.dropPendingUpdatesHint")}>
               <Switch checked={dropPendingUpdates} onChange={setDropPendingUpdates} />
+            </Row>
+            <Row icon={KeyboardOff} label={t("settings.bot.removeReplyKeyboardLabel")} hint={t("settings.bot.removeReplyKeyboardHint")}>
+              <Switch checked={removeReplyKeyboard} onChange={setRemoveReplyKeyboard} />
             </Row>
           </SectionRows>
         </fieldset>
