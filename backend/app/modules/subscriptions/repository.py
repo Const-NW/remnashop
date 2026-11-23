@@ -620,7 +620,8 @@ class SubscriptionRepository:
         await self.session.execute(
             update(Subscription)
             .where(in_ids(Subscription.id, subscription_ids))
-            .values(grace_attempted_at=now)
+            # bookkeeping, not a change to the subscription
+            .values(grace_attempted_at=now, updated_at=Subscription.updated_at)
         )
 
     async def set_first_connected_at(self, remnawave_user_id: int, at: datetime) -> None:

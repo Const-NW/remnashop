@@ -867,3 +867,28 @@ async def test_grace_end_of_a_disabled_subscription_sends_no_expiry_notice(
     assert after.grace_until is None
     assert after.status is SubscriptionStatus.DISABLED
     assert await _events(session, subscription.id) == []
+
+
+async def test_marking_a_sweep_attempt_leaves_updated_at_alone(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    plan = await _paid_plan(plan_repository)
+    subscription = await _expired(
+        subscription_repository, user_repository, plan, remnawave_store, 94_507
+    )
+    before = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    session = subscription_repository.session
+    await session.execute(
+        update(Subscription).where(Subscription.id == subscription.id).values(updated_at=before)
+    )
+
+    await subscription_repository.mark_grace_attempted([subscription.id], datetime_now())
+
+    row = await session.get(Subscription, subscription.id)
+    assert row is not None
+    await session.refresh(row)
+    assert row.grace_attempted_at is not None
+    assert row.updated_at == before

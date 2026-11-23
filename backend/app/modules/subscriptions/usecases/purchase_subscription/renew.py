@@ -265,9 +265,10 @@ class RenewPurchase:
             )
 
         if left_grace:
-            # known gap: grace entered mid-flight, the days may still count from the grace
-            # end the panel showed. The renewal is committed, so a failed push is left to
-            # the next sync
+            # overwrites a grace push that landed after this renewal's write, whether grace
+            # was entered mid-flight or pushed again. Known gap: grace entered mid-flight,
+            # the days may still count from the grace end the panel showed. The renewal is
+            # committed, so a failed push is left to the next sync
             try:
                 await self._remnawave_sdk.users.update_user(restore(subscription))
             except Exception:
