@@ -892,3 +892,102 @@ async def test_marking_a_sweep_attempt_leaves_updated_at_alone(
     await session.refresh(row)
     assert row.grace_attempted_at is not None
     assert row.updated_at == before
+
+
+async def _replace_by_plan_change(
+    uow: UnitOfWork,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    replaced: SubscriptionDto,
+    telegram_id: int,
+) -> SubscriptionDto:
+    """A plan change committing while a grace push is in flight: same panel user, new row."""
+    async with uow:
+        await subscription_repository.mark_deleted(replaced.id)
+        new = await create_subscription(
+            subscription_repository,
+            user_repository,
+            telegram_id=telegram_id,
+            remnawave_user_id=replaced.remnawave_user_id,
+        )
+        return await subscription_repository.set_tag(new.id, "NEWPLAN")
+
+
+async def test_plan_change_during_the_grace_push_gets_the_new_rows_config(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_601)
+    real_update_user = remnawave_sdk.users.update_user
+    replacing: list[SubscriptionDto] = []
+
+    async def change_then_push(request: Any) -> Any:
+        if not replacing:
+            replacing.append(
+                await _replace_by_plan_change(
+                    uow, subscription_repository, user_repository, before, 94_611
+                )
+            )
+        return await real_update_user(request)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", change_then_push)
+
+    assert await grace.enter.system(before.id) is False
+
+    new = replacing[0]
+    assert remnawave_store[94_601]["tag"] == "NEWPLAN"
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_601)) == truncate_to_ms(
+        new.expire_at
+    )
+    assert await _events(session, before.id) == []
+
+
+async def test_plan_change_during_the_grace_end_push_gets_the_new_rows_config(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subscription, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_602,
+    )
+    real_update_user = remnawave_sdk.users.update_user
+    replacing: list[SubscriptionDto] = []
+
+    async def change_then_push(request: Any) -> Any:
+        if not replacing:
+            replacing.append(
+                await _replace_by_plan_change(
+                    uow, subscription_repository, user_repository, subscription, 94_612
+                )
+            )
+        return await real_update_user(request)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", change_then_push)
+
+    await grace.end.system(subscription.id)
+
+    assert remnawave_store[94_602]["tag"] == "NEWPLAN"
+    assert remnawave_store[94_602]["status"] == "ACTIVE"
+    assert await _events(session, subscription.id) == []

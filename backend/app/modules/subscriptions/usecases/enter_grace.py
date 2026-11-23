@@ -17,7 +17,7 @@ from app.modules.settings import GraceSettingsDto, SettingsRepository
 from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import SubscriptionGraceStartedEvent
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
-from app.modules.subscriptions.panel import grace_panel_update, restore
+from app.modules.subscriptions.panel import grace_panel_update, restore, revert_panel_to_owner
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
@@ -103,7 +103,11 @@ class EnterGraceUseCase(UseCase[int, bool]):
         """A renewal or an admin may have left grace while the push ran: the row wins."""
         async with self._uow:
             current = await self._subscription_repository.get_by_id_for_update(data)
-            if current.grace_until == grace_until and claimed:
+            in_grace = (
+                current.grace_until == grace_until
+                and current.status is not SubscriptionStatus.DELETED
+            )
+            if in_grace and claimed:
                 owner = await subscription_owner(self._user_repository, current)
                 await self._event_publisher.publish(
                     SubscriptionGraceStartedEvent(
@@ -113,9 +117,14 @@ class EnterGraceUseCase(UseCase[int, bool]):
                         traffic_limit_mb=settings.traffic_limit_mb,
                     )
                 )
-        if current.grace_until == grace_until:
+        if in_grace:
             return True
-        if current.status is not SubscriptionStatus.DELETED:
+        if current.status is SubscriptionStatus.DELETED:
+            # a plan change replaced the row: the panel user is the new row's now
+            await revert_panel_to_owner(
+                self._remnawave_sdk, self._subscription_repository, self._uow, current, settings
+            )
+        else:
             await self._remnawave_sdk.users.update_user(restore(current, grace=settings))
         logger.info(f"Subscription '{data}' left grace while it was being pushed")
         return False

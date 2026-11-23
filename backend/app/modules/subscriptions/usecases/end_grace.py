@@ -13,7 +13,7 @@ from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import SubscriptionExpiredEvent
-from app.modules.subscriptions.panel import restore
+from app.modules.subscriptions.panel import restore, revert_panel_to_owner
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
@@ -54,16 +54,24 @@ class EndGraceUseCase(UseCase[int, None]):
 
         async with self._uow:
             subscription = await self._subscription_repository.get_by_id_for_update(data)
-            # an admin's extension or a parallel run cleared it meanwhile
-            if not _ended(subscription.grace_until):
-                return
-            await self._subscription_repository.end_grace(data)
-            # an admin's switch-off during grace: access ends, but it didn't expire
-            if subscription.status is SubscriptionStatus.EXPIRED:
-                owner = await subscription_owner(self._user_repository, subscription)
-                await self._event_publisher.publish(
-                    SubscriptionExpiredEvent(user=owner, subscription_id=data)
-                )
+            replaced = subscription.status is SubscriptionStatus.DELETED
+            if not replaced:
+                # an admin's extension or a parallel run cleared it meanwhile
+                if not _ended(subscription.grace_until):
+                    return
+                await self._subscription_repository.end_grace(data)
+                # an admin's switch-off during grace: access ends, but it didn't expire
+                if subscription.status is SubscriptionStatus.EXPIRED:
+                    owner = await subscription_owner(self._user_repository, subscription)
+                    await self._event_publisher.publish(
+                        SubscriptionExpiredEvent(user=owner, subscription_id=data)
+                    )
+        if replaced:
+            # a plan change took the panel user over while the push ran
+            await revert_panel_to_owner(
+                self._remnawave_sdk, self._subscription_repository, self._uow, subscription
+            )
+            return
         logger.info(f"Grace of subscription '{data}' ended")
 
 
