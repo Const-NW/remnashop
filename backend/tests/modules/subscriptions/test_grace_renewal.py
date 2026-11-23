@@ -1,7 +1,7 @@
 from dataclasses import replace
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Final, Optional
+from typing import Any, Final, Optional
 from uuid import UUID, uuid4
 
 import httpx
@@ -1122,3 +1122,59 @@ async def test_failed_plan_change_in_grace_puts_the_grace_config_back(
     assert panel["tag"] == "GRACE"
     assert panel["trafficLimitBytes"] == 512 * MB_TO_BYTES
     assert truncate_to_ms(_panel_expire_at(remnawave_store, 95_104)) == target.grace_until
+
+
+async def test_failed_plan_change_in_grace_reverts_even_without_the_settings(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    new_plan = await _plan(plan_repository, _NEW_PLAN_SQUAD, "NEWPLAN")
+    target = await _in_grace(
+        subscription_repository, user_repository, settings_repository, remnawave_store, plan, 95_105
+    )
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
+    reads = 0
+
+    async def _db_down(_subscription_id: int) -> SubscriptionDto:
+        raise RuntimeError("database down")
+
+    real_get_grace_settings = SettingsRepository.get_grace_settings
+
+    async def _settings_down_after_first(self: SettingsRepository) -> Any:
+        nonlocal reads
+        reads += 1
+        if reads > 1:
+            raise RuntimeError("database down")
+        return await real_get_grace_settings(self)
+
+    monkeypatch.setattr(subscription_repository, "mark_deleted", _db_down)
+    monkeypatch.setattr(SettingsRepository, "get_grace_settings", _settings_down_after_first)
+
+    with pytest.raises(RuntimeError):
+        await use_case(
+            await _buyer(user_repository, target),
+            PurchaseSubscriptionDto(
+                user_id=target.user_id,
+                plan_snapshot=snapshot_from_plan(
+                    new_plan, price_paid=Decimal("299.00"), duration_days=30, tag=new_plan.tag
+                ),
+                duration_days=30,
+                price_paid=Decimal("299.00"),
+                currency=Currency.RUB,
+                purchase_type=PurchaseType.CHANGE,
+                target_subscription_id=target.id,
+                idempotency_key=uuid4().hex,
+            ),
+        )
+
+    # the row's own config, not the new plan's
+    assert reads >= 2
+    assert remnawave_store[95_105]["tag"] == "PLAN"

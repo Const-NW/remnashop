@@ -196,8 +196,14 @@ class ChangePurchase:
         """The config a failed change puts back: the grace one while the row is in grace."""
         if row.grace_until is None:
             return restore(row)
-        async with self._uow:
-            grace = await self._settings_repository.get_grace_settings()
+        try:
+            async with self._uow:
+                grace = await self._settings_repository.get_grace_settings()
+        except Exception:
+            # the rollback may follow a database failure: the row's own config still
+            # beats the new plan's
+            logger.exception(f"Failed to read the grace settings to put back '{row.id}'")
+            return restore(row)
         return restore(row, grace=grace)
 
     async def _plan_config(
