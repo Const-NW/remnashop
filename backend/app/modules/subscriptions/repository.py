@@ -507,7 +507,9 @@ class SubscriptionRepository:
     async def mark_deleted(self, subscription_id: int) -> SubscriptionDto:
         row = await self._get_or_raise(subscription_id)
         row.status = self._to_state(row).mark_deleted().status
-        # a refund may bring the row back: as a plain expired one, not in grace
+        # a refund may bring the row back: as a plain expired one, its grace used up
+        if row.grace_until is not None:
+            row.grace_ended_at = row.grace_until
         row.grace_until = None
 
         await self.session.flush()

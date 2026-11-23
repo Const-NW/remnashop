@@ -47,6 +47,7 @@ from app.modules.subscriptions.dto import (
     UpdateSubscriptionDto,
     UpdateSubscriptionSquadsDto,
 )
+from app.modules.subscriptions.grace import grace_entry_allowed
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel_sync import from_panel
@@ -941,6 +942,7 @@ async def test_refund_restore_of_a_row_replaced_in_grace_brings_it_back_without_
         remnawave_store,
         plan,
         95_901,
+        expired_ago=timedelta(hours=1),
     )
     lifecycle = SubscriptionLifecycleService(
         subscription_repository, CreditSegmentRepository(session)
@@ -952,3 +954,6 @@ async def test_refund_restore_of_a_row_replaced_in_grace_brings_it_back_without_
     assert deleted.grace_until is None
     assert restored.status is SubscriptionStatus.EXPIRED
     assert restored.grace_until is None
+    # its grace was given: no second one for the same expiry
+    settings = await settings_repository.get_grace_settings()
+    assert grace_entry_allowed(restored, plan, settings, datetime_now()) is False
