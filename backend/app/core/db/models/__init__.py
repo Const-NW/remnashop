@@ -30,6 +30,7 @@ from app.core.db.models.email_settings import EmailSettings
 from app.core.db.models.emoji_pack import EmojiPack, EmojiPackItem
 from app.core.db.models.event_log import EventLogEntry
 from app.core.db.models.event_outbox import EventOutboxEntry
+from app.core.db.models.grace_settings import GraceSettings
 from app.core.db.models.legal_document import (
     LegalAcceptance,
     LegalDocument,
@@ -98,6 +99,7 @@ __all__ = [
     "EmojiPackItem",
     "EventLogEntry",
     "EventOutboxEntry",
+    "GraceSettings",
     "LegalAcceptance",
     "LegalDocument",
     "LegalDocumentRevision",

@@ -1,7 +1,12 @@
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from typing import Optional
+
 from app.core.constants import ASSETS_DIR
 from app.core.enums import Locale, SubscriptionStatus
-from app.telegram.dialogs.rendering import render_window_text
+from app.telegram.dialogs.rendering import TrustedHtml, render_window_text
 from app.telegram.i18n import build_translator_hub
+from app.telegram.routers.subscriptions.getters import grace_line
 
 
 def _card(**kwargs: object) -> str:
@@ -16,6 +21,7 @@ def _card(**kwargs: object) -> str:
         "expire_at_local": "01.01.2027",
         "traffic_limit": 0,
         "device_limit": 0,
+        "grace": "",
     }
     text = runner.get("msg-subscription-card", **{**args, **kwargs})
     return text.replace("\u2068", "").replace("\u2069", "")
@@ -47,6 +53,7 @@ def _rendered(**kwargs: object) -> str:
         "expire_at_local": "01.01.2027",
         "traffic_limit": 50,
         "device_limit": 3,
+        "grace": "",
     }
     runner = hub.get_translator_by_locale(Locale.EN.value)
     return render_window_text(runner, "msg-subscription-card", **{**args, **kwargs})
@@ -55,3 +62,33 @@ def _rendered(**kwargs: object) -> str:
 def test_card_names_a_trial() -> None:
     assert _rendered(is_trial=1).startswith("<b>🎁 Trial subscription · Pro</b>")
     assert _rendered().startswith("<b>💳 Subscription · Pro</b>")
+
+
+def test_card_shows_a_grace_line_only_in_grace() -> None:
+    assert "Grace period until 05.12.2026" in _rendered(grace="Grace period until 05.12.2026")
+    assert "Grace" not in _rendered(grace="")
+
+
+def _grace_line(grace_until: Optional[datetime]) -> str:
+    text = (ASSETS_DIR / "translations" / "en" / "menu.ftl").read_text()
+    hub = build_translator_hub([Locale.EN], {Locale.EN: text}, Locale.EN)
+    runner = hub.get_translator_by_locale(Locale.EN.value)
+    subscription = SimpleNamespace(grace_until=grace_until)
+    return grace_line(runner, subscription).replace("\u2068", "").replace("\u2069", "")  # type: ignore[arg-type]
+
+
+def test_grace_line_is_trusted_html() -> None:
+    text = (ASSETS_DIR / "translations" / "en" / "menu.ftl").read_text()
+    hub = build_translator_hub([Locale.EN], {Locale.EN: text}, Locale.EN)
+    runner = hub.get_translator_by_locale(Locale.EN.value)
+    subscription = SimpleNamespace(grace_until=datetime(2026, 12, 5, tzinfo=timezone.utc))
+
+    assert isinstance(grace_line(runner, subscription), TrustedHtml)  # type: ignore[arg-type]
+
+
+def test_grace_line_names_the_date_or_nothing() -> None:
+    assert (
+        _grace_line(datetime(2026, 12, 5, tzinfo=timezone.utc)) == "• Grace period until 05.12.2026"
+    )
+    assert _grace_line(datetime(2099, 12, 5, tzinfo=timezone.utc)) == "• Grace period"
+    assert _grace_line(None) == ""

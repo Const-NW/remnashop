@@ -1,8 +1,15 @@
-from typing import Optional, Union
+from typing import Final, Optional, Union
 
+from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
 from app.core.enums import Locale
 from app.core.utils.money import format_money
-from app.modules.subscriptions import SubscriptionGrantedEvent, SubscriptionTrafficThresholdEvent
+from app.modules.subscriptions import (
+    SubscriptionGraceStartedEvent,
+    SubscriptionGrantedEvent,
+    SubscriptionTrafficThresholdEvent,
+)
+
+_MB_PER_GB: Final[int] = GB_TO_BYTES // MB_TO_BYTES
 
 
 def customer_render_args(
@@ -27,6 +34,15 @@ def customer_render_args(
         rendered.setdefault("percent", 0)
         rendered.setdefault("reset_date", "none")
         rendered.setdefault("can_renew", "yes")
+    if event_type == SubscriptionGraceStartedEvent.__name__:
+        mb = args.get("traffic_limit_mb")
+        if not isinstance(mb, int) or mb <= 0:
+            rendered["traffic_unit"] = "none"
+        # strings, so Fluent does not group the digits
+        elif mb % _MB_PER_GB == 0:
+            rendered["traffic_unit"], rendered["traffic_value"] = "gb", str(mb // _MB_PER_GB)
+        else:
+            rendered["traffic_unit"], rendered["traffic_value"] = "mb", str(mb)
     if "amount" in args and "currency" in args:
         rendered["money"] = format_money(str(args["amount"]), str(args["currency"]), locale)
     return rendered

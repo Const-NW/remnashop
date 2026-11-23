@@ -13,6 +13,7 @@ from app.core.enums import Locale, Role, SubscriptionStatus
 from app.core.exceptions import PermissionDeniedError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import CreateSubscriptionDto, SyncSubscriptionStatusDto
 from app.modules.subscriptions.events import SubscriptionStatusSyncedEvent
@@ -21,6 +22,7 @@ from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import SyncSubscriptionStatusUseCase
 from app.modules.users.dto import CreateUserDto, UserDto
 from app.modules.users.repository import UserRepository
+from tests.fakes.remnawave import unused_sdk
 from tests.modules.subscriptions.factories import create_subscription, make_plan_snapshot
 
 
@@ -61,7 +63,12 @@ async def test_sync_updates_status_on_a_matching_subscription(
         subscription_repository, CreditSegmentRepository(subscription_repository.session)
     )
     use_case = SyncSubscriptionStatusUseCase(
-        subscription_repository, uow, event_publisher, lifecycle_service
+        subscription_repository,
+        uow,
+        event_publisher,
+        lifecycle_service,
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
     result = await use_case.system(
@@ -83,7 +90,12 @@ async def test_sync_is_a_noop_for_an_unknown_remnawave_user_id(
         subscription_repository, CreditSegmentRepository(subscription_repository.session)
     )
     use_case = SyncSubscriptionStatusUseCase(
-        subscription_repository, uow, event_publisher, lifecycle_service
+        subscription_repository,
+        uow,
+        event_publisher,
+        lifecycle_service,
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
     result = await use_case.system(
@@ -108,7 +120,12 @@ async def test_sync_is_a_noop_when_already_at_the_target_status(
         subscription_repository, CreditSegmentRepository(subscription_repository.session)
     )
     use_case = SyncSubscriptionStatusUseCase(
-        subscription_repository, uow, event_publisher, lifecycle_service
+        subscription_repository,
+        uow,
+        event_publisher,
+        lifecycle_service,
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
     result = await use_case.system(
@@ -134,7 +151,12 @@ async def test_sync_is_a_noop_on_an_already_deleted_subscription(
         subscription_repository, CreditSegmentRepository(subscription_repository.session)
     )
     use_case = SyncSubscriptionStatusUseCase(
-        subscription_repository, uow, event_publisher, lifecycle_service
+        subscription_repository,
+        uow,
+        event_publisher,
+        lifecycle_service,
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
     result = await use_case.system(
@@ -157,7 +179,12 @@ async def test_real_actor_cannot_call_sync_directly(
         subscription_repository, CreditSegmentRepository(subscription_repository.session)
     )
     use_case = SyncSubscriptionStatusUseCase(
-        subscription_repository, uow, event_publisher, lifecycle_service
+        subscription_repository,
+        uow,
+        event_publisher,
+        lifecycle_service,
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
     with pytest.raises(PermissionDeniedError):
@@ -201,12 +228,16 @@ async def test_concurrent_syncs_on_the_same_row_serialize_last_writer_wins(
                 UnitOfWork(session_a),
                 event_publisher,
                 SubscriptionLifecycleService(repo_a, CreditSegmentRepository(repo_a.session)),
+                unused_sdk(),
+                SettingsRepository(repo_a.session),
             )
             use_case_b = SyncSubscriptionStatusUseCase(
                 repo_b,
                 UnitOfWork(session_b),
                 event_publisher,
                 SubscriptionLifecycleService(repo_b, CreditSegmentRepository(repo_b.session)),
+                unused_sdk(),
+                SettingsRepository(repo_b.session),
             )
 
             await asyncio.gather(
@@ -283,6 +314,8 @@ async def test_sync_keeps_the_panels_expired_status_when_expire_at_moved_too(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     panel_expire_at = datetime_now() - timedelta(minutes=1)
 
@@ -316,6 +349,8 @@ async def test_sync_reactivates_when_the_panel_reports_a_renewal(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     panel_expire_at = datetime_now() + timedelta(days=60)
 
@@ -359,6 +394,8 @@ async def test_sync_ignores_a_sub_millisecond_expire_at_difference(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
     await use_case.system(
@@ -390,6 +427,8 @@ async def test_sync_records_first_connected_at_only_once(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     first = datetime_now() - timedelta(days=3)
 
@@ -426,6 +465,8 @@ async def test_sync_keeps_the_panel_users_creation_date(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     first = datetime_now() - timedelta(days=40)
     # a panel restored from a backup may report another date: the panel wins
@@ -463,6 +504,8 @@ async def test_an_expiry_moved_in_the_panel_drops_the_term_anchor(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     ).system(
         SyncSubscriptionStatusDto(
             remnawave_user_id=71903,
@@ -493,6 +536,8 @@ async def test_synced_event_carries_the_owner(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
     await use_case.system(
@@ -527,6 +572,8 @@ async def test_a_repeated_event_writes_no_first_connection_or_creation_date(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     event = SyncSubscriptionStatusDto(
         remnawave_user_id=71903,

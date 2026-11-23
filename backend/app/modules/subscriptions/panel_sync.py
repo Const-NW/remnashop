@@ -21,6 +21,7 @@ from app.core.exceptions import ConflictError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now, truncate_to_ms
 from app.modules.plans import PlanDto
+from app.modules.settings import GraceSettingsDto
 from app.modules.subscriptions.dispatch import PanelSyncDispatch
 from app.modules.subscriptions.dto import (
     CreateSubscriptionDto,
@@ -257,6 +258,9 @@ def panel_diff(
 
 
 def differs_from_panel(subscription: SubscriptionDto, user: UserResponseDto) -> bool:
+    # the panel holds the grace config during grace; a pull would keep the row anyway
+    if subscription.grace_until is not None:
+        return False
     return (
         subscription.status is not SubscriptionStatus(user.status)
         or truncate_to_ms(subscription.expire_at) != truncate_to_ms(user.expire_at)
@@ -266,8 +270,16 @@ def differs_from_panel(subscription: SubscriptionDto, user: UserResponseDto) -> 
     )
 
 
-def panel_lags_behind(subscription: SubscriptionDto, user: UserResponseDto, owner: UserDto) -> bool:
+def panel_lags_behind(
+    subscription: SubscriptionDto,
+    user: UserResponseDto,
+    owner: UserDto,
+    grace: Optional[GraceSettingsDto] = None,
+) -> bool:
     """Whether pushing the row would change anything in the panel."""
+    if subscription.grace_until is not None:
+        # the panel holds the grace config, not the row's terms
+        return grace is not None and _grace_lags(subscription, user, owner, grace)
     wanted = restore(subscription)
     return (
         # restore() leaves a past date out: the panel would refuse it
@@ -285,6 +297,32 @@ def panel_lags_behind(subscription: SubscriptionDto, user: UserResponseDto, owne
     )
 
 
+def _grace_lags(
+    subscription: SubscriptionDto, user: UserResponseDto, owner: UserDto, grace: GraceSettingsDto
+) -> bool:
+    wanted = restore(subscription, grace=grace)
+    sent = wanted.model_fields_set
+    return (
+        (
+            wanted.expire_at is not None
+            and truncate_to_ms(user.expire_at) != truncate_to_ms(wanted.expire_at)
+        )
+        or int(user.traffic_limit_bytes) != wanted.traffic_limit_bytes
+        or (user.hwid_device_limit or 0) != wanted.hwid_device_limit
+        or user.traffic_limit_strategy != wanted.traffic_limit_strategy
+        or (
+            wanted.active_internal_squads is not None
+            and {s.uuid for s in user.active_internal_squads} != set(wanted.active_internal_squads)
+        )
+        or (
+            "external_squad_uuid" in sent and user.external_squad_uuid != wanted.external_squad_uuid
+        )
+        or ("tag" in sent and user.tag != wanted.tag)
+        or _disabled_mismatch(subscription, user)
+        or _contact_lags(owner, user)
+    )
+
+
 def _disabled_mismatch(subscription: SubscriptionDto, user: UserResponseDto) -> bool:
     # only the switch an admin flips is ours to push; expired and limited are
     # the panel's verdicts
@@ -294,10 +332,14 @@ def _disabled_mismatch(subscription: SubscriptionDto, user: UserResponseDto) -> 
 
 
 async def push_to_panel(
-    sdk: RemnawaveSDK, subscription: SubscriptionDto, owner: UserDto
+    sdk: RemnawaveSDK,
+    subscription: SubscriptionDto,
+    owner: UserDto,
+    grace: Optional[GraceSettingsDto] = None,
 ) -> UserResponseDto:
-    """Puts the row's configuration, on/off switch and the owner's contacts into the panel."""
-    pushed: UserResponseDto = await sdk.users.update_user(restore(subscription, owner))
+    """Puts the row's configuration (the grace one while in grace), on/off switch
+    and the owner's contacts into the panel."""
+    pushed: UserResponseDto = await sdk.users.update_user(restore(subscription, owner, grace=grace))
     if _disabled_mismatch(subscription, pushed):
         if subscription.status is SubscriptionStatus.DISABLED:
             pushed = await sdk.users.disable_user(subscription.remnawave_user_id)

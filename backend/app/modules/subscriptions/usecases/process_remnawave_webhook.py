@@ -12,17 +12,22 @@ from remnapy.models.webhook import WebhookPayloadDto
 
 from app.core.actor import Actor
 from app.core.constants import REDIS_KEY_PREFIX, TIME_1M, TTL_1D, TTL_10M
+from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
 from app.core.exceptions import RetryableTaskError
 from app.core.panel_writes import WRITE_MARK_TTL_S, written_after
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import (
     ProcessRemnawaveWebhookDto,
     PublishPanelEventDto,
     SyncSubscriptionStatusDto,
 )
 from app.modules.subscriptions.panel_config import panel_config
+from app.modules.subscriptions.repository import SubscriptionRepository
+from app.modules.subscriptions.usecases.end_grace import EndGraceUseCase
+from app.modules.subscriptions.usecases.enter_grace import EnterGraceUseCase
 from app.modules.subscriptions.usecases.publish_panel_event import PublishPanelEventUseCase
 from app.modules.subscriptions.usecases.sync_subscription_status import (
     SyncSubscriptionStatusUseCase,
@@ -53,16 +58,28 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
         self,
         sync_subscription_status_use_case: SyncSubscriptionStatusUseCase,
         publish_panel_event_use_case: PublishPanelEventUseCase,
+        enter_grace_use_case: EnterGraceUseCase,
+        end_grace_use_case: EndGraceUseCase,
+        subscription_repository: SubscriptionRepository,
+        settings_repository: SettingsRepository,
+        uow: UnitOfWork,
         redis: Redis,
     ) -> None:
         self._sync_subscription_status_use_case = sync_subscription_status_use_case
         self._publish_panel_event_use_case = publish_panel_event_use_case
+        self._enter_grace_use_case = enter_grace_use_case
+        self._end_grace_use_case = end_grace_use_case
+        self._subscription_repository = subscription_repository
+        self._settings_repository = settings_repository
+        self._uow = uow
         self._redis = redis
 
     async def _execute(self, actor: Actor, data: ProcessRemnawaveWebhookDto) -> None:
         payload = WebhookPayloadDto.from_dict(json.loads(data.body))
         if isinstance(payload.data, WebhookUserDto):
             if not await self._apply(payload):
+                return
+            if payload.event == "user.expired" and await self._handled_by_grace(payload.data.id):
                 return
 
         # a task redelivered after its event went out re-syncs, harmlessly, but must
@@ -116,6 +133,37 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
         finally:
             with contextlib.suppress(LockNotOwnedError):
                 await lock.release()
+
+    async def _handled_by_grace(self, remnawave_user_id: int) -> bool:
+        """Whether grace took this expiry over, so the plain expiry event isn't published."""
+        async with self._uow:
+            settings = await self._settings_repository.get_grace_settings()
+            # switched off: only a grace given before still needs handling
+            if not settings.enabled and not await self._subscription_repository.carries_grace(
+                remnawave_user_id
+            ):
+                return False
+            subscription = await self._subscription_repository.find_by_remnawave_user_id(
+                remnawave_user_id
+            )
+        if subscription is None or subscription.status is SubscriptionStatus.DELETED:
+            return False
+        if subscription.grace_until is None:
+            # the panel's own expiry after a sweep already ended grace and told the customer
+            if (
+                subscription.grace_ended_at is not None
+                and subscription.expire_at <= subscription.grace_ended_at
+            ):
+                return True
+            if not settings.enabled:
+                return False
+            return await self._enter_grace_use_case.system(subscription.id)
+        if subscription.grace_until > datetime_now():
+            # the panel expires a grace user only when our grace push never landed
+            await self._enter_grace_use_case.system(subscription.id)
+        else:
+            await self._end_grace_use_case.system(subscription.id)
+        return True
 
     async def _applied_after(self, user_id: int, moment: datetime) -> bool:
         raw = await self._redis.get(f"{_APPLIED_PREFIX}{user_id}")

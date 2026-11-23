@@ -6,6 +6,7 @@ from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.models import UpdateUserRequestDto
 
 from app.core.actor import Actor
 from app.core.constants import ZERO_AMOUNT
@@ -15,9 +16,10 @@ from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.change_credit import ChangeCreditCalculator
 from app.modules.subscriptions.domain import SupersededError
-from app.modules.subscriptions.dto import PurchaseSubscriptionDto, SubscriptionDto
+from app.modules.subscriptions.dto import PlanSnapshot, PurchaseSubscriptionDto, SubscriptionDto
 from app.modules.subscriptions.eligibility import get_owned_target
 from app.modules.subscriptions.events import SubscriptionChangedEvent
 from app.modules.subscriptions.idempotency_repository import PurchaseIdempotencyRepository
@@ -65,6 +67,7 @@ class ChangePurchase:
         event_publisher: EventPublisher,
         change_credit_calculator: ChangeCreditCalculator,
         lifecycle_service: SubscriptionLifecycleService,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._idempotency = idempotency_repository
@@ -73,6 +76,7 @@ class ChangePurchase:
         self._event_publisher = event_publisher
         self._change_credit_calculator = change_credit_calculator
         self._lifecycle_service = lifecycle_service
+        self._settings_repository = settings_repository
 
     async def run(self, actor: Actor, data: PurchaseSubscriptionDto) -> SubscriptionDto:
         if data.target_subscription_id is None:
@@ -91,7 +95,7 @@ class ChangePurchase:
             return await self._attempt(actor, data, data.target_subscription_id)
         except _TargetMovedError as moved:
             with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(restore(moved.current))
+                await self._remnawave_sdk.users.update_user(await self._restore(moved.current))
             raise SupersededError(
                 "Subscription kept changing while this request was in flight",
                 code=ErrorCode.PURCHASE_SUPERSEDED,
@@ -114,7 +118,7 @@ class ChangePurchase:
         # already has) and changes only the plan config (limits, squads,
         # expiry); the local row is replaced below
         panel_user = await self._remnawave_sdk.users.update_user(
-            configure_for_plan(old.remnawave_user_id, plan, final_expire_at)
+            await self._plan_config(old, plan, final_expire_at)
         )
 
         try:
@@ -172,7 +176,7 @@ class ChangePurchase:
             # revert, so a DB failure doesn't leave the still-ACTIVE `old` on a
             # plan config nobody paid for
             with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(restore(old))
+                await self._remnawave_sdk.users.update_user(await self._restore(old))
             raise
 
         if data.duration_days == 0 and old.is_unlimited and data.price_paid == ZERO_AMOUNT:
@@ -187,6 +191,33 @@ class ChangePurchase:
             f"({credit_days}d credit applied)"
         )
         return updated
+
+    async def _restore(self, row: SubscriptionDto) -> UpdateUserRequestDto:
+        """The config a failed change puts back: the grace one while the row is in grace."""
+        if row.grace_until is None:
+            return restore(row)
+        try:
+            async with self._uow:
+                grace = await self._settings_repository.get_grace_settings()
+        except Exception:
+            # the rollback may follow a database failure: the row's own config still
+            # beats the new plan's
+            logger.exception(f"Failed to read the grace settings to put back '{row.id}'")
+            return restore(row)
+        return restore(row, grace=grace)
+
+    async def _plan_config(
+        self, old: SubscriptionDto, plan: PlanSnapshot, expire_at: datetime
+    ) -> UpdateUserRequestDto:
+        request = configure_for_plan(old.remnawave_user_id, plan, expire_at)
+        if old.grace_until is None:
+            return request
+        async with self._uow:
+            grace = await self._settings_repository.get_grace_settings()
+        if not grace.internal_squads:
+            return request
+        # left out, a plan without squads would keep the grace ones
+        return request.model_copy(update={"active_internal_squads": plan.internal_squads})
 
     async def _new_term(self, old: SubscriptionDto, data: PurchaseSubscriptionDto) -> _NewTerm:
         """The new row's expiry, what it carries over from the old one and the day of

@@ -26,6 +26,7 @@ from app.modules.subscriptions.events import (
     SubscriptionExpiredAgoEvent,
     SubscriptionExpiredEvent,
     SubscriptionExpiringEvent,
+    SubscriptionGraceStartedEvent,
     SubscriptionGrantedEvent,
     SubscriptionNotConnectedEvent,
     SubscriptionPurchasedEvent,
@@ -34,6 +35,7 @@ from app.modules.subscriptions.events import (
     SubscriptionTrafficThresholdEvent,
     TorrentBlockerReportEvent,
 )
+from app.modules.subscriptions.grace import can_renew
 from app.modules.subscriptions.idempotency_repository import (
     IDEMPOTENCY_KEY_RETENTION_DAYS,
     PurchaseIdempotencyRepository,
@@ -125,6 +127,7 @@ __all__ = [
     "SubscriptionExpiredAgoEvent",
     "SubscriptionExpiredEvent",
     "SubscriptionExpiringEvent",
+    "SubscriptionGraceStartedEvent",
     "SubscriptionGrantedEvent",
     "SubscriptionNotConnectedEvent",
     "SubscriptionPurchasedEvent",
@@ -135,6 +138,7 @@ __all__ = [
     "SubscriptionTrafficLimitedEvent",
     "SubscriptionTrafficThresholdEvent",
     "TorrentBlockerReportEvent",
+    "can_renew",
     "current_plan_snapshots",
     "get_owned_target",
     "get_subscriptions_providers",

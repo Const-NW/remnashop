@@ -4,6 +4,7 @@ from typing import Any, Optional
 from uuid import uuid4
 
 import httpx
+from remnapy import RemnawaveSDK
 
 FakeUserStore = dict[int, dict[str, Any]]
 FakeHwidStore = dict[int, list[dict[str, Any]]]
@@ -118,6 +119,10 @@ def _handle_update_user(request: httpx.Request, store: FakeUserStore) -> httpx.R
             payload[field] = body[field]
     if body.get("trafficLimitStrategy") is not None:
         payload["trafficLimitStrategy"] = body["trafficLimitStrategy"]
+    if body.get("activeInternalSquads") is not None:
+        payload["activeInternalSquads"] = [
+            {"uuid": squad, "name": "fake-squad"} for squad in body["activeInternalSquads"]
+        ]
     if body.get("status") is not None:
         payload["status"] = body["status"]
     if body.get("expireAt") is not None:
@@ -323,3 +328,8 @@ def make_fake_remnawave_transport(
         return httpx.Response(404, json={"error": f"fake transport: no handler for {path}"})
 
     return httpx.MockTransport(handler), store, hwid_store
+
+
+def unused_sdk() -> RemnawaveSDK:
+    """For a use case whose test never reaches the panel."""
+    return RemnawaveSDK(client=httpx.AsyncClient(base_url="http://unused"))

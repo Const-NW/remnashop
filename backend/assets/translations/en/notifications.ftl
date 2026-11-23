@@ -159,6 +159,16 @@ ntf-customer-subscription-expired = { $is_trial ->
     }
     .title = Access paused — the VPN isn't working
     .emoji = ⛔
+ntf-customer-subscription-grace-started = Your subscription has expired. { $grace_until ->
+        [none] Grace access is active
+       *[other] Grace access is active until { $grace_until }
+    }{ $traffic_unit ->
+        [gb]: { $traffic_value } GB
+        [mb]: { $traffic_value } MB
+       *[none] {""}
+    }. Renew to get your plan back.
+    .title = Subscription expired
+    .emoji = ⏳
 ntf-customer-subscription-traffic-limited = You've used up your traffic. { $is_trial ->
         [yes] Get a subscription to keep using the service.
        *[no] { $traffic_strategy ->

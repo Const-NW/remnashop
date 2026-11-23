@@ -72,7 +72,10 @@ class GrantAddOnUseCase(UseCase[GrantAddOnDto, SubscriptionDto]):
                     id=subscription.remnawave_user_id,
                     hwid_device_limit=subscription.effective_device_limit,
                 )
-            await self._remnawave_sdk.users.update_user(request)
+            # grace runs on its own traffic cap, the grace end pushes the add-on;
+            # devices are the row's in grace too
+            if addon.type != AddOnType.TRAFFIC or subscription.grace_until is None:
+                await self._remnawave_sdk.users.update_user(request)
             if not repeat:
                 recipient = await self._user_repository.find_by_id(subscription.user_id)
                 await self._event_publisher.publish(

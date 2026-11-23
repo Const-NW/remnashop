@@ -128,7 +128,7 @@ function SubscriptionEditDialogBody({
   onSaved,
   onDeleted,
 }: Omit<SubscriptionEditDialogProps, "onClose">) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const close = useModalClose();
   const permissions = useAccountPermissions(subscription.user_id);
   const canOpenUsers = useCanOpenUsers();
@@ -237,6 +237,13 @@ function SubscriptionEditDialogBody({
             {current.is_trial && (
               <Badge tone="warning">
                 {t("subscriptions.trial")}
+              </Badge>
+            )}
+            {current.grace_until && (
+              <Badge tone="warning">
+                {isUnlimitedExpiry(current.grace_until)
+                  ? t("subscriptions.grace")
+                  : t("subscriptions.graceUntil", { date: formatDate(current.grace_until, i18n.language) })}
               </Badge>
             )}
             <Badge tone={SUBSCRIPTION_STATUS_BADGE_TONE[current.status]}>

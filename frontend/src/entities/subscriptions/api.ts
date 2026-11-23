@@ -62,6 +62,8 @@ export interface SubscriptionListItem {
   internal_squads: string[];
   external_squad: string | null;
   expire_at: string;
+  /** end of the grace period the subscription is in; null outside one */
+  grace_until: string | null;
   created_at: string | null;
   first_connected_at: string | null;
   /** the client's own last device removal, removal of all devices and link reissue */

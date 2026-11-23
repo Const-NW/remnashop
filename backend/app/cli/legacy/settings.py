@@ -1,8 +1,17 @@
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Final, Optional
+from uuid import UUID
+
+from remnapy.enums import TrafficLimitStrategy
 
 from app.cli.legacy.report import MigrationReport
+from app.core.constants import (
+    GRACE_DEFAULT_DURATION_DAYS,
+    PANEL_TAG_MAX_LENGTH,
+    PANEL_TAG_PATTERN,
+)
 from app.core.db.singleton import SINGLETON_ID
 from app.core.enums import (
     AccessMode,
@@ -24,6 +33,7 @@ class SettingsRows:
     access: dict[str, Any]
     bot_requirements: dict[str, Any]
     referral: dict[str, Any]
+    grace: dict[str, Any]
     anchor_currency: Currency
 
 
@@ -37,6 +47,32 @@ def _channel_url(link: Optional[str]) -> Optional[str]:
     if "://" not in link and link.startswith(_TELEGRAM_HOSTS):
         return f"https://{link}"
     return link
+
+
+def _grace(row: Mapping[str, Any], report: MigrationReport) -> dict[str, Any]:
+    # settings.grace came with 0042, an older database has no column
+    grace = row.get("grace") or {}
+    tag = grace.get("tag") or None
+    if tag is not None and (
+        len(tag) > PANEL_TAG_MAX_LENGTH or not re.fullmatch(PANEL_TAG_PATTERN, tag)
+    ):
+        report.notes.append(f"settings: grace tag '{tag}' is not a valid panel tag, dropped")
+        tag = None
+    external_squad = grace.get("external_squad")
+    duration = grace.get("duration_days")
+    return {
+        "id": SINGLETON_ID,
+        "enabled": bool(grace.get("enabled", False)),
+        "internal_squads": [UUID(str(squad)) for squad in grace.get("internal_squads") or []],
+        "external_squad": UUID(str(external_squad)) if external_squad else None,
+        "traffic_limit_mb": int(grace.get("traffic_mb") or 0),
+        "traffic_limit_strategy": TrafficLimitStrategy(
+            grace.get("traffic_strategy") or TrafficLimitStrategy.NO_RESET
+        ),
+        "tag": tag,
+        # a missing value is the new app's default; 0 (endless) only when set so
+        "duration_days": GRACE_DEFAULT_DURATION_DAYS if duration is None else int(duration),
+    }
 
 
 def transform_settings(row: Mapping[str, Any], report: MigrationReport) -> SettingsRows:
@@ -78,5 +114,6 @@ def transform_settings(row: Mapping[str, Any], report: MigrationReport) -> Setti
                 str(level): str(amount) for level, amount in reward["config"].items()
             },
         },
+        grace=_grace(row, report),
         anchor_currency=Currency(row["default_currency"]),
     )

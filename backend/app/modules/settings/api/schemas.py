@@ -1,9 +1,11 @@
 import re
 from typing import Annotated, Final, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator, model_validator
+from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import INT64_MAX
+from app.core.constants import INT32_MAX, INT64_MAX, PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
 from app.core.enums import AccessMode, CaptchaProvider, SmtpSecurity
 
 _COMMAND_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9_]{1,32}$")
@@ -116,6 +118,36 @@ class UpdateShopSettingsRequest(BaseModel):
     @model_validator(mode="after")
     def non_nullable_fields(self) -> "UpdateShopSettingsRequest":
         nullable = {"max_active_subscriptions", "support_telegram", "support_url", "payment_email"}
+        for name in self.model_fields_set - nullable:
+            if getattr(self, name) is None:
+                raise ValueError(f"{name} cannot be null")
+        return self
+
+
+class GraceSettingsResponse(BaseModel):
+    enabled: bool
+    internal_squads: list[UUID]
+    external_squad: Optional[UUID]
+    traffic_limit_mb: int
+    traffic_limit_strategy: TrafficLimitStrategy
+    tag: Optional[str]
+    duration_days: int
+
+
+class UpdateGraceSettingsRequest(BaseModel):
+    enabled: Optional[bool] = None
+    internal_squads: Optional[list[UUID]] = None
+    external_squad: Optional[UUID] = None
+    traffic_limit_mb: Optional[int] = Field(default=None, le=INT32_MAX)
+    traffic_limit_strategy: Optional[TrafficLimitStrategy] = None
+    tag: Optional[str] = Field(
+        default=None, max_length=PANEL_TAG_MAX_LENGTH, pattern=PANEL_TAG_PATTERN
+    )
+    duration_days: Optional[int] = Field(default=None, le=INT32_MAX)
+
+    @model_validator(mode="after")
+    def non_nullable_fields(self) -> "UpdateGraceSettingsRequest":
+        nullable = {"external_squad", "tag"}
         for name in self.model_fields_set - nullable:
             if getattr(self, name) is None:
                 raise ValueError(f"{name} cannot be null")

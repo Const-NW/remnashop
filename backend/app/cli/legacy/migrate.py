@@ -43,6 +43,7 @@ from app.core.db.models import (
     AdLinkAttribution,
     BotRequirements,
     CreditSegment,
+    GraceSettings,
     OAuthIdentity,
     OAuthSettings,
     PaymentGateway,
@@ -321,6 +322,7 @@ async def _transfer(
             if user["current_subscription_id"] is not None
         },
         index=panel_index,
+        grace_days=settings.grace["duration_days"] if settings else 0,
         plan_codes=plan_codes,
         last_payments=_last_payments(legacy_transactions),
         anchor_currency=anchor,
@@ -421,6 +423,7 @@ async def _transfer(
             (AccessSettings, [settings.access]),
             (BotRequirements, [settings.bot_requirements]),
             (ReferralSettings, [settings.referral]),
+            (GraceSettings, [settings.grace]),
             (PricingSettings, [{"id": SINGLETON_ID, "anchor_currency": anchor}]),
         ]
     if owner_migrated:

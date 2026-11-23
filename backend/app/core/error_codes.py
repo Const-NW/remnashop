@@ -153,6 +153,7 @@ class ErrorCode(UpperStrEnum):
     GATEWAY_TEST_NO_TELEGRAM = auto()
     GATEWAY_REORDER_INCOMPLETE = auto()
     GATEWAY_REQUIRED = auto()
+    GRACE_SETTINGS_INVALID = auto()
     HTTP_ERROR = auto()
     IDENTITY_BLACKLISTED = auto()
     IMAGE_CONTENT_MISMATCH = auto()

@@ -383,6 +383,16 @@ function SectionDemo() {
           <Input id="kit-login" />
         </Field>
       </SectionFields>
+      <SectionRows>
+        <Row icon={User} label={k("s.status")}>
+          <Switch checked={isOn} onChange={setIsOn} />
+        </Row>
+      </SectionRows>
+      <SectionFields flush>
+        <Field label={k("s.name")} htmlFor="kit-flush-name">
+          <Input id="kit-flush-name" />
+        </Field>
+      </SectionFields>
     </Section>
   );
 }

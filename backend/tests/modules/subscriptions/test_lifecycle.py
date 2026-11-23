@@ -74,6 +74,7 @@ async def test_renew_reactivates_an_expired_subscription(
             paid=Decimal(0),
             currency=Currency.RUB,
             previous_expire_at=created.expire_at,
+            starts_at=max(created.expire_at, datetime_now()),
             payment_key=None,
         )
 
@@ -107,6 +108,7 @@ async def test_a_renewal_segment_runs_from_the_old_end_or_today_when_lapsed(
             paid=Decimal("100"),
             currency=Currency.RUB,
             previous_expire_at=created.expire_at,
+            starts_at=max(created.expire_at, datetime_now()),
             payment_key="renew-1",
         )
 
@@ -150,6 +152,7 @@ async def _renewed_twice(
             paid=Decimal("300"),
             currency=Currency.RUB,
             previous_expire_at=now,
+            starts_at=max(now, datetime_now()),
             payment_key="first",
         )
         await service.renew(
@@ -158,6 +161,7 @@ async def _renewed_twice(
             paid=Decimal("100"),
             currency=Currency.RUB,
             previous_expire_at=now + timedelta(days=30),
+            starts_at=max(now + timedelta(days=30), datetime_now()),
             payment_key="second",
         )
     return service, segments, created.id, now
@@ -229,6 +233,7 @@ async def test_refunding_an_unlimited_renewal_brings_back_what_it_replaced(
             paid=Decimal("5000"),
             currency=Currency.RUB,
             previous_expire_at=now + timedelta(days=60),
+            starts_at=max(now + timedelta(days=60), datetime_now()),
             payment_key="forever",
         )
     assert [s.is_live for s in await _renewals(segments, subscription_id)] == [False, False, True]
@@ -319,6 +324,7 @@ async def _with_reset(
             paid=Decimal("300"),
             currency=Currency.RUB,
             previous_expire_at=now + timedelta(days=1),
+            starts_at=max(now + timedelta(days=1), datetime_now()),
             payment_key="next",
         )
     return service, created.id, now

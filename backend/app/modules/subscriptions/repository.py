@@ -16,10 +16,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import DEFAULT_PAGE_SIZE, INT32_MAX
+from app.core.constants import DEFAULT_PAGE_SIZE, GRACE_ENTRY_WINDOW, INT32_MAX
 from app.core.db.filters import in_ids, visible_rows
 from app.core.db.models.addon_entitlement import AddOnEntitlement
 from app.core.db.models.addon_grant_idempotency import AddOnGrantIdempotency
+from app.core.db.models.plan import Plan
+from app.core.db.models.plan_duration import PlanDuration
 from app.core.db.models.subscription import Subscription
 from app.core.db.partial_update import apply_partial_update
 from app.core.enums import AddOnType, SubscriptionStatus
@@ -110,6 +112,9 @@ class SubscriptionRepository:
             panel_created_at=row.panel_created_at,
             term_anchor_day=row.term_anchor_day,
             paused_by_channel_leave=row.paused_by_channel_leave,
+            grace_until=row.grace_until,
+            grace_started_at=row.grace_started_at,
+            grace_ended_at=row.grace_ended_at,
             addon_entitlements=entitlements,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -127,6 +132,8 @@ class SubscriptionRepository:
             internal_squads=list(row.internal_squads),
             external_squad=row.external_squad,
             is_trial=row.is_trial,
+            grace_until=row.grace_until,
+            grace_ended_at=row.grace_ended_at,
         )
 
     async def _get_or_raise(self, subscription_id: int) -> Subscription:
@@ -502,7 +509,11 @@ class SubscriptionRepository:
 
     async def mark_deleted(self, subscription_id: int) -> SubscriptionDto:
         row = await self._get_or_raise(subscription_id)
-        row.status = self._to_state(row).mark_deleted().status
+        state = self._to_state(row).mark_deleted()
+        row.status = state.status
+        row.grace_until = state.grace_until
+        row.grace_ended_at = state.grace_ended_at
+        row.grace_started_at = None
 
         await self.session.flush()
         await self.session.refresh(row)
@@ -547,6 +558,129 @@ class SubscriptionRepository:
         await self.session.refresh(row)
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
+    async def set_grace_until(
+        self, subscription_id: int, value: Optional[datetime]
+    ) -> SubscriptionDto:
+        row = await self._get_or_raise(subscription_id)
+        row.grace_until = value
+        # a new grace, or none: either way not entered yet
+        row.grace_started_at = None
+        await self.session.flush()
+        await self.session.refresh(row)
+        entitlements_by_subscription = await self._load_entitlements([row.id])
+        return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
+    async def end_grace(self, subscription_id: int) -> SubscriptionDto:
+        row = await self._get_or_raise(subscription_id)
+        row.grace_ended_at = row.grace_until
+        row.grace_until = None
+        row.grace_started_at = None
+        await self.session.flush()
+        await self.session.refresh(row)
+        entitlements_by_subscription = await self._load_entitlements([row.id])
+        return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
+
+    async def give_up_grace(self, subscription_id: int) -> None:
+        """Closes this expiry to grace, as if a grace of it had ended at once."""
+        row = await self._get_or_raise(subscription_id)
+        row.grace_ended_at = row.expire_at
+        row.grace_until = None
+        row.grace_started_at = None
+        await self.session.flush()
+
+    async def mark_grace_started(self, subscription_id: int, at: datetime) -> None:
+        row = await self._get_or_raise(subscription_id)
+        row.grace_started_at = at
+        await self.session.flush()
+
+    async def carries_grace(self, remnawave_user_id: int) -> bool:
+        """In grace, or its expiry is one a grace already ended."""
+        return bool(
+            await self.session.scalar(
+                select(
+                    select(Subscription.id)
+                    .where(
+                        Subscription.remnawave_user_id == remnawave_user_id,
+                        Subscription.status != SubscriptionStatus.DELETED,
+                        or_(
+                            Subscription.grace_until.is_not(None),
+                            Subscription.expire_at <= Subscription.grace_ended_at,
+                        ),
+                    )
+                    .exists()
+                )
+            )
+        )
+
+    async def _list_where(self, *conditions: Any, limit: int) -> list[SubscriptionDto]:
+        result = await self.session.execute(
+            select(Subscription)
+            .where(*conditions)
+            .order_by(Subscription.grace_attempted_at.asc().nulls_first(), Subscription.id)
+            .limit(limit)
+        )
+        rows = result.scalars().all()
+        entitlements_by_subscription = await self._load_entitlements([row.id for row in rows])
+        return [self._to_dto(row, entitlements_by_subscription.get(row.id, [])) for row in rows]
+
+    async def list_grace_entry_candidates(self, now: datetime, limit: int) -> list[SubscriptionDto]:
+        return await self._list_where(
+            or_(
+                Subscription.status == SubscriptionStatus.EXPIRED,
+                # its expiry webhook was lost (`grace.grace_entry_allowed`)
+                and_(
+                    Subscription.status == SubscriptionStatus.ACTIVE,
+                    Subscription.expire_at <= now,
+                ),
+            ),
+            Subscription.grace_until.is_(None),
+            Subscription.expire_at > now - GRACE_ENTRY_WINDOW,
+            or_(
+                Subscription.grace_ended_at.is_(None),
+                Subscription.expire_at > Subscription.grace_ended_at,
+            ),
+            # trials never get grace and would crowd the batch out for the whole window
+            Subscription.is_trial.is_(False),
+            # nor plans closed to renewal or with no paid duration (`grace.can_renew`)
+            select(Plan.id)
+            .where(
+                Plan.id == Subscription.plan_snapshot["plan_id"].as_integer(),
+                Plan.allow_renewal.is_(True),
+                or_(
+                    Plan.is_trial.is_(True),
+                    select(PlanDuration.id)
+                    .where(PlanDuration.plan_id == Plan.id, PlanDuration.base_price > 0)
+                    .exists(),
+                ),
+            )
+            .exists(),
+            limit=limit,
+        )
+
+    async def list_grace_unstarted(self, now: datetime, limit: int) -> list[SubscriptionDto]:
+        """Claimed, but the entry that claimed it never finished."""
+        return await self._list_where(
+            Subscription.grace_until > now,
+            Subscription.grace_started_at.is_(None),
+            Subscription.status != SubscriptionStatus.DELETED,
+            limit=limit,
+        )
+
+    async def list_grace_ended(self, now: datetime, limit: int) -> list[SubscriptionDto]:
+        return await self._list_where(
+            Subscription.grace_until <= now,
+            Subscription.status != SubscriptionStatus.DELETED,
+            limit=limit,
+        )
+
+    async def mark_grace_attempted(self, subscription_ids: list[int], now: datetime) -> None:
+        await self.session.execute(
+            update(Subscription)
+            .where(in_ids(Subscription.id, subscription_ids))
+            # bookkeeping, not a change to the subscription
+            .values(grace_attempted_at=now, updated_at=Subscription.updated_at)
+        )
 
     async def set_first_connected_at(self, remnawave_user_id: int, at: datetime) -> None:
         await self.session.execute(

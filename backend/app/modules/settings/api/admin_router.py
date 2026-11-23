@@ -18,6 +18,7 @@ from app.modules.settings.api.schemas import (
     BotStatusResponse,
     CabinetAuthSettingsResponse,
     EmailSettingsResponse,
+    GraceSettingsResponse,
     OAuthSettingsResponse,
     SetBotProxyRequest,
     ShopSettingsResponse,
@@ -29,6 +30,7 @@ from app.modules.settings.api.schemas import (
     UpdateBotSettingsRequest,
     UpdateCabinetAuthSettingsRequest,
     UpdateEmailSettingsRequest,
+    UpdateGraceSettingsRequest,
     UpdateOAuthSettingsRequest,
     UpdateShopSettingsRequest,
 )
@@ -43,6 +45,7 @@ from app.modules.settings.dto import (
     UpdateBotSettingsDto,
     UpdateCabinetAuthSettingsDto,
     UpdateEmailSettingsDto,
+    UpdateGraceSettingsDto,
     UpdateOAuthSettingsDto,
     UpdateShopSettingsDto,
     UploadAppearanceImageDto,
@@ -59,6 +62,7 @@ from app.modules.settings.usecases import (
     GetBotStatusUseCase,
     GetCabinetAuthSettingsUseCase,
     GetEmailSettingsUseCase,
+    GetGraceSettingsUseCase,
     GetOAuthSettingsUseCase,
     GetShopSettingsUseCase,
     RemoveBotProxyUseCase,
@@ -74,6 +78,7 @@ from app.modules.settings.usecases import (
     UpdateBotSettingsUseCase,
     UpdateCabinetAuthSettingsUseCase,
     UpdateEmailSettingsUseCase,
+    UpdateGraceSettingsUseCase,
     UpdateOAuthSettingsUseCase,
     UpdateShopSettingsUseCase,
     UploadAppearanceAppIconUseCase,
@@ -343,6 +348,39 @@ async def update_shop_settings(
         ),
     )
     return ShopSettingsResponse.model_validate(settings, from_attributes=True)
+
+
+@router.get("/grace", response_model=GraceSettingsResponse)
+@inject
+async def get_grace_settings(
+    use_case: FromDishka[GetGraceSettingsUseCase],
+    actor: Actor = Depends(require_admin),
+) -> GraceSettingsResponse:
+    settings = await use_case(actor)
+    return GraceSettingsResponse.model_validate(settings, from_attributes=True)
+
+
+@router.patch("/grace", response_model=GraceSettingsResponse, responses=error_responses(400))
+@inject
+async def update_grace_settings(
+    payload: UpdateGraceSettingsRequest,
+    use_case: FromDishka[UpdateGraceSettingsUseCase],
+    actor: Actor = Depends(require_admin),
+) -> GraceSettingsResponse:
+    settings = await use_case(
+        actor,
+        UpdateGraceSettingsDto(
+            enabled=payload.enabled,
+            internal_squads=payload.internal_squads,
+            external_squad=payload.external_squad,
+            traffic_limit_mb=payload.traffic_limit_mb,
+            traffic_limit_strategy=payload.traffic_limit_strategy,
+            tag=payload.tag,
+            duration_days=payload.duration_days,
+            fields_set=frozenset(payload.model_fields_set),
+        ),
+    )
+    return GraceSettingsResponse.model_validate(settings, from_attributes=True)
 
 
 @router.post("/bot/actions/restart", status_code=status.HTTP_202_ACCEPTED)

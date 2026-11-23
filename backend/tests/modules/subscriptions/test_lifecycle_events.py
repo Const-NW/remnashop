@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import httpx
 import pytest
 from redis.asyncio import Redis
+from remnapy import RemnawaveSDK
 from remnapy.models.webhook import UserDto as WebhookUserDto
 from remnapy.models.webhook import WebhookPayloadDto
 from sqlalchemy import select
@@ -14,16 +16,21 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
 from app.core.exceptions import RetryableTaskError
 from app.core.ports import EventPublisher
+from app.modules.plans.repository import PlanRepository
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import ProcessRemnawaveWebhookDto, PublishPanelEventDto
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import (
+    EndGraceUseCase,
+    EnterGraceUseCase,
     ProcessRemnawaveWebhookUseCase,
     PublishPanelEventUseCase,
     SyncSubscriptionStatusUseCase,
 )
 from app.modules.users.repository import UserRepository
+from tests.fakes.remnawave import make_fake_remnawave_transport, unused_sdk
 from tests.fakes.remnawave_webhook import sign_webhook, user_event_payload
 from tests.modules.subscriptions.factories import create_subscription
 
@@ -49,11 +56,40 @@ def _use_case(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
     publish = PublishPanelEventUseCase(
         subscription_repository, user_repository, uow, event_publisher
     )
-    return ProcessRemnawaveWebhookUseCase(sync, publish, redis)
+    session = subscription_repository.session
+    sdk = RemnawaveSDK(
+        client=httpx.AsyncClient(
+            transport=make_fake_remnawave_transport()[0], base_url="http://fake-panel.test/api"
+        )
+    )
+    enter = EnterGraceUseCase(
+        subscription_repository,
+        PlanRepository(session),
+        SettingsRepository(session),
+        user_repository,
+        SubscriptionLifecycleService(subscription_repository, CreditSegmentRepository(session)),
+        sdk,
+        uow,
+        event_publisher,
+        sync,
+    )
+    end = EndGraceUseCase(
+        subscription_repository,
+        user_repository,
+        SettingsRepository(subscription_repository.session),
+        sdk,
+        uow,
+        event_publisher,
+    )
+    return ProcessRemnawaveWebhookUseCase(
+        sync, publish, enter, end, subscription_repository, SettingsRepository(session), uow, redis
+    )
 
 
 async def _lifecycle_rows(session: AsyncSession) -> list[EventOutboxEntry]:

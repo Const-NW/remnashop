@@ -8,8 +8,17 @@ import { ErrorState } from "@shared/ui/glass/EmptyState";
 import { Field } from "@shared/ui/glass/Field";
 import { Spinner } from "@shared/ui/Spinner";
 
-/** Squads from the panel; one the plan still holds but the panel dropped shows by its uuid, so it can be unpicked. */
-export function PlanSquadsField({ value, onChange }: { value: PlanSquads; onChange: (value: PlanSquads) => void }) {
+/** Squads from the panel; one the plan still holds but the panel dropped shows by its uuid, so it can be unpicked.
+ * With `keepHints`, no pick is allowed and means "keep what the subscription has". */
+export function PlanSquadsField({
+  value,
+  onChange,
+  keepHints,
+}: {
+  value: PlanSquads;
+  onChange: (value: PlanSquads) => void;
+  keepHints?: { internal: string; external: string };
+}) {
   const { t } = useTranslation();
   const [squadsState] = useAsyncResource(listPanelSquads);
 
@@ -38,7 +47,12 @@ export function PlanSquadsField({ value, onChange }: { value: PlanSquads; onChan
 
   return (
     <>
-      <Field label={t("plans.edit.internalSquadsLabel")} required error={goneError(value.internal_squads)}>
+      <Field
+        label={t("plans.edit.internalSquadsLabel")}
+        required={!keepHints}
+        info={keepHints?.internal}
+        error={goneError(value.internal_squads)}
+      >
         {internal.length === 0 ? (
           <p className="text-xs text-muted-foreground">{t("plans.edit.squadsEmpty")}</p>
         ) : (
@@ -59,6 +73,7 @@ export function PlanSquadsField({ value, onChange }: { value: PlanSquads; onChan
       {external.length > 0 && (
         <Field
           label={t("plans.edit.externalSquadLabel")}
+          info={keepHints?.external}
           error={goneError(value.external_squad ? [value.external_squad] : [])}
         >
           <div className="flex flex-wrap gap-1.5">

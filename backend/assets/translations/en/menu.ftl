@@ -73,6 +73,10 @@ frg-subscription-status = { $status ->
        *[other] { $status }
     }
 frg-subscription-unlimited = Unlimited
+frg-subscription-grace = • Grace period{ $grace_until ->
+        [none] {""}
+       *[other] {" "}until { $grace_until }
+    }
 frg-subscription-traffic-limit = { $traffic_limit } GB
 msg-window-gone = This screen is no longer available.
 msg-start-welcome = Welcome!
@@ -188,6 +192,7 @@ msg-subscription-card =
        *[other] { $device_limit }
     }
     • <b>Expires</b>: { $expire_at_local }
+    { $grace }
     </blockquote>
 msg-referrals =
     <b>👥 Invite friends</b>

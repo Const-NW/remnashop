@@ -12,6 +12,7 @@ from app.core.db.models import EventOutboxEntry
 from app.core.db.uow import UnitOfWork
 from app.core.enums import AddOnType, SubscriptionStatus
 from app.core.ports import EventPublisher
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.dto import PanelConfigDto, SyncSubscriptionStatusDto
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
@@ -19,6 +20,7 @@ from app.modules.subscriptions.panel_config import _base_limit, panel_config
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import SyncSubscriptionStatusUseCase
 from app.modules.users.repository import UserRepository
+from tests.fakes.remnawave import unused_sdk
 from tests.modules.subscriptions.factories import create_subscription
 
 
@@ -82,6 +84,8 @@ def _use_case(
         SubscriptionLifecycleService(
             subscription_repository, CreditSegmentRepository(subscription_repository.session)
         ),
+        unused_sdk(),
+        SettingsRepository(subscription_repository.session),
     )
 
 

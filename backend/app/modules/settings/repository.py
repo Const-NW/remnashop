@@ -10,6 +10,7 @@ from app.core.db.models.bot_requirements import BotRequirements
 from app.core.db.models.bot_settings import BotSettings
 from app.core.db.models.cabinet_auth_settings import CabinetAuthSettings
 from app.core.db.models.email_settings import EmailSettings
+from app.core.db.models.grace_settings import GraceSettings
 from app.core.db.models.oauth_settings import OAuthSettings
 from app.core.db.models.shop_settings import ShopSettings
 from app.core.db.partial_update import apply_partial_update
@@ -24,6 +25,7 @@ from app.modules.settings.dto import (
     BotSettingsDto,
     CabinetAuthSettingsDto,
     EmailSettingsDto,
+    GraceSettingsDto,
     OAuthSettingsDto,
     ShopSettingsDto,
     UpdateAccessSettingsDto,
@@ -32,6 +34,7 @@ from app.modules.settings.dto import (
     UpdateBotSettingsDto,
     UpdateCabinetAuthSettingsDto,
     UpdateEmailSettingsDto,
+    UpdateGraceSettingsDto,
     UpdateOAuthSettingsDto,
     UpdateShopSettingsDto,
 )
@@ -130,6 +133,24 @@ class SettingsRepository:
         await self.session.flush()
         await self.session.refresh(row)
         return self._to_shop_dto(row)
+
+    def _to_grace_dto(self, row: Optional[GraceSettings]) -> GraceSettingsDto:
+        if row is None:
+            return GraceSettingsDto()
+        return GraceSettingsDto.model_validate(row, from_attributes=True)
+
+    async def get_grace_settings(self) -> GraceSettingsDto:
+        row = await self.session.get(GraceSettings, SINGLETON_ID)
+        return self._to_grace_dto(row)
+
+    async def update_grace_settings(self, data: UpdateGraceSettingsDto) -> GraceSettingsDto:
+        row = await get_or_create_singleton(self.session, GraceSettings, SINGLETON_ID)
+        for name in data.fields_set:
+            setattr(row, name, getattr(data, name))
+
+        await self.session.flush()
+        await self.session.refresh(row)
+        return self._to_grace_dto(row)
 
     def _to_access_dto(self, row: Optional[AccessSettings]) -> AccessSettingsDto:
         if row is None:

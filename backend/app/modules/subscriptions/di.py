@@ -38,6 +38,8 @@ from app.modules.subscriptions.usecases import (
     DeleteDeviceUseCase,
     DeleteSubscriptionUseCase,
     DeleteUserSubscriptionsUseCase,
+    EndGraceUseCase,
+    EnterGraceUseCase,
     FulfillPurchaseUseCase,
     GetAvailableTrialUseCase,
     GetPanelSyncStatusUseCase,
@@ -68,6 +70,7 @@ from app.modules.subscriptions.usecases import (
     SetSubscriptionEnabledUseCase,
     StartPanelSyncFromUseCase,
     StartPanelSyncToUseCase,
+    SweepGraceUseCase,
     SyncAllFromPanelUseCase,
     SyncAllToPanelUseCase,
     SyncSubscriptionStatusUseCase,
@@ -141,6 +144,9 @@ class SubscriptionsProvider(Provider):
         SyncAllFromPanelUseCase,
         SyncAllToPanelUseCase,
         PruneIdempotencyKeysUseCase,
+        EnterGraceUseCase,
+        EndGraceUseCase,
+        SweepGraceUseCase,
     )
     subscription_revoker = alias(source=PanelSubscriptionRevoker, provides=SubscriptionRevoker)
 

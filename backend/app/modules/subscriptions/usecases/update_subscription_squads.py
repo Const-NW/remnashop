@@ -42,13 +42,16 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
                 self._subscription_repository, self._user_repository, actor, data.subscription_id
             )
 
-        await self._remnawave_sdk.users.update_user(
-            panel_update(
-                id=current.remnawave_user_id,
-                active_internal_squads=data.internal_squads or None,
-                external_squad_uuid=data.external_squad,
+        # in grace the panel runs on the grace squads: the grace end pushes the row's
+        pushed = current.grace_until is None
+        if pushed:
+            await self._remnawave_sdk.users.update_user(
+                panel_update(
+                    id=current.remnawave_user_id,
+                    active_internal_squads=data.internal_squads or None,
+                    external_squad_uuid=data.external_squad,
+                )
             )
-        )
 
         async with self._uow:
             # deleted while the panel call was in flight
@@ -73,14 +76,16 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
         if locked.status is SubscriptionStatus.DELETED:
             restored = owner or current
             # best effort, outside the row lock: the edit lost its row, the panel user may not
-            with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(
-                    panel_update(
-                        id=current.remnawave_user_id,
-                        active_internal_squads=restored.internal_squads or None,
-                        external_squad_uuid=restored.external_squad,
+            if pushed:
+                with suppress(Exception):
+                    await self._remnawave_sdk.users.update_user(
+                        panel_update(
+                            id=current.remnawave_user_id,
+                            # an empty list too: left out, the edit's squads would stay
+                            active_internal_squads=restored.internal_squads,
+                            external_squad_uuid=restored.external_squad,
+                        )
                     )
-                )
             raise ValidationError(
                 f"Subscription '{data.subscription_id}' was deleted",
                 code=ErrorCode.SUBSCRIPTION_DELETED,

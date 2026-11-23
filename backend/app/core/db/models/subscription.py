@@ -21,6 +21,12 @@ class Subscription(BaseSql, TimestampMixin):
             unique=True,
             postgresql_where=text(f"status != '{SubscriptionStatus.DELETED.name}'"),
         ),
+        # the grace sweep's end lookup; almost every row has none
+        Index(
+            "ix_subscriptions_grace_until",
+            "grace_until",
+            postgresql_where=text("grace_until IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -55,6 +61,16 @@ class Subscription(BaseSql, TimestampMixin):
     link_reset_at: Mapped[Optional[datetime]]
     # disabled because the customer left the required channel; only these come back on rejoin
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
+    # set while the grace period holds the panel user active past expiry; cleared on renewal
+    grace_until: Mapped[Optional[datetime]]
+    # the grace entry finished (pushed, traffic reset, customer told); a claim without it
+    # is an entry a retry still has to finish
+    grace_started_at: Mapped[Optional[datetime]]
+    # the last grace's end: the panel keeps it as its expiry, so a sync brings it into
+    # expire_at and the row would look freshly expired again
+    grace_ended_at: Mapped[Optional[datetime]]
+    # the grace sweep's last pick: a row that keeps failing goes to the back of its queue
+    grace_attempted_at: Mapped[Optional[datetime]]
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
     # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets

@@ -4,7 +4,6 @@ from typing import Optional
 
 from app.core.constants import TIME_1D
 from app.core.enums import CreditSegmentKind, Currency, SubscriptionStatus
-from app.core.utils.time import datetime_now
 from app.modules.subscriptions.credit import traffic_pace
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.domain import SubscriptionState
@@ -195,11 +194,15 @@ class SubscriptionLifecycleService:
         paid: Decimal,
         currency: Currency,
         previous_expire_at: datetime,
+        starts_at: datetime,
         payment_key: Optional[str],
     ) -> SubscriptionDto:
         # previous_expire_at is read before the panel call: the panel's webhook may
         # have synced the new expiry into the row by now
         dto = await self._subscription_repository.get_by_id_for_update(subscription_id)
+        if dto.grace_until is not None:
+            # every renewal ends grace; the sync heeds the panel again from here
+            await self._subscription_repository.set_grace_until(subscription_id, None)
         renewed = await self._subscription_repository.apply_state(
             _dto_to_state(dto).reactivate_on_renew(new_expire_at)
         )
@@ -207,7 +210,7 @@ class SubscriptionLifecycleService:
             # a lapsed term restarts today; its old segments lie in the past and credit nothing
             term = await self._add_segment(
                 subscription_id,
-                starts_at=max(previous_expire_at, datetime_now()),
+                starts_at=starts_at,
                 expire_at=new_expire_at,
                 paid=paid,
                 currency=currency,

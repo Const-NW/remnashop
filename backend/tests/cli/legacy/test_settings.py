@@ -1,10 +1,13 @@
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 import pytest
+from remnapy.enums import TrafficLimitStrategy
 
 from app.cli.legacy.report import MigrationReport
 from app.cli.legacy.settings import transform_settings
+from app.core.constants import GRACE_DEFAULT_DURATION_DAYS
 from app.core.db.singleton import SINGLETON_ID
 from app.core.enums import AccessMode, Currency, ReferralAccrualStrategy, ReferralRewardStrategy
 
@@ -91,3 +94,50 @@ def test_referral_every_payment() -> None:
 
 def test_anchor_from_default_currency() -> None:
     assert transform_settings(_row(), MigrationReport()).anchor_currency is Currency.RUB
+
+
+def test_grace_settings_migrated() -> None:
+    grace = {
+        "enabled": True,
+        "internal_squads": ["11111111-1111-1111-1111-111111111111"],
+        "external_squad": "22222222-2222-2222-2222-222222222222",
+        "traffic_mb": 512,
+        "traffic_strategy": "DAY",
+        "tag": "GRACE",
+        "duration_days": 3,
+    }
+    assert transform_settings(_row(grace=grace), MigrationReport()).grace == {
+        "id": SINGLETON_ID,
+        "enabled": True,
+        "internal_squads": [UUID("11111111-1111-1111-1111-111111111111")],
+        "external_squad": UUID("22222222-2222-2222-2222-222222222222"),
+        "traffic_limit_mb": 512,
+        "traffic_limit_strategy": TrafficLimitStrategy.DAY,
+        "tag": "GRACE",
+        "duration_days": 3,
+    }
+
+
+@pytest.mark.parametrize("extra", [{}, {"grace": {}}])
+def test_no_grace_key_defaults_off(extra: dict[str, Any]) -> None:
+    grace = transform_settings(_row(**extra), MigrationReport()).grace
+    assert grace["enabled"] is False
+    assert grace["internal_squads"] == []
+    assert grace["external_squad"] is None
+    assert grace["traffic_limit_mb"] == 0
+    assert grace["traffic_limit_strategy"] is TrafficLimitStrategy.NO_RESET
+    assert grace["tag"] is None
+    assert grace["duration_days"] == GRACE_DEFAULT_DURATION_DAYS
+
+
+def test_explicit_zero_grace_duration_kept() -> None:
+    grace = transform_settings(_row(grace={"duration_days": 0}), MigrationReport()).grace
+    assert grace["duration_days"] == 0
+
+
+@pytest.mark.parametrize("tag", ["grace", "A_VERY_LONG_GRACE_TAG"])
+def test_grace_tag_the_panel_refuses_is_dropped(tag: str) -> None:
+    report = MigrationReport()
+    grace = transform_settings(_row(grace={"enabled": True, "tag": tag}), report).grace
+    assert grace["tag"] is None
+    assert any("grace tag" in note for note in report.notes)

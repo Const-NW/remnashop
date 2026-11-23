@@ -225,3 +225,16 @@ def test_restore_after_refund_refuses_a_live_row() -> None:
     with pytest.raises(ValidationError) as exc:
         state.restore_after_refund(now)
     assert exc.value.code is ErrorCode.SUBSCRIPTION_STATUS_TRANSITION_INVALID
+
+
+def test_mark_deleted_uses_up_a_running_grace() -> None:
+    grace_until = datetime_now() + timedelta(days=2)
+    deleted = _state(status=SubscriptionStatus.EXPIRED, grace_until=grace_until).mark_deleted()
+    assert deleted.grace_until is None
+    assert deleted.grace_ended_at == grace_until
+
+
+def test_mark_deleted_keeps_an_earlier_grace_end() -> None:
+    ended = datetime_now() - timedelta(days=2)
+    deleted = _state(status=SubscriptionStatus.EXPIRED, grace_ended_at=ended).mark_deleted()
+    assert deleted.grace_ended_at == ended

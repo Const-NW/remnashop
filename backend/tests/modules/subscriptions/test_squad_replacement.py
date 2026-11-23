@@ -7,6 +7,7 @@ from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, PanelSyncDirection, Role
 from app.core.ports import EventPublisher
+from app.modules.settings import SettingsRepository
 from app.modules.subscriptions.dto import (
     PushSubscriptionToPanelDto,
     SubscriptionDto,
@@ -111,6 +112,7 @@ async def test_diff_names_the_rows_squads_the_panel_lacks(
 async def test_push_replaces_the_picked_squads_before_it_writes(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     event_publisher: EventPublisher,
@@ -127,6 +129,7 @@ async def test_push_replaces_the_picked_squads_before_it_writes(
         event_publisher,
         uow,
         AppConfig.get(),
+        settings_repository,
     )(OWNER, PushSubscriptionToPanelDto(subscription_id=created.id, squad_replacements={GONE: NEW}))
 
     assert pushed.internal_squads == [NEW, KEPT]
@@ -137,6 +140,7 @@ async def test_push_replaces_the_picked_squads_before_it_writes(
 async def test_bulk_push_replaces_squads_on_every_row_holding_them(
     subscription_repository: SubscriptionRepository,
     user_repository: UserRepository,
+    settings_repository: SettingsRepository,
     remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     event_publisher: EventPublisher,
@@ -164,6 +168,7 @@ async def test_bulk_push_replaces_squads_on_every_row_holding_them(
         redis,
         event_publisher,
         AppConfig.get(),
+        settings_repository,
     ).system(
         SyncToPanelOptionsDto(
             recreate_missing=False, delete_orphans=False, squad_replacements={GONE: NEW}

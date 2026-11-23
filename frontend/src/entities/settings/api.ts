@@ -1,3 +1,4 @@
+import type { TrafficLimitStrategy } from "@entities/subscriptions/api";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@shared/api/http";
 
 export interface BotSettings {
@@ -271,4 +272,26 @@ export function updateBotRequirements(payload: BotRequirements): Promise<BotRequ
 
 export function getPaymentWaitlistCount(signal?: AbortSignal): Promise<{ total: number }> {
   return apiGet<{ total: number }>("/transactions/waitlist", signal);
+}
+
+export interface GraceSettings {
+  enabled: boolean;
+  internal_squads: string[];
+  external_squad: string | null;
+  // MB, 0 = unlimited
+  traffic_limit_mb: number;
+  traffic_limit_strategy: TrafficLimitStrategy;
+  tag: string | null;
+  // 0 = no end
+  duration_days: number;
+}
+
+export type UpdateGraceSettingsPayload = Partial<GraceSettings>;
+
+export function getGraceSettings(signal?: AbortSignal): Promise<GraceSettings> {
+  return apiGet<GraceSettings>("/settings/grace", signal);
+}
+
+export function updateGraceSettings(payload: UpdateGraceSettingsPayload): Promise<GraceSettings> {
+  return apiPatch<GraceSettings, UpdateGraceSettingsPayload>("/settings/grace", payload);
 }

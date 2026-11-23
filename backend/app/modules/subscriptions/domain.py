@@ -93,6 +93,9 @@ class SubscriptionState:
     internal_squads: list[UUID]
     external_squad: Optional[UUID]
     is_trial: bool
+    # read for mark_deleted only; apply_state leaves them alone
+    grace_until: Optional[datetime] = None
+    grace_ended_at: Optional[datetime] = None
 
     def sync_status(self, target: SubscriptionStatus) -> SubscriptionState:
         """The panel is authoritative: any status it reports is taken, except
@@ -158,4 +161,10 @@ class SubscriptionState:
 
     def mark_deleted(self) -> SubscriptionState:
         assert_transition(self.status, SubscriptionStatus.DELETED)
-        return replace(self, status=SubscriptionStatus.DELETED)
+        # a refund may bring the row back: as a plain expired one, its grace used up
+        return replace(
+            self,
+            status=SubscriptionStatus.DELETED,
+            grace_until=None,
+            grace_ended_at=self.grace_until or self.grace_ended_at,
+        )

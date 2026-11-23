@@ -66,10 +66,19 @@ export function SectionRows({ divided = false, flush = false, children }: { divi
 }
 
 /** A block of Fields in a Section, one per line, edges on the rows' icons. divided: a line above,
- *  when it follows SectionRows. */
-export function SectionFields({ divided = false, children }: { divided?: boolean; children: ReactNode }) {
+ *  when it follows SectionRows; flush: no gap above, right under a row. */
+export function SectionFields({
+  divided = false,
+  flush = false,
+  children,
+}: {
+  divided?: boolean;
+  flush?: boolean;
+  children: ReactNode;
+}) {
+  const spacing = flush ? "" : divided ? "mt-2 border-t border-white/[0.08] pt-2" : "mt-4";
   return (
-    <div className={divided ? "mt-2 border-t border-white/[0.08] pt-2" : "mt-4"}>
+    <div className={spacing}>
       <div className="flex flex-col gap-3 px-3.5 pb-2 pt-1">{children}</div>
     </div>
   );

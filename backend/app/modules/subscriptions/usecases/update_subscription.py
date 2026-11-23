@@ -15,6 +15,7 @@ from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.settings import GraceSettingsDto, SettingsRepository
 from app.modules.subscriptions.dto import SubscriptionDto, UpdateSubscriptionDto
 from app.modules.subscriptions.eligibility import (
     get_manageable_subscription,
@@ -45,6 +46,7 @@ class UpdateSubscriptionUseCase(UseCase[UpdateSubscriptionDto, SubscriptionDto])
         event_publisher: EventPublisher,
         uow: UnitOfWork,
         lifecycle_service: SubscriptionLifecycleService,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
@@ -52,6 +54,7 @@ class UpdateSubscriptionUseCase(UseCase[UpdateSubscriptionDto, SubscriptionDto])
         self._event_publisher = event_publisher
         self._uow = uow
         self._lifecycle_service = lifecycle_service
+        self._settings_repository = settings_repository
 
     async def _execute(self, actor: Actor, data: UpdateSubscriptionDto) -> SubscriptionDto:
         # the panel refuses a past expireAt on update
@@ -64,39 +67,54 @@ class UpdateSubscriptionUseCase(UseCase[UpdateSubscriptionDto, SubscriptionDto])
             old = await get_manageable_subscription(
                 self._subscription_repository, self._user_repository, actor, data.subscription_id
             )
+            grace: Optional[GraceSettingsDto] = None
+            if old.grace_until is not None:
+                grace = await self._settings_repository.get_grace_settings()
+        # a new expiry ends grace; anything else waits in the row for its end
+        exits_grace = old.grace_until is not None and data.expire_at is not None
 
         panel_status: Optional[SubscriptionStatus] = None
         # None reaches the panel as null, which empties its tag
         tag_change = {"tag": data.tag} if data.tag is not None or "tag" in data.cleared else {}
-        touches_panel = bool(tag_change) or any(
-            value is not None
-            for value in (
-                data.traffic_limit,
-                data.device_limit,
-                data.traffic_limit_strategy,
-                data.expire_at,
+        touches_panel = (old.grace_until is None or exits_grace) and (
+            bool(tag_change)
+            or any(
+                value is not None
+                for value in (
+                    data.traffic_limit,
+                    data.device_limit,
+                    data.traffic_limit_strategy,
+                    data.expire_at,
+                )
             )
         )
         if touches_panel:
             traffic_limit = old.traffic_limit if data.traffic_limit is None else data.traffic_limit
             device_limit = old.device_limit if data.device_limit is None else data.device_limit
-            panel_user = await self._remnawave_sdk.users.update_user(
-                panel_update(
-                    id=old.remnawave_user_id,
-                    traffic_limit_bytes=_effective(traffic_limit, old, AddOnType.TRAFFIC)
-                    * GB_TO_BYTES,
-                    hwid_device_limit=_effective(device_limit, old, AddOnType.DEVICES),
-                    traffic_limit_strategy=data.traffic_limit_strategy,
-                    expire_at=data.expire_at,
-                    **tag_change,
-                )
+            request = panel_update(
+                id=old.remnawave_user_id,
+                traffic_limit_bytes=_effective(traffic_limit, old, AddOnType.TRAFFIC) * GB_TO_BYTES,
+                hwid_device_limit=_effective(device_limit, old, AddOnType.DEVICES),
+                traffic_limit_strategy=data.traffic_limit_strategy,
+                expire_at=data.expire_at,
+                **tag_change,
             )
+            if exits_grace:
+                # the panel holds the grace config: the row's own goes back with the edit
+                request = restore(old, left_grace=grace).model_copy(
+                    update=request.model_dump(exclude_unset=True)
+                )
+            panel_user = await self._remnawave_sdk.users.update_user(request)
             panel_status = SubscriptionStatus(panel_user.status)
 
         try:
             async with self._uow:
                 await lock_live_subscription(self._subscription_repository, data.subscription_id)
                 subscription = await self._subscription_repository.update(data)
+                if exits_grace:
+                    subscription = await self._subscription_repository.set_grace_until(
+                        subscription.id, None
+                    )
                 if data.expire_at is not None:
                     # a hand-set end: the next calendar term counts from its day
                     subscription = await self._subscription_repository.set_term_anchor_day(
@@ -122,7 +140,7 @@ class UpdateSubscriptionUseCase(UseCase[UpdateSubscriptionDto, SubscriptionDto])
             if touches_panel:
                 with suppress(Exception):
                     owner = await self._panel_owner(old)
-                    await self._remnawave_sdk.users.update_user(restore(owner))
+                    await self._remnawave_sdk.users.update_user(restore(owner, grace=grace))
             raise
 
         logger.info(f"{actor.log} Updated subscription '{subscription.id}'")

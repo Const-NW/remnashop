@@ -1,14 +1,19 @@
 from collections.abc import Mapping, Sequence
+from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Final
+from typing import Any, Final, Optional
+from uuid import UUID
 
 from app.cli.legacy.panel import PanelIndex, resolve_panel_id
 from app.cli.legacy.plans import strip_leading_emoji
 from app.cli.legacy.report import MigrationReport
 from app.core.constants import TIME_1D
 from app.core.enums import CreditSegmentKind, Currency, SubscriptionStatus
+from app.modules.subscriptions import is_unlimited_expiry
 
 _TABLE: Final[str] = "subscriptions"
+_ECHO_TOLERANCE: Final[timedelta] = timedelta(seconds=1)
+_GRACE_STATUSES: Final[frozenset[str]] = frozenset({"ACTIVE", "EXPIRED"})
 _COPIED: Final[tuple[str, ...]] = (
     "id",
     "user_id",
@@ -25,6 +30,7 @@ _COPIED: Final[tuple[str, ...]] = (
     "device_single_reset_at",
     "device_all_reset_at",
     "link_reset_at",
+    "grace_until",
     "created_at",
     "updated_at",
 )
@@ -93,8 +99,60 @@ def _claim_live(
     return status
 
 
+def _holds_grace(panel_expire_at: Optional[datetime], grace_until: datetime) -> bool:
+    # the panel echoes milliseconds, grace_until keeps microseconds
+    return panel_expire_at is not None and abs(panel_expire_at - grace_until) <= _ECHO_TOLERANCE
+
+
+def _grace_terms(
+    row: Mapping[str, Any],
+    status: SubscriptionStatus,
+    panel_expire_at: Optional[datetime],
+    grace_days: int,
+    report: MigrationReport,
+) -> dict[str, Any]:
+    """The old app's sync copied the panel's grace config, expiry included, into the
+    row; the expiry is rebuilt from the grace length and the rest from the plan snapshot."""
+    grace_until = row.get("grace_until")
+    if grace_until is None or status is SubscriptionStatus.DELETED:
+        return {"grace_until": None}
+    # the old app cleared grace_until only on a paid renewal and at grace end: day
+    # grants and panel extensions left it on a renewed row the panel no longer holds
+    if not _holds_grace(panel_expire_at, grace_until):
+        return {"grace_until": None, "stale_grace": True}
+    # the panel holds the grace config and the grace end, never the row's
+    terms = {"status": SubscriptionStatus.EXPIRED, "grace_until": grace_until}
+    if row["status"] not in _GRACE_STATUSES:
+        report.notes.append(f"subscriptions #{row['id']}: in grace with status {row['status']}")
+    if row["expire_at"] < grace_until - _ECHO_TOLERANCE:
+        return {**terms, "expire_at": row["expire_at"]}
+    if grace_days > 0 and not is_unlimited_expiry(grace_until):
+        expire_at = grace_until - timedelta(days=grace_days)
+    else:
+        expire_at = row["updated_at"]
+        report.notes.append(
+            f"subscriptions #{row['id']}: real expiry unknown, set to the last update {expire_at}"
+        )
+    snapshot = row["plan_snapshot"]
+    external_squad = snapshot.get("external_squad")
+    return {
+        **terms,
+        "expire_at": expire_at,
+        "traffic_limit": snapshot["traffic_limit"],
+        "traffic_limit_strategy": snapshot["traffic_limit_strategy"],
+        "tag": snapshot.get("tag"),
+        "internal_squads": [UUID(str(squad)) for squad in snapshot.get("internal_squads") or []],
+        "external_squad": UUID(str(external_squad)) if external_squad else None,
+    }
+
+
 def _add_notes(
-    report: MigrationReport, demoted: int, unpriced: int, unknown_plans: set[int]
+    report: MigrationReport,
+    demoted: int,
+    unpriced: int,
+    unknown_plans: set[int],
+    in_grace: int,
+    stale_grace: int,
 ) -> None:
     if demoted:
         report.notes.append(f"subscriptions: {demoted} non-current subscriptions set to DELETED")
@@ -106,6 +164,10 @@ def _add_notes(
         report.notes.append(
             f"subscriptions: snapshot plans {sorted(unknown_plans)} not migrated, empty public code"
         )
+    if in_grace:
+        report.notes.append(f"subscriptions: {in_grace} in grace")
+    if stale_grace:
+        report.notes.append(f"subscriptions: {stale_grace} stale grace marks dropped")
 
 
 def transform_subscriptions(
@@ -114,6 +176,7 @@ def transform_subscriptions(
     users: Mapping[int, Mapping[str, Any]],
     current_subscription_ids: set[int],
     index: PanelIndex,
+    grace_days: int,
     plan_codes: Mapping[int, str],
     last_payments: Mapping[tuple[int, int], tuple[Decimal, Currency]],
     anchor_currency: Currency,
@@ -124,6 +187,8 @@ def transform_subscriptions(
     demoted = 0
     unpriced = 0
     unknown_plans: set[int] = set()
+    in_grace = 0
+    stale_grace = 0
 
     for row in sorted(rows, key=lambda r: int(r["id"])):
         sub_id = int(row["id"])
@@ -173,8 +238,14 @@ def transform_subscriptions(
             item.update(url=index.url[panel_id])
         if status is not SubscriptionStatus.DELETED and panel_id in index.status:
             item.update(status=index.status[panel_id], expire_at=index.expire_at[panel_id])
+        grace = _grace_terms(row, status, index.expire_at.get(panel_id), grace_days, report)
+        stale_grace += bool(grace.pop("stale_grace", False))
+        item.update(grace)
+        # entered by the old app: the sweep must not finish the entry again
+        item["grace_started_at"] = item["expire_at"] if item["grace_until"] is not None else None
+        in_grace += item["grace_until"] is not None
         result.append(item)
 
     report.count(_TABLE, len(rows), len(result))
-    _add_notes(report, demoted, unpriced, unknown_plans)
+    _add_notes(report, demoted, unpriced, unknown_plans, in_grace, stale_grace)
     return result

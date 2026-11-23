@@ -16,6 +16,7 @@ from app.core.exceptions import RemnawavePanelUnavailableError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
+from app.modules.settings import GraceSettingsDto, SettingsRepository
 from app.modules.subscriptions.dto import (
     PanelSyncResultDto,
     SubscriptionDto,
@@ -55,6 +56,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
         redis: Redis,
         event_publisher: EventPublisher,
         config: AppConfig,
+        settings_repository: SettingsRepository,
     ) -> None:
         self._subscription_repository = subscription_repository
         self._user_repository = user_repository
@@ -63,6 +65,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
         self._redis = redis
         self._event_publisher = event_publisher
         self._prefix = config.remnawave.username_prefix
+        self._settings_repository = settings_repository
 
     async def _execute(self, actor: Actor, data: SyncToPanelOptionsDto) -> PanelSyncResultDto:
         async with holding_panel_sync(self._redis, PanelSyncDirection.TO_PANEL):
@@ -71,6 +74,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
     async def _sync(self, actor: Actor, options: SyncToPanelOptionsDto) -> PanelSyncResultDto:
         async with self._uow:
             await self._replace_squads(options.squad_replacements)
+            grace = await self._settings_repository.get_grace_settings()
             subscriptions = await self._subscription_repository.list_non_terminal()
             linked = await self._subscription_repository.list_linked_remnawave_user_ids()
             owners = {
@@ -83,7 +87,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
         try:
             by_panel_id = {s.remnawave_user_id: s for s in subscriptions}
             listing = await scan_panel(
-                self._remnawave_sdk, linked, partial(_lags_behind, by_panel_id, owners)
+                self._remnawave_sdk, linked, partial(_lags_behind, by_panel_id, owners, grace)
             )
             for position, subscription in enumerate(subscriptions):
                 lags = listing.tracked.get(subscription.remnawave_user_id)
@@ -109,7 +113,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
                         )
                         recreated += 1
                         continue
-                    await push_to_panel(self._remnawave_sdk, current, owner)
+                    await push_to_panel(self._remnawave_sdk, current, owner, grace)
                 except ValidationError:
                     continue  # deleted while the sync ran
                 except RemnawavePanelUnavailableError:
@@ -222,9 +226,12 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
 
 
 def _lags_behind(
-    by_panel_id: dict[int, SubscriptionDto], owners: dict[int, UserDto], user: UserResponseDto
+    by_panel_id: dict[int, SubscriptionDto],
+    owners: dict[int, UserDto],
+    grace: GraceSettingsDto,
+    user: UserResponseDto,
 ) -> Optional[bool]:
     subscription = by_panel_id.get(user.id)
     if subscription is None:
         return None
-    return panel_lags_behind(subscription, user, owners[subscription.user_id])
+    return panel_lags_behind(subscription, user, owners[subscription.user_id], grace)
