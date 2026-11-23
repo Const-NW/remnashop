@@ -22,6 +22,7 @@ frg-menu-subscription =
         [EXPIRED]
             <blockquote>
             • Срок действия истёк.
+            { $grace }
 
             <i>{ $is_trial ->
                 [0] Ваша подписка истекла. Продлите её, чтобы продолжить пользоваться сервисом!
@@ -74,6 +75,10 @@ frg-subscription-status = { $status ->
     }
 frg-subscription-unlimited = Безлимит
 frg-subscription-grace = • Льготный период{ $grace_until ->
+        [none] {""}
+       *[other] {" "}до { $grace_until }
+    }
+frg-subscription-card-grace = • <b>Льготный период</b>{ $grace_until ->
         [none] {""}
        *[other] {" "}до { $grace_until }
     }
