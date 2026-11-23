@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Final, Optional
 
 from app.core.constants import GRACE_ENTRY_WINDOW
 from app.core.enums import SubscriptionStatus
@@ -7,6 +7,11 @@ from app.modules.plans import PlanDto
 from app.modules.settings import GraceSettingsDto
 from app.modules.subscriptions.dto import SubscriptionDto
 from app.modules.subscriptions.unlimited import expiry_after
+
+# what a row the panel expired may still say when the expiry webhook was lost
+LIVE_STATUSES: Final[frozenset[SubscriptionStatus]] = frozenset(
+    {SubscriptionStatus.ACTIVE, SubscriptionStatus.LIMITED}
+)
 
 
 def can_renew(subscription: SubscriptionDto, plan: Optional[PlanDto]) -> bool:
@@ -26,8 +31,8 @@ def grace_entry_allowed(
         settings.enabled
         and (
             subscription.status is SubscriptionStatus.EXPIRED
-            # a lost expiry webhook leaves the row ACTIVE past its expiry
-            or (subscription.status is SubscriptionStatus.ACTIVE and subscription.expire_at <= now)
+            # a lost expiry webhook leaves the row ACTIVE or LIMITED past its expiry
+            or (subscription.status in LIVE_STATUSES and subscription.expire_at <= now)
         )
         and subscription.grace_until is None
         # an expiry no later than the last grace's end is that grace's own

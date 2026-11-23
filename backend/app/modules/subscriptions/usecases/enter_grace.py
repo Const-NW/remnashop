@@ -25,7 +25,7 @@ from app.modules.subscriptions.events import (
     SubscriptionGraceStartedEvent,
     SubscriptionStatusSyncedEvent,
 )
-from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
+from app.modules.subscriptions.grace import LIVE_STATUSES, grace_entry_allowed, grace_until_for
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import restore, revert_panel_to_owner
 from app.modules.subscriptions.panel_sync import from_panel
@@ -154,7 +154,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
         logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
 
     async def _extended_in_panel(self, data: int) -> bool:
-        """A row left ACTIVE past its expiry lost its expiry webhook, and maybe the
+        """A row left ACTIVE or LIMITED past its expiry lost its expiry webhook, and maybe the
         panel extension after it: the panel's date is read before grace cuts it short.
         True when the row isn't to enter grace now."""
         async with self._uow:
@@ -162,7 +162,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
             subscription = await self._subscription_repository.get_by_id(data)
         if not (
             settings.enabled
-            and subscription.status is SubscriptionStatus.ACTIVE
+            and subscription.status in LIVE_STATUSES
             and subscription.grace_until is None
             and subscription.expire_at <= datetime_now()
         ):
@@ -191,7 +191,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
             plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
         if not grace_entry_allowed(subscription, plan, settings, now):
             return None
-        if subscription.status is SubscriptionStatus.ACTIVE:
+        if subscription.status in LIVE_STATUSES:
             # the expiry webhook was lost: its sync would have set this
             expired = await self._lifecycle_service.sync_status(
                 subscription.id, SubscriptionStatus.EXPIRED
@@ -281,8 +281,14 @@ class EnterGraceUseCase(UseCase[int, bool]):
                 self._remnawave_sdk, self._subscription_repository, self._uow, current, settings
             )
         else:
-            await self._remnawave_sdk.users.update_user(
-                restore(current, grace=settings, left_grace=settings)
-            )
+            try:
+                await self._remnawave_sdk.users.update_user(
+                    restore(current, grace=settings, left_grace=settings)
+                )
+            except Exception:
+                logger.exception(f"Failed to put subscription '{data}' back after grace entry")
+                async with self._uow:
+                    # the minute cron pushes it again
+                    await self._subscription_repository.mark_panel_restore_due(data, datetime_now())
         logger.info(f"Subscription '{data}' left grace while it was being pushed")
         return False

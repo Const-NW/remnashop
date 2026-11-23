@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 from uuid import uuid4
 
+import pytest
 from redis.asyncio import Redis
 from remnapy import RemnawaveSDK
 from remnapy.enums import TrafficLimitStrategy, UserStatus
@@ -32,6 +33,7 @@ from app.modules.subscriptions.usecases import (
     PushSubscriptionToPanelUseCase,
     SyncAllToPanelUseCase,
     SyncSubscriptionStatusUseCase,
+    UpdateSubscriptionSquadsUseCase,
 )
 from app.modules.users.dto import UserDto
 from app.modules.users.repository import UserRepository
@@ -418,3 +420,69 @@ def test_restore_after_the_grace_end_sends_no_status() -> None:
     )
 
     assert restore(lapsed, grace=settings).status is None
+
+
+async def test_failed_push_out_of_grace_is_marked_for_the_restore_cron(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graced = await _in_grace(subscription_repository, user_repository, settings_repository, 93_101)
+    remnawave_store[93_101] = _grace_panel_user(graced, datetime_now() + timedelta(days=30))
+    panel = UserResponseDto.model_validate(remnawave_store[93_101])
+
+    async def down(request: Any) -> Any:
+        raise RuntimeError("panel down")
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", down)
+
+    after = await _sync(subscription_repository, uow, event_publisher, remnawave_sdk).system(
+        from_panel(panel, graced.remnawave_user_id, "webhook")
+    )
+
+    assert after is not None
+    assert after.grace_until is None
+    marked = await subscription_repository.get_by_id(graced.id)
+    assert marked.panel_restore_due_at is not None
+
+
+async def test_squad_edit_racing_grace_entry_is_marked_for_the_restore_cron(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graced = await _in_grace(subscription_repository, user_repository, settings_repository, 93_102)
+    grace_until = graced.grace_until
+    before = await subscription_repository.set_grace_until(graced.id, None)
+    remnawave_store[93_102] = _grace_panel_user(before, datetime_now() + timedelta(days=3))
+    real_update_user = remnawave_sdk.users.update_user
+
+    async def grace_enters_meanwhile(request: Any) -> Any:
+        async with uow:
+            await subscription_repository.set_grace_until(before.id, grace_until)
+        return await real_update_user(request)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", grace_enters_meanwhile)
+    use_case = UpdateSubscriptionSquadsUseCase(
+        subscription_repository, user_repository, remnawave_sdk, event_publisher, uow
+    )
+
+    await use_case(
+        OWNER,
+        UpdateSubscriptionSquadsDto(
+            subscription_id=before.id, internal_squads=[_PLAN_SQUAD], external_squad=None
+        ),
+    )
+
+    marked = await subscription_repository.get_by_id(before.id)
+    assert marked.panel_restore_due_at is not None

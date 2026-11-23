@@ -44,6 +44,7 @@ from app.modules.subscriptions.usecases import (
     EnterGraceUseCase,
     ProcessRemnawaveWebhookUseCase,
     PublishPanelEventUseCase,
+    RestoreDuePanelConfigsUseCase,
     SetSubscriptionEnabledUseCase,
     SweepGraceUseCase,
     SyncSubscriptionStatusUseCase,
@@ -101,6 +102,9 @@ class _Grace:
         )
         self.sweep = SweepGraceUseCase(
             subscriptions, SettingsRepository(session), uow, self.enter, self.end
+        )
+        self.restore = RestoreDuePanelConfigsUseCase(
+            subscriptions, SettingsRepository(session), sdk, uow
         )
         publish = PublishPanelEventUseCase(subscriptions, users, uow, publisher)
         self.webhook = ProcessRemnawaveWebhookUseCase(
@@ -570,6 +574,31 @@ async def test_no_reentry_after_end(
     assert after.grace_until is None
     assert remnawave_store[94_008]["status"] == "EXPIRED"
     assert await _events(session, subscription.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_grace_end_echo_keeps_the_real_expiry(
+    grace: _Grace,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    subscription, ended_at = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_051,
+    )
+    await grace.webhook.system(_webhook(config, "user.expired", 94_051, "EXPIRED", ended_at))
+    # the panel refuses a past expiry, so it keeps the grace end as its own
+    await grace.webhook.system(_webhook(config, "user.modified", 94_051, "EXPIRED", ended_at))
+
+    after = await subscription_repository.get_by_id(subscription.id)
+    assert truncate_to_ms(after.expire_at) == truncate_to_ms(subscription.expire_at)
 
 
 async def test_sweep_picks_missed_webhook(
@@ -1136,7 +1165,14 @@ async def test_grace_push_refused_on_the_sweep_sends_the_expiry_notice(
     assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
 
 
+@pytest.mark.parametrize(
+    ("status", "panel_id"),
+    [(SubscriptionStatus.ACTIVE, 94_801), (SubscriptionStatus.LIMITED, 94_802)],
+    ids=["active", "limited"],
+)
 async def test_sweep_enters_grace_for_a_row_whose_expiry_webhook_never_came(
+    status: SubscriptionStatus,
+    panel_id: int,
     grace: _Grace,
     session: AsyncSession,
     subscription_repository: SubscriptionRepository,
@@ -1147,12 +1183,12 @@ async def test_sweep_enters_grace_for_a_row_whose_expiry_webhook_never_came(
 ) -> None:
     await _enable_grace(settings_repository)
     plan = await _paid_plan(plan_repository)
-    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_801)
+    before = await _expired(
+        subscription_repository, user_repository, plan, remnawave_store, panel_id
+    )
     # the row never heard of the expiry
     await session.execute(
-        update(Subscription)
-        .where(Subscription.id == before.id)
-        .values(status=SubscriptionStatus.ACTIVE)
+        update(Subscription).where(Subscription.id == before.id).values(status=status)
     )
 
     await grace.sweep.system()
@@ -1160,7 +1196,7 @@ async def test_sweep_enters_grace_for_a_row_whose_expiry_webhook_never_came(
     after = await subscription_repository.get_by_id(before.id)
     assert after.status is SubscriptionStatus.EXPIRED
     assert after.grace_until is not None
-    assert remnawave_store[94_801]["tag"] == "GRACE"
+    assert remnawave_store[panel_id]["tag"] == "GRACE"
     assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
     synced = await session.scalars(
         select(EventOutboxEntry.payload)
@@ -1168,7 +1204,7 @@ async def test_sweep_enters_grace_for_a_row_whose_expiry_webhook_never_came(
         .where(EventOutboxEntry.event_type == "SubscriptionStatusSyncedEvent")
     )
     assert [(row["old_status"], row["new_status"], row["source"]) for row in synced.all()] == [
-        ("ACTIVE", "EXPIRED", "grace_sweep")
+        (status.value, "EXPIRED", "grace_sweep")
     ]
 
 
@@ -1579,7 +1615,7 @@ async def test_repeat_grace_push_to_a_deleted_panel_user_gives_grace_up(
     assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
 
 
-async def test_failed_stale_grace_end_correction_is_only_logged(
+async def test_failed_stale_grace_end_correction_is_pushed_again_by_the_cron(
     grace: _Grace,
     session: AsyncSession,
     subscription_repository: SubscriptionRepository,
@@ -1616,3 +1652,54 @@ async def test_failed_stale_grace_end_correction_is_only_logged(
     await grace.end.system(subscription.id)
 
     assert calls == 2
+
+    marked = await session.scalar(
+        select(Subscription.panel_restore_due_at).where(Subscription.id == subscription.id)
+    )
+    assert marked is not None
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", real_update_user)
+    remnawave_store[94_409]["tag"] = "STALE"
+
+    await grace.restore.system()
+
+    assert remnawave_store[94_409]["tag"] == "PLAN"
+    after = await subscription_repository.get_by_id(subscription.id)
+    assert after.panel_restore_due_at is None
+
+
+async def test_restore_cron_pushes_grace_config_and_keeps_a_failed_mark(
+    grace: _Grace,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    subscription = await _expired(
+        subscription_repository, user_repository, plan, remnawave_store, 94_410
+    )
+    await grace.enter.system(subscription.id)
+    remnawave_store[94_410]["tag"] = "PLAN"
+    async with uow:
+        await subscription_repository.mark_panel_restore_due(subscription.id, datetime_now())
+    real_update_user = remnawave_sdk.users.update_user
+
+    async def down(request: Any) -> Any:
+        raise _panel_error(500)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", down)
+    await grace.restore.system()
+
+    assert (await subscription_repository.get_by_id(subscription.id)).panel_restore_due_at
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", real_update_user)
+
+    await grace.restore.system()
+
+    assert remnawave_store[94_410]["tag"] == "GRACE"
+    after = await subscription_repository.get_by_id(subscription.id)
+    assert after.panel_restore_due_at is None

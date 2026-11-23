@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from loguru import logger
@@ -103,11 +104,16 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
         self, subscription: SubscriptionDto, grace: GraceSettingsDto
     ) -> None:
         # after the commit: a retried sync would take the grace config into the row,
-        # so a failed push is only logged
+        # so a failed push is left to the restore cron
         try:
             await self._remnawave_sdk.users.update_user(restore(subscription, left_grace=grace))
         except Exception:
             logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
+            async with self._uow:
+                # the minute cron pushes it again
+                await self._subscription_repository.mark_panel_restore_due(
+                    subscription.id, datetime_now()
+                )
 
     async def _sync_grace_status(
         self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
@@ -160,6 +166,7 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             data.expire_at is not None
             and subscription.status is not SubscriptionStatus.DELETED
             and truncate_to_ms(subscription.expire_at) != truncate_to_ms(data.expire_at)
+            and not _grace_end_echo(subscription, data.expire_at)
         )
         if not status_drifted and not expire_at_drifted:
             return subscription
@@ -218,4 +225,12 @@ def _leaves_grace(subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
         data.expire_at is not None
         and truncate_to_ms(data.expire_at) != truncate_to_ms(subscription.grace_until)
         and data.expire_at > datetime_now()
+    )
+
+
+def _grace_end_echo(subscription: SubscriptionDto, expire_at: datetime) -> bool:
+    """The panel refuses a past expiry, so after grace it keeps the grace end: the
+    row keeps its real one."""
+    return subscription.grace_ended_at is not None and truncate_to_ms(expire_at) == truncate_to_ms(
+        subscription.grace_ended_at
     )

@@ -72,6 +72,9 @@ from app.modules.subscriptions.usecases.rename_device import RenameDeviceUseCase
 from app.modules.subscriptions.usecases.reset_subscription_traffic import (
     ResetSubscriptionTrafficUseCase,
 )
+from app.modules.subscriptions.usecases.restore_due_panel_configs import (
+    RestoreDuePanelConfigsUseCase,
+)
 from app.modules.subscriptions.usecases.set_subscription_enabled import (
     SetSubscriptionEnabledUseCase,
 )
@@ -129,6 +132,7 @@ __all__ = [
     "ReissueSubscriptionUseCase",
     "RenameDeviceUseCase",
     "ResetSubscriptionTrafficUseCase",
+    "RestoreDuePanelConfigsUseCase",
     "SetSubscriptionEnabledUseCase",
     "StartPanelSyncFromUseCase",
     "StartPanelSyncToUseCase",

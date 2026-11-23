@@ -210,6 +210,7 @@ class SubscriptionDto(BaseDto, TimestampMixin):
     grace_until: Optional[datetime] = None
     grace_started_at: Optional[datetime] = None
     grace_ended_at: Optional[datetime] = None
+    panel_restore_due_at: Optional[datetime] = None
     addon_entitlements: list[AddOnEntitlementDto] = Field(default_factory=list)
 
     @property
