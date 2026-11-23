@@ -11,6 +11,7 @@ from app.modules.overview.usecases import (
     GetRecapUseCase,
     GetRevenueChartUseCase,
     SampleRemnawaveOnlineUseCase,
+    SendDailyReportUseCase,
 )
 
 
@@ -28,6 +29,7 @@ class OverviewProvider(Provider):
         GetHourlyOnlineUseCase,
         SampleRemnawaveOnlineUseCase,
         CheckSystemHealthUseCase,
+        SendDailyReportUseCase,
     )
 
 

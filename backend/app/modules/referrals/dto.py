@@ -58,6 +58,13 @@ class ReferralSettingsDto(BaseDto, TimestampMixin):
 
 
 @dataclass(frozen=True, kw_only=True)
+class TopReferrerDto:
+    user_id: int
+    name: str
+    invited: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class ReferralRevenueDto:
     # what the user's downline has paid, converted to one report currency
     amount: Decimal

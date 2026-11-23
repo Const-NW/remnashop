@@ -32,6 +32,11 @@ class CardSection(UpperStrEnum):
     DEVICE = auto()
     BUILD = auto()
     ACCESS = auto()
+    # the daily report: every value is in the payload
+    REPORT_DAY = auto()
+    REPORT_SUBSCRIPTIONS = auto()
+    REPORT_PAYMENTS = auto()
+    REPORT_REFERRERS = auto()
 
 
 @dataclass(frozen=True, kw_only=True)

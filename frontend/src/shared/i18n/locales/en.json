@@ -746,7 +746,24 @@
       },
       "id": "ID",
       "eventCode": "Event code",
-      "json": "JSON"
+      "json": "JSON",
+      "report": {
+        "day": "For the day",
+        "newUsers": "New users",
+        "newTrials": "New trials",
+        "trialConversions": "Trial → paid",
+        "newPayers": "New payers",
+        "revenue": "Revenue",
+        "subscriptions": "Subscriptions now",
+        "activeTrials": "Active trials",
+        "activePaid": "Active paid",
+        "paidNeverConnected": "Paid, never connected",
+        "payments": "Payments",
+        "purchases": "Purchases",
+        "renewals": "Renewals",
+        "changes": "Plan changes",
+        "referrers": "Top referrers"
+      }
     },
     "events": {
       "LoginSucceededEvent": "Dashboard sign-in",
@@ -908,6 +925,7 @@
       "PasskeyRenamedEvent": "Passkey renamed",
       "AdLinkAttributedEvent": "Ad link visit",
       "BackupCompletedEvent": "Backup completed",
+      "DailyReportEvent": "Daily report",
       "ConnectGuideChangedEvent": "Connect guide changed"
     },
     "eventVariants": {
@@ -1460,6 +1478,8 @@
       "errorInvalidToken": "Invalid bot token format.",
       "dropPendingUpdatesLabel": "Drop pending updates when setting the webhook",
       "dropPendingUpdatesHint": "Discards any updates Telegram queued up before the webhook was set, instead of delivering that backlog once it goes live.",
+      "removeReplyKeyboardLabel": "Remove a previous bot’s keyboard on /start",
+      "removeReplyKeyboardHint": "On every /start the bot sends a welcome message that hides the button keyboard a bot previously running on this token left under the input field. The message stays in the chat: deleting it brings the old keyboard back. Text: msg-start-welcome key. Takes effect after a bot restart.",
       "applyChangesDescription": "Restarts the bot process so it picks up the saved token and proxy. Has no effect if the process isn’t currently running.",
       "restartBot": "Restart",
       "restartRequested": "Restart requested. The bot process will come back up with the saved settings shortly.",
@@ -1763,6 +1783,12 @@
       "confirmTitle": "Regenerate keys?",
       "confirm": "Push subscriptions will be deleted for everyone, both admins and customers. This can’t be undone. Until someone turns push back on on their device, they won’t get push notifications there. Emails and Telegram messages keep arriving as usual.",
       "generated": "Keys generated."
+    },
+    "dailyReport": {
+      "title": "Daily report",
+      "description": "Sent to admins who turned on “Reports” in their profile",
+      "timezone": "Time zone",
+      "hour": "Send at"
     },
     "access": {
       "title": "Service availability",
@@ -2160,6 +2186,10 @@
         "broadcasts": {
           "title": "Broadcasts",
           "description": "Sent and stopped by an error"
+        },
+        "reports": {
+          "title": "Reports",
+          "description": "The daily shop report"
         },
         "money": {
           "title": "Transactions",

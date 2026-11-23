@@ -44,6 +44,7 @@ from app.modules.referrals.dto import (
     ReferralRewardTotalsDto,
     ReferralSettingsDto,
     ReferralSummaryDto,
+    TopReferrerDto,
     UpdateReferralSettingsDto,
 )
 
@@ -158,6 +159,23 @@ class ReferralRepository:
                 downline.c.depth + 1,
             ).where(child.referrer_id == downline.c.referred_id, downline.c.depth < _MAX_DEPTH)
         )
+
+    async def top_referrers(
+        self, start: datetime, end: datetime, limit: int
+    ) -> list[TopReferrerDto]:
+        invited = func.count()
+        stmt = (
+            select(User.id, User.name, invited)
+            .join(Referral, Referral.referrer_id == User.id)
+            .where(Referral.created_at >= start, Referral.created_at < end)
+            .group_by(User.id)
+            .order_by(invited.desc(), User.id)
+            .limit(limit)
+        )
+        return [
+            TopReferrerDto(user_id=row[0], name=row[1], invited=row[2])
+            for row in (await self.session.execute(stmt)).all()
+        ]
 
     async def count_by_level(
         self, referrer_id: int, *, hide_staff_from: Optional[int] = None

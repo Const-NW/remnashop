@@ -26,3 +26,7 @@ class BotSettings(BaseSql, TimestampMixin):
     drop_pending_updates: Mapped[bool] = mapped_column(
         Boolean(), default=False, server_default="false"
     )
+    # /start sends a welcome that takes away a reply keyboard left by a previous bot
+    remove_reply_keyboard: Mapped[bool] = mapped_column(
+        Boolean(), default=False, server_default="false"
+    )

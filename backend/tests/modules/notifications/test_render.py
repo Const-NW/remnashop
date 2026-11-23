@@ -45,8 +45,14 @@ def test_args_flatten_user_snapshots_and_keep_scalars() -> None:
     args = notification_args(
         {"user": {"login": None, "username": "bob", "name": "Bob"}, "amount": "500", "flag": True},
         "1.2.3.4",
+        Locale.RU,
     )
     assert args == {"user": "@bob", "amount": "500", "flag": "yes", "ip": "1.2.3.4"}
+
+
+def test_args_format_an_amount_with_its_currency() -> None:
+    args = notification_args({"amount": "18450.00", "currency": "RUB"}, None, Locale.RU)
+    assert args["money"] == "18\xa0450\xa0₽"
 
 
 def test_render_falls_back_to_default_locale_then_to_event_type() -> None:
@@ -79,7 +85,7 @@ def test_render_falls_through_a_message_without_title() -> None:
 
 
 def test_missing_ip_reads_as_a_dash() -> None:
-    assert notification_args({}, None) == {"ip": "—"}
+    assert notification_args({}, None, Locale.RU) == {"ip": "—"}
 
 
 def test_broadcast_completed_renders_counts() -> None:

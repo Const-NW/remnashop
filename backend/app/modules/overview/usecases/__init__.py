@@ -8,6 +8,7 @@ from app.modules.overview.usecases.get_overview import GetOverviewUseCase
 from app.modules.overview.usecases.get_recap import GetRecapUseCase
 from app.modules.overview.usecases.get_revenue_chart import GetRevenueChartUseCase
 from app.modules.overview.usecases.sample_remnawave_online import SampleRemnawaveOnlineUseCase
+from app.modules.overview.usecases.send_daily_report import SendDailyReportUseCase
 
 __all__ = [
     "CheckSystemHealthUseCase",
@@ -20,4 +21,5 @@ __all__ = [
     "GetRecapUseCase",
     "GetRevenueChartUseCase",
     "SampleRemnawaveOnlineUseCase",
+    "SendDailyReportUseCase",
 ]

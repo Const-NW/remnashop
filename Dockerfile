@@ -30,7 +30,7 @@ ENV BUILD_TIME=${BUILD_TIME} \
     BUILD_COMMIT=${BUILD_COMMIT} \
     BUILD_TAG=${BUILD_TAG}
 
-RUN apk add --no-cache postgresql-client
+RUN apk add --no-cache postgresql-client tzdata
 ENV PATH="/opt/remnashop/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 

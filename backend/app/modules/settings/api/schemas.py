@@ -26,6 +26,7 @@ class BotSettingsResponse(BaseModel):
     is_configured: bool
     is_proxy_configured: bool
     drop_pending_updates: bool
+    remove_reply_keyboard: bool
 
 
 class SetBotProxyRequest(BaseModel):
@@ -43,6 +44,7 @@ class BotStatusResponse(BaseModel):
 class UpdateBotSettingsRequest(BaseModel):
     token: Optional[str] = Field(default=None, min_length=1)
     drop_pending_updates: Optional[bool] = None
+    remove_reply_keyboard: Optional[bool] = None
 
 
 MAX_ACTIVE_SUBSCRIPTIONS_LIMIT: Final[int] = 10

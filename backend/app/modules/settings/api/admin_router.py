@@ -130,6 +130,7 @@ async def update_bot_settings(
         UpdateBotSettingsDto(
             token=payload.token,
             drop_pending_updates=payload.drop_pending_updates,
+            remove_reply_keyboard=payload.remove_reply_keyboard,
         ),
     )
     return BotSettingsResponse.model_validate(settings, from_attributes=True)

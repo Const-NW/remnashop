@@ -4,6 +4,7 @@ from typing import Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from aiogram.types import ReplyKeyboardRemove
 from aiogram_dialog import StartMode
 from remnapy.enums import TrafficLimitStrategy
 
@@ -11,9 +12,11 @@ from app.core.constants import USER_KEY
 from app.core.enums import Currency, PurchaseType, SubscriptionStatus
 from app.modules.subscriptions.dto import GetAvailableTrialDto
 from app.telegram.dialogs.context import SELECTED_SUBSCRIPTION_KEY
+from app.telegram.routers.menu import handlers
 from app.telegram.routers.menu.handlers import (
     on_get_trial,
     on_show_connect_problem,
+    on_start_command,
 )
 from app.telegram.routers.purchase.handlers import PLAN_CODE_KEY
 from app.telegram.states import Purchase, Subscriptions
@@ -152,3 +155,26 @@ async def test_a_rolling_reset_counts_from_the_panel_user(monkeypatch: pytest.Mo
 
     assert seen == [panel_created, None, None]
     assert anchor.await_count == 1
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+async def test_start_takes_away_an_old_bot_s_keyboard_only_when_enabled(
+    enabled: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(handlers, "get_translator", MagicMock())
+    monkeypatch.setattr(handlers, "render_window_text", lambda runner, key: key)
+    message = MagicMock(answer=AsyncMock())
+    manager = _manager()
+
+    await on_start_command(
+        message, MagicMock(), manager, remove_reply_keyboard=enabled, i18n=MagicMock()
+    )
+
+    if enabled:
+        message.answer.assert_awaited_once()
+        args, kwargs = message.answer.await_args
+        assert args == ("msg-start-welcome",)
+        assert isinstance(kwargs["reply_markup"], ReplyKeyboardRemove)
+    else:
+        message.answer.assert_not_awaited()
+    manager.start.assert_awaited_once()
