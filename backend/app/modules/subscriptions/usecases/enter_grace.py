@@ -2,6 +2,7 @@ from contextlib import suppress
 from datetime import datetime
 from typing import Final, Optional
 
+import httpx
 from loguru import logger
 from remnapy import RemnawaveSDK
 from remnapy.exceptions import ApiError as RemnawaveApiError
@@ -28,6 +29,7 @@ from app.modules.subscriptions.panel import grace_panel_update, restore, revert_
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
+_NEVER_SENT: Final[tuple[type[Exception], ...]] = (httpx.ConnectError, httpx.ConnectTimeout)
 # a panel answer that may pass on a retry, unlike the rest of 4xx
 _TRANSIENT_STATUSES: Final[frozenset[int]] = frozenset({408, 429})
 
@@ -146,8 +148,9 @@ class EnterGraceUseCase(UseCase[int, bool]):
             await self._give_up(subscription.id, grace_until)
             logger.warning(f"{failed}: the panel refused it, the subscription gets no grace")
             return False
-        # a timeout or a 5xx may still have applied the write
-        if not await self._push_landed(subscription, grace_until):
+        # a response timeout or a 5xx may still have applied the write; a request
+        # that never reached the panel surely didn't
+        if isinstance(error, _NEVER_SENT) or not await self._push_landed(subscription, grace_until):
             async with self._uow:
                 await self._subscription_repository.set_grace_until(subscription.id, None)
             raise RetryableTaskError(failed) from error
@@ -174,7 +177,8 @@ class EnterGraceUseCase(UseCase[int, bool]):
         except RemnawaveNotFoundError:
             return False
         except Exception as error:
-            # unknown: the claim stays, and the retry pushes the same grace again
+            # unknown: the claim stays, and the webhook's retry pushes the same grace
+            # again; a sweep run has no retry, the grace end restores the plan config
             raise RetryableTaskError(
                 f"Grace push of subscription '{subscription.id}' failed, the panel is unreadable"
             ) from error

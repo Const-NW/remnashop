@@ -1250,3 +1250,31 @@ async def test_grace_switched_off_mid_grace_still_ends_it_once(
     assert (await subscription_repository.get_by_id(subscription.id)).grace_until is None
     assert remnawave_store[94_952]["tag"] == "PLAN"
     assert await _events(session, subscription.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_grace_push_that_never_reached_the_panel_clears_claim(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_016)
+
+    async def _unreachable(*_args: Any) -> Any:
+        raise httpx.ConnectError("fake panel down")
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _unreachable)
+    monkeypatch.setattr(remnawave_sdk.users, "get_user_by_id", _unreachable)
+
+    with pytest.raises(RetryableTaskError):
+        await grace.enter.system(before.id)
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    assert await _events(session, before.id) == []
