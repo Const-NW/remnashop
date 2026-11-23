@@ -33,6 +33,7 @@ from app.telegram.dialogs.rendering import (
     resolve_variable_kwargs,
 )
 from app.telegram.i18n import expiry_unix_time, format_expiry, format_expiry_tag, get_translator
+from app.telegram.routers.subscriptions.getters import grace_line
 
 
 def menu_subscription(
@@ -124,6 +125,7 @@ def subscription_menu_values(
         expire_at_unix=values["subscription_expire_at_unix"],
         is_unlimited=values["subscription_is_unlimited"],
         extra_count=str(extra_count) if extra_count > 0 else "",
+        grace=grace_line(runner, subscription),
     )
     return {**values, "subscription_block": TrustedHtml(block)}
 

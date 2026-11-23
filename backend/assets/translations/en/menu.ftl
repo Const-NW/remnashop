@@ -22,6 +22,7 @@ frg-menu-subscription =
         [EXPIRED]
             <blockquote>
             • Your subscription has expired.
+            { $grace }
 
             <i>{ $is_trial ->
                 [0] Renew it to keep using the service!

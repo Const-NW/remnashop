@@ -38,6 +38,7 @@ def _subscription(status: str, **overrides: Any) -> Optional[SimpleNamespace]:
         "effective_device_limit": 3,
         "expire_at": datetime(2027, 1, 1, 12, 0, tzinfo=timezone.utc),
         "is_unlimited": False,
+        "grace_until": None,
     }
     return SimpleNamespace(**{**values, **overrides})
 
@@ -86,6 +87,15 @@ def test_active_block_shows_limits_and_expiry() -> None:
     assert "💳 Подписка" in text
     assert "100 ГБ" in text
     assert "01.01.2027" in text
+
+
+def test_expired_block_shows_grace_only_in_grace() -> None:
+    grace = {"grace_until": datetime(2027, 1, 4, 12, 0, tzinfo=timezone.utc)}
+    forever = {"grace_until": datetime(2099, 12, 31, tzinfo=timezone.utc)}
+
+    assert "• Льготный период до 04.01.2027" in _menu(status="EXPIRED", subscription=grace)
+    assert "• Льготный период\n" in _menu(status="EXPIRED", subscription=forever)
+    assert "Льготный" not in _menu(status="EXPIRED")
 
 
 def test_unlimited_limits_read_as_unlimited() -> None:
