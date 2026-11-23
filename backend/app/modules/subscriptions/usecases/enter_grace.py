@@ -30,16 +30,13 @@ from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
 _NEVER_SENT: Final[tuple[type[Exception], ...]] = (httpx.ConnectError, httpx.ConnectTimeout)
-# a panel answer that may pass on a retry, unlike the rest of 4xx
-_TRANSIENT_STATUSES: Final[frozenset[int]] = frozenset({408, 429})
+# what the panel says about the request itself; anything else (auth, rate limit,
+# outage) may pass on a retry
+_REFUSAL_STATUSES: Final[frozenset[int]] = frozenset({400, 404, 409, 422})
 
 
 def _refused(error: Exception) -> bool:
-    return (
-        isinstance(error, RemnawaveApiError)
-        and 400 <= error.status_code < 500
-        and error.status_code not in _TRANSIENT_STATUSES
-    )
+    return isinstance(error, RemnawaveApiError) and error.status_code in _REFUSAL_STATUSES
 
 
 class EnterGraceUseCase(UseCase[int, bool]):

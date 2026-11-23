@@ -1278,3 +1278,32 @@ async def test_grace_push_that_never_reached_the_panel_clears_claim(
 
     assert (await subscription_repository.get_by_id(before.id)).grace_until is None
     assert await _events(session, before.id) == []
+
+
+async def test_grace_push_rejected_for_the_panel_token_keeps_grace_open(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_017)
+
+    async def _forbidden(*_args: Any) -> Any:
+        raise _panel_error(403)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _forbidden)
+    monkeypatch.setattr(remnawave_sdk.users, "get_user_by_id", _forbidden)
+
+    with pytest.raises(RetryableTaskError):
+        await grace.enter.system(before.id)
+
+    after = await subscription_repository.get_by_id(before.id)
+    assert after.grace_ended_at is None
+    assert await _events(session, before.id) == []
