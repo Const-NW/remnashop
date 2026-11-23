@@ -866,3 +866,57 @@ async def test_renewal_in_grace_moves_to_terms_changed_since_the_sale(
     assert remnawave_store[95_022]["trafficLimitBytes"] == 200 * GB_TO_BYTES
     assert remnawave_store[95_022]["hwidDeviceLimit"] == 3
     assert remnawave_store[95_022]["tag"] == "PLAN"
+
+
+async def test_repeat_grace_push_during_a_renewal_in_grace_is_undone(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    target = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_023,
+    )
+    session = subscription_repository.session
+    enter = EnterGraceUseCase(
+        subscription_repository,
+        plan_repository,
+        settings_repository,
+        UserRepository(session),
+        remnawave_sdk,
+        uow,
+        event_publisher,
+    )
+    real_update = remnawave_sdk.users.update_user
+    raced: list[bool] = []
+
+    async def renewal_then_grace(request: UpdateUserRequestDto) -> UserResponseDto:
+        result = await real_update(request)
+        # a sweep's repeat grace entry lands after the renewal's push, before its commit
+        if not raced:
+            raced.append(False)
+            raced[0] = await enter.system(target.id)
+        return result
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", renewal_then_grace)
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
+
+    renewed = await use_case(await _buyer(user_repository, target), _paid_renewal(target, plan))
+
+    assert raced == [True]
+    assert renewed.grace_until is None
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 95_023)) == truncate_to_ms(
+        renewed.expire_at
+    )
+    _assert_plan_config(remnawave_store, 95_023, _PLAN_SQUAD, "PLAN")
