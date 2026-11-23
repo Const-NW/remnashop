@@ -7,7 +7,11 @@ from uuid import UUID
 from remnapy.enums import TrafficLimitStrategy
 
 from app.cli.legacy.report import MigrationReport
-from app.core.constants import PANEL_TAG_MAX_LENGTH, PANEL_TAG_PATTERN
+from app.core.constants import (
+    GRACE_DEFAULT_DURATION_DAYS,
+    PANEL_TAG_MAX_LENGTH,
+    PANEL_TAG_PATTERN,
+)
 from app.core.db.singleton import SINGLETON_ID
 from app.core.enums import (
     AccessMode,
@@ -55,6 +59,7 @@ def _grace(row: Mapping[str, Any], report: MigrationReport) -> dict[str, Any]:
         report.notes.append(f"settings: grace tag '{tag}' is not a valid panel tag, dropped")
         tag = None
     external_squad = grace.get("external_squad")
+    duration = grace.get("duration_days")
     return {
         "id": SINGLETON_ID,
         "enabled": bool(grace.get("enabled", False)),
@@ -65,7 +70,8 @@ def _grace(row: Mapping[str, Any], report: MigrationReport) -> dict[str, Any]:
             grace.get("traffic_strategy") or TrafficLimitStrategy.NO_RESET
         ),
         "tag": tag,
-        "duration_days": int(grace.get("duration_days") or 0),
+        # a missing value is the new app's default; 0 (endless) only when set so
+        "duration_days": GRACE_DEFAULT_DURATION_DAYS if duration is None else int(duration),
     }
 
 

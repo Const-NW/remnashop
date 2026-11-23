@@ -7,6 +7,7 @@ from remnapy.enums import TrafficLimitStrategy
 
 from app.cli.legacy.report import MigrationReport
 from app.cli.legacy.settings import transform_settings
+from app.core.constants import GRACE_DEFAULT_DURATION_DAYS
 from app.core.db.singleton import SINGLETON_ID
 from app.core.enums import AccessMode, Currency, ReferralAccrualStrategy, ReferralRewardStrategy
 
@@ -126,6 +127,11 @@ def test_no_grace_key_defaults_off(extra: dict[str, Any]) -> None:
     assert grace["traffic_limit_mb"] == 0
     assert grace["traffic_limit_strategy"] is TrafficLimitStrategy.NO_RESET
     assert grace["tag"] is None
+    assert grace["duration_days"] == GRACE_DEFAULT_DURATION_DAYS
+
+
+def test_explicit_zero_grace_duration_kept() -> None:
+    grace = transform_settings(_row(grace={"duration_days": 0}), MigrationReport()).grace
     assert grace["duration_days"] == 0
 
 
