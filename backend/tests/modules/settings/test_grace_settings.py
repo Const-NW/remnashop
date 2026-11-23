@@ -155,3 +155,18 @@ async def test_rejects_invalid_tag(
     response = await client.patch(_URL, json={"tag": tag}, headers=owner_headers)
 
     assert response.status_code == 422
+
+
+async def test_partial_update_keeps_unsent_fields_and_null_clears(
+    client: httpx.AsyncClient, owner_headers: dict[str, str]
+) -> None:
+    sent = await client.patch(
+        _URL, json={"tag": "GRACE", "duration_days": 3}, headers=owner_headers
+    )
+    assert sent.status_code == 200
+
+    kept = (await client.patch(_URL, json={"enabled": True}, headers=owner_headers)).json()
+    assert (kept["tag"], kept["duration_days"]) == ("GRACE", 3)
+
+    cleared = (await client.patch(_URL, json={"tag": None}, headers=owner_headers)).json()
+    assert (cleared["tag"], cleared["duration_days"]) == (None, 3)

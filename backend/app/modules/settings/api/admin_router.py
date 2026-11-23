@@ -369,7 +369,13 @@ async def update_grace_settings(
     settings = await use_case(
         actor,
         UpdateGraceSettingsDto(
-            **payload.model_dump(exclude_unset=True),
+            enabled=payload.enabled,
+            internal_squads=payload.internal_squads,
+            external_squad=payload.external_squad,
+            traffic_limit_mb=payload.traffic_limit_mb,
+            traffic_limit_strategy=payload.traffic_limit_strategy,
+            tag=payload.tag,
+            duration_days=payload.duration_days,
             fields_set=frozenset(payload.model_fields_set),
         ),
     )
