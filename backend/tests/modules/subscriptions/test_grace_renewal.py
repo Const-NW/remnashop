@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Final, Optional
@@ -724,6 +725,12 @@ async def test_renewal_in_grace_to_a_plan_without_squads_clears_the_grace_squads
         plan,
         95_013,
     )
+    # sold on the squadless plan
+    target = await subscription_repository.update_squads(
+        UpdateSubscriptionSquadsDto(
+            subscription_id=target.id, internal_squads=[], external_squad=None
+        )
+    )
     use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
 
     renewed = await use_case(await _buyer(user_repository, target), _paid_renewal(target, plan))
@@ -790,3 +797,72 @@ async def test_grace_entered_mid_renewal_leaves_the_panel_on_the_plan_config(
         renewed.expire_at
     )
     _assert_plan_config(remnawave_store, 95_020, _PLAN_SQUAD, "PLAN")
+
+
+async def test_renewal_in_grace_keeps_the_rows_own_limits_on_unchanged_terms(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    graced = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_021,
+    )
+    # an admin's 10 devices on a plan of 3
+    target = await subscription_repository.update(
+        UpdateSubscriptionDto(subscription_id=graced.id, device_limit=10)
+    )
+    renewal = _paid_renewal(target, plan)
+    assert not target.plan_snapshot.terms_differ(renewal.plan_snapshot)
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
+
+    renewed = await use_case(await _buyer(user_repository, target), renewal)
+
+    assert renewed.grace_until is None
+    assert renewed.device_limit == 10
+    assert remnawave_store[95_021]["hwidDeviceLimit"] == 10
+    _assert_plan_config(remnawave_store, 95_021, _PLAN_SQUAD, "PLAN")
+
+
+async def test_renewal_in_grace_moves_to_terms_changed_since_the_sale(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    graced = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_022,
+    )
+    target = await subscription_repository.update(
+        UpdateSubscriptionDto(subscription_id=graced.id, device_limit=10)
+    )
+    renewal = _paid_renewal(target, plan)
+    renewal = replace(renewal, plan_snapshot=replace(renewal.plan_snapshot, traffic_limit=200))
+    use_case = _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)
+
+    renewed = await use_case(await _buyer(user_repository, target), renewal)
+
+    assert (renewed.traffic_limit, renewed.device_limit) == (200, 3)
+    assert remnawave_store[95_022]["trafficLimitBytes"] == 200 * GB_TO_BYTES
+    assert remnawave_store[95_022]["hwidDeviceLimit"] == 3
+    assert remnawave_store[95_022]["tag"] == "PLAN"

@@ -283,7 +283,10 @@ class RenewPurchase:
         The days are paid for: a failure here must not hold them back."""
         if target.grace_until is not None:
             # went with the expiry (_set_expiry)
-            return data.apply_current_plan, data.apply_current_plan
+            terms = data.apply_current_plan and target.plan_snapshot.terms_differ(
+                data.plan_snapshot
+            )
+            return data.apply_current_plan, terms
         if not data.apply_current_plan:
             return False, False
         tag_applied = False
@@ -438,14 +441,19 @@ def _term_start(target: SubscriptionDto, data: PurchaseSubscriptionDto) -> datet
 
 
 def _out_of_grace(target: SubscriptionDto, data: PurchaseSubscriptionDto) -> UpdateUserRequestDto:
-    """The config a renewal takes the panel back to from grace: the plan's for an
-    order, the row's otherwise."""
+    """The config a renewal takes the panel back to from grace: the row's, with an
+    order's plan tag, and the plan's terms only where they changed since the sale."""
+    request = restore(target)
     if not data.apply_current_plan:
-        return restore(target)
+        return request
     plan = data.plan_snapshot
+    request = request.model_copy(update={"tag": plan.tag})
+    if not target.plan_snapshot.terms_differ(plan):
+        return request
     # an empty list too: left out, the panel would keep the grace squads
-    return configure_for_renewal(target, plan).model_copy(
-        update={"tag": plan.tag, "active_internal_squads": plan.internal_squads}
+    return request.model_copy(
+        update=configure_for_renewal(target, plan).model_dump(exclude_unset=True)
+        | {"active_internal_squads": plan.internal_squads}
     )
 
 
