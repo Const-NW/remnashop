@@ -9,6 +9,7 @@ import pytest
 from remnapy import RemnawaveSDK
 from remnapy.enums import TrafficLimitStrategy
 from remnapy.models import UpdateUserRequestDto, UserResponseDto
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import AppConfig
 from app.core.constants import GB_TO_BYTES, MB_TO_BYTES
@@ -920,3 +921,32 @@ async def test_repeat_grace_push_during_a_renewal_in_grace_is_undone(
         renewed.expire_at
     )
     _assert_plan_config(remnawave_store, 95_023, _PLAN_SQUAD, "PLAN")
+
+
+async def test_refund_restore_of_a_row_replaced_in_grace_brings_it_back_without_grace(
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    old = await _in_grace(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        remnawave_store,
+        plan,
+        95_901,
+    )
+    lifecycle = SubscriptionLifecycleService(
+        subscription_repository, CreditSegmentRepository(session)
+    )
+
+    deleted = await subscription_repository.mark_deleted(old.id)
+    restored = await lifecycle.restore_after_refund(old.id, datetime_now())
+
+    assert deleted.grace_until is None
+    assert restored.status is SubscriptionStatus.EXPIRED
+    assert restored.grace_until is None
