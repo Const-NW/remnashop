@@ -1,4 +1,4 @@
-import { Hourglass } from "lucide-react";
+import { Hourglass, Power } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -110,7 +110,7 @@ export function GraceSettingsSection() {
         {state.kind === "ready" && (
           <fieldset disabled={!canManage} className="contents">
             <SectionRows>
-              <Row label={t("settings.grace.enabledLabel")} hint={t("settings.grace.enabledHint")}>
+              <Row icon={Power} label={t("settings.grace.enabledLabel")} hint={t("settings.grace.enabledHint")}>
                 <Switch checked={enabled} onChange={setEnabled} />
               </Row>
             </SectionRows>
