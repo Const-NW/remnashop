@@ -33,7 +33,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("tag", sa.String(), nullable=True),
-        sa.Column("duration_days", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("duration_days", sa.Integer(), server_default="3", nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

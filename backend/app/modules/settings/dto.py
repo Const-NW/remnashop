@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import Field, SecretStr
 from remnapy.enums import TrafficLimitStrategy
 
-from app.core.constants import DEFAULT_ALLOWED_EMAIL_DOMAINS
+from app.core.constants import DEFAULT_ALLOWED_EMAIL_DOMAINS, GRACE_DEFAULT_DURATION_DAYS
 from app.core.dto import BaseDto, TimestampMixin
 from app.core.enums import (
     AccessMode,
@@ -90,7 +90,7 @@ class GraceSettingsDto(BaseDto, TimestampMixin):
     traffic_limit_mb: int = 0
     traffic_limit_strategy: TrafficLimitStrategy = TrafficLimitStrategy.NO_RESET
     tag: Optional[str] = None
-    duration_days: int = 0
+    duration_days: int = GRACE_DEFAULT_DURATION_DAYS
 
 
 @dataclass(frozen=True, kw_only=True)

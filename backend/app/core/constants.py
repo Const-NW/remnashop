@@ -141,6 +141,8 @@ GB_TO_BYTES: Final[int] = 1024**3
 MB_TO_BYTES: Final[int] = 1024**2
 # an expiry older than this was missed (worker down, grace switched on later): no grace for it
 GRACE_ENTRY_WINDOW: Final[timedelta] = timedelta(hours=24)
+# switching grace on alone must not hand out indefinite grace (0 days)
+GRACE_DEFAULT_DURATION_DAYS: Final[int] = 3
 
 # what Remnawave accepts as a user tag (CreateUserRequestDto.tag); a plan's tag goes
 # onto every panel user it provisions

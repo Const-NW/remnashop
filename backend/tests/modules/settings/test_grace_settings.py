@@ -16,9 +16,13 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, Role, SessionAudience
 from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.core.security.permissions import Permission
+from app.core.utils.time import datetime_now
 from app.modules.auth.dto import CreateSessionDto
 from app.modules.auth.repository import SessionRepository
+from app.modules.settings.dto import UpdateGraceSettingsDto
 from app.modules.settings.repository import SettingsRepository
+from app.modules.subscriptions.grace import grace_until_for
+from app.modules.subscriptions.unlimited import is_unlimited_expiry
 from app.modules.users.dto import CreateUserDto
 from app.modules.users.repository import UserRepository
 
@@ -87,7 +91,23 @@ async def test_defaults_when_no_row(settings_repository: SettingsRepository) -> 
 
     assert settings.enabled is False
     assert settings.traffic_limit_mb == 0
-    assert settings.duration_days == 0
+    # switching grace on alone must not hand out indefinite grace
+    assert settings.duration_days == 3
+
+
+async def test_switching_on_alone_keeps_the_default_duration_and_zero_stays_allowed(
+    settings_repository: SettingsRepository,
+) -> None:
+    switched_on = await settings_repository.update_grace_settings(
+        UpdateGraceSettingsDto(enabled=True, fields_set=frozenset({"enabled"}))
+    )
+    indefinite = await settings_repository.update_grace_settings(
+        UpdateGraceSettingsDto(duration_days=0, fields_set=frozenset({"duration_days"}))
+    )
+
+    assert switched_on.duration_days == 3
+    assert indefinite.duration_days == 0
+    assert is_unlimited_expiry(grace_until_for(indefinite, datetime_now()))
 
 
 async def test_update_persists_and_publishes_changed_fields(
@@ -95,13 +115,13 @@ async def test_update_persists_and_publishes_changed_fields(
 ) -> None:
     response = await client.patch(
         _URL,
-        json={"enabled": True, "traffic_limit_mb": 512, "duration_days": 3},
+        json={"enabled": True, "traffic_limit_mb": 512, "duration_days": 7},
         headers=owner_headers,
     )
     assert response.status_code == 200
 
     body = (await client.get(_URL, headers=owner_headers)).json()
-    assert (body["enabled"], body["traffic_limit_mb"], body["duration_days"]) == (True, 512, 3)
+    assert (body["enabled"], body["traffic_limit_mb"], body["duration_days"]) == (True, 512, 7)
 
     entry = (
         await session.scalars(
