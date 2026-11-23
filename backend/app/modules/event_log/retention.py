@@ -30,6 +30,7 @@ SHORT_RETENTION_EVENT_TYPES: Final[frozenset[str]] = frozenset(
         "CabinetSignedInEvent",
         # infrastructure
         "BackupCompletedEvent",
+        "DailyReportEvent",
         "BackupFailedEvent",
         "BotStartedEvent",
         "BotStoppedEvent",

@@ -26,6 +26,14 @@ export interface NotificationSettings {
   is_push_configured: boolean;
   vapid_public_key: string | null;
   vapid_contact: string | null;
+  report_timezone: string;
+  daily_report_hour: number;
+}
+
+interface NotificationSettingsUpdate {
+  vapid_contact?: string;
+  report_timezone?: string;
+  daily_report_hour?: number;
 }
 
 export function getNotificationChannels(signal?: AbortSignal): Promise<NotificationChannels> {
@@ -62,8 +70,8 @@ export function getNotificationSettings(signal?: AbortSignal): Promise<Notificat
   return apiGet<NotificationSettings>("/notifications/settings", signal);
 }
 
-export function updateNotificationSettings(body: { vapid_contact: string }): Promise<NotificationSettings> {
-  return apiPatch<NotificationSettings, { vapid_contact: string }>("/notifications/settings", body);
+export function updateNotificationSettings(body: NotificationSettingsUpdate): Promise<NotificationSettings> {
+  return apiPatch<NotificationSettings, NotificationSettingsUpdate>("/notifications/settings", body);
 }
 
 export function generateVapidKeys(): Promise<NotificationSettings> {

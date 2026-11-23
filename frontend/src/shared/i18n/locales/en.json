@@ -906,6 +906,7 @@
       "PasskeyRenamedEvent": "Passkey renamed",
       "AdLinkAttributedEvent": "Ad link visit",
       "BackupCompletedEvent": "Backup completed",
+      "DailyReportEvent": "Daily report",
       "ConnectGuideChangedEvent": "Connect guide changed"
     },
     "eventVariants": {
@@ -1749,6 +1750,12 @@
       "confirm": "Push subscriptions will be deleted for everyone, both admins and customers. This can’t be undone. Until someone turns push back on on their device, they won’t get push notifications there. Emails and Telegram messages keep arriving as usual.",
       "generated": "Keys generated."
     },
+    "dailyReport": {
+      "title": "Daily report",
+      "description": "Sent to admins who turned on “Reports” in their profile",
+      "timezone": "Time zone",
+      "hour": "Send at"
+    },
     "access": {
       "title": "Service availability",
       "description": "Access to sign-up and payment",
@@ -2145,6 +2152,10 @@
         "broadcasts": {
           "title": "Broadcasts",
           "description": "Sent and stopped by an error"
+        },
+        "reports": {
+          "title": "Reports",
+          "description": "The daily shop report"
         },
         "money": {
           "title": "Transactions",

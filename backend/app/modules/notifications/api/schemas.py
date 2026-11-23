@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
 from typing import Final, Optional
+from zoneinfo import available_timezones
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
@@ -23,11 +24,22 @@ class NotificationSettingsResponse(BaseModel):
     is_push_configured: bool
     vapid_public_key: Optional[str]
     vapid_contact: Optional[str]
+    report_timezone: str
+    daily_report_hour: int
 
 
 class UpdateNotificationSettingsRequest(BaseModel):
     # an email, stored as the mailto: subject push services want (RFC 8292); can't be cleared
     vapid_contact: Optional[str] = Field(default=None, max_length=255)
+    report_timezone: Optional[str] = Field(default=None, max_length=64)
+    daily_report_hour: Optional[int] = Field(default=None, ge=0, le=23)
+
+    @field_validator("report_timezone")
+    @classmethod
+    def known_timezone(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and value not in available_timezones():
+            raise ValueError("report_timezone must be an IANA time zone")
+        return value
 
     @field_validator("vapid_contact")
     @classmethod

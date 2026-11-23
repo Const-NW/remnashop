@@ -3,6 +3,7 @@ import {
   Bell,
   BellRing,
   CalendarX,
+  ChartColumn,
   CircleAlert,
   Send,
   Server,
@@ -42,6 +43,7 @@ const GROUP_ICONS: Record<string, LucideIcon> = {
   infrastructure: Server,
   customers: Users,
   subscriptions: CalendarX,
+  reports: ChartColumn,
 };
 
 const PUSH_ERRORS: Record<Exclude<EnablePushResult, "subscribed">, ParseKeys> = {
