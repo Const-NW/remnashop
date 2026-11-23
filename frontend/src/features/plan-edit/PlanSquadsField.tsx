@@ -50,7 +50,7 @@ export function PlanSquadsField({
       <Field
         label={t("plans.edit.internalSquadsLabel")}
         required={!keepHints}
-        hint={keepHints?.internal}
+        info={keepHints?.internal}
         error={goneError(value.internal_squads)}
       >
         {internal.length === 0 ? (
@@ -73,7 +73,7 @@ export function PlanSquadsField({
       {external.length > 0 && (
         <Field
           label={t("plans.edit.externalSquadLabel")}
-          hint={keepHints?.external}
+          info={keepHints?.external}
           error={goneError(value.external_squad ? [value.external_squad] : [])}
         >
           <div className="flex flex-wrap gap-1.5">
