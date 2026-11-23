@@ -65,8 +65,9 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
             else:
                 owner = None
                 subscription = await self._subscription_repository.update_squads(data)
-                if pushed and locked.grace_until is not None:
-                    # grace started while the edit ran: its squads landed over grace's
+                if pushed != (locked.grace_until is None):
+                    # grace started or ended while the edit ran: the panel holds the wrong
+                    # squads, the edit's over grace's or the previous ones over the edit's
                     await self._subscription_repository.mark_panel_restore_due(
                         data.subscription_id, datetime_now()
                     )

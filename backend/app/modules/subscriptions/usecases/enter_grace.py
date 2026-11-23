@@ -5,8 +5,6 @@ from typing import Final, Optional
 import httpx
 from loguru import logger
 from remnapy import RemnawaveSDK
-from remnapy.enums import ErrorCode as RemnawaveErrorCode
-from remnapy.exceptions import ApiError as RemnawaveApiError
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
@@ -27,7 +25,12 @@ from app.modules.subscriptions.events import (
 )
 from app.modules.subscriptions.grace import LIVE_STATUSES, grace_entry_allowed, grace_until_for
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
-from app.modules.subscriptions.panel import restore, revert_panel_to_owner
+from app.modules.subscriptions.panel import (
+    panel_refused,
+    panel_user_gone,
+    restore,
+    revert_panel_to_owner,
+)
 from app.modules.subscriptions.panel_sync import from_panel
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases.sync_subscription_status import (
@@ -36,20 +39,6 @@ from app.modules.subscriptions.usecases.sync_subscription_status import (
 from app.modules.users import UserRepository
 
 _NEVER_SENT: Final[tuple[type[Exception], ...]] = (httpx.ConnectError, httpx.ConnectTimeout)
-# what the panel says about the request itself; anything else (auth, rate limit,
-# outage) may pass on a retry
-_REFUSAL_STATUSES: Final[frozenset[int]] = frozenset({400, 404, 409, 422})
-
-
-def _panel_user_gone(error: Exception) -> bool:
-    return (
-        isinstance(error, RemnawaveNotFoundError)
-        and error.code == RemnawaveErrorCode.USER_NOT_FOUND
-    )
-
-
-def _refused(error: Exception) -> bool:
-    return isinstance(error, RemnawaveApiError) and error.status_code in _REFUSAL_STATUSES
 
 
 class EnterGraceUseCase(UseCase[int, bool]):
@@ -221,13 +210,13 @@ class EnterGraceUseCase(UseCase[int, bool]):
         grace was given up; raises a retryable error otherwise."""
         failed = f"Grace push of subscription '{subscription.id}' failed"
         if not claimed:
-            if not _panel_user_gone(error):
+            if not panel_user_gone(error):
                 raise RetryableTaskError(failed) from error
             # deleted in the panel, its webhook lost: a retry would never land
             await self._give_up(subscription.id, grace_until)
             logger.warning(f"{failed}: the panel user is gone, grace given up")
             return False
-        if _refused(error):
+        if panel_refused(error):
             await self._give_up(subscription.id, grace_until)
             logger.warning(f"{failed}: the panel refused it, the subscription gets no grace")
             return False

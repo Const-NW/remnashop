@@ -1,4 +1,5 @@
-from typing import Final
+import time
+from typing import Final, Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
@@ -8,16 +9,19 @@ from app.core.db.uow import UnitOfWork
 from app.core.enums import SubscriptionStatus
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
-from app.modules.settings import SettingsRepository
-from app.modules.subscriptions.panel import restore, revert_panel_to_owner
+from app.modules.settings import GraceSettingsDto, SettingsRepository
+from app.modules.subscriptions.dto import SubscriptionDto
+from app.modules.subscriptions.panel import panel_refused, panel_user_gone, restore
 from app.modules.subscriptions.repository import SubscriptionRepository
 
 _BATCH: Final[int] = 100
+# short of the cron's lock, so the next run never pushes the same rows alongside
+_TIME_BUDGET_S: Final[float] = 45.0
 
 
 class RestoreDuePanelConfigsUseCase(UseCase[None, None]):
     """Pushes again the panel configs whose push failed after a commit: leaving grace,
-    a renewal or a squad edit racing grace entry. Reads each row as it is now."""
+    a renewal or a squad edit racing grace. Each row is pushed as it is at that moment."""
 
     # system-only: the minute cron
     required_permission = None
@@ -35,37 +39,49 @@ class RestoreDuePanelConfigsUseCase(UseCase[None, None]):
         self._uow = uow
 
     async def _execute(self, actor: Actor, data: None) -> None:
+        deadline = time.monotonic() + _TIME_BUDGET_S
         async with self._uow:
             settings = await self._settings_repository.get_grace_settings()
             due = await self._subscription_repository.list_panel_restore_due(_BATCH)
 
-        for subscription in due:
-            marked_at = subscription.panel_restore_due_at
-            assert marked_at is not None
-            try:
-                if subscription.status is SubscriptionStatus.DELETED:
-                    # a plan change took the panel user over: its new row's config
-                    await revert_panel_to_owner(
-                        self._remnawave_sdk,
-                        self._subscription_repository,
-                        self._uow,
-                        subscription,
-                        settings,
+        for listed in due:
+            if time.monotonic() > deadline:
+                return
+            async with self._uow:
+                marked = await self._subscription_repository.get_by_id_for_update(listed.id)
+                if marked.panel_restore_due_at is None:
+                    continue
+                # a plan change hands the panel user to a new row: that one's config
+                owner = await self._subscription_repository.find_by_remnawave_user_id_for_update(
+                    marked.remnawave_user_id
+                )
+                # pushed under the row lock: a renewal, edit or grace step on this row waits,
+                # so the panel can't get a config older than the row's last one
+                if await self._push(marked.id, owner, settings):
+                    await self._subscription_repository.clear_panel_restore_due(
+                        marked.id, marked.panel_restore_due_at
                     )
                 else:
-                    await self._remnawave_sdk.users.update_user(
-                        restore(subscription, grace=settings, left_grace=settings)
-                    )
-            except Exception:
-                logger.exception(f"Failed to restore the panel config of '{subscription.id}'")
-                async with self._uow:
                     # to the back of the queue
                     await self._subscription_repository.mark_panel_restore_due(
-                        subscription.id, datetime_now()
+                        marked.id, datetime_now()
                     )
-                continue
-            async with self._uow:
-                await self._subscription_repository.clear_panel_restore_due(
-                    subscription.id, marked_at
-                )
-            logger.info(f"Restored the panel config of subscription '{subscription.id}'")
+
+    async def _push(
+        self, marked_id: int, owner: Optional[SubscriptionDto], settings: GraceSettingsDto
+    ) -> bool:
+        """False when a retry may still land it."""
+        if owner is None or owner.status is SubscriptionStatus.DELETED:
+            return True
+        try:
+            await self._remnawave_sdk.users.update_user(
+                restore(owner, grace=settings, left_grace=settings)
+            )
+        except Exception as error:
+            if panel_user_gone(error) or panel_refused(error):
+                logger.warning(f"Panel refused restoring the config of '{marked_id}', dropped")
+                return True
+            logger.exception(f"Failed to restore the panel config of '{marked_id}'")
+            return False
+        logger.info(f"Restored the panel config of subscription '{marked_id}'")
+        return True

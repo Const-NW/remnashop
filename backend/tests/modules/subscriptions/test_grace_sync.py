@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any, Optional
 from uuid import uuid4
@@ -26,7 +27,7 @@ from app.modules.subscriptions.dto import (
 )
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import restore
-from app.modules.subscriptions.panel_sync import from_panel
+from app.modules.subscriptions.panel_sync import differs_from_panel, from_panel
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases import (
     PullSubscriptionFromPanelUseCase,
@@ -486,3 +487,102 @@ async def test_squad_edit_racing_grace_entry_is_marked_for_the_restore_cron(
 
     marked = await subscription_repository.get_by_id(before.id)
     assert marked.panel_restore_due_at is not None
+
+
+async def test_reverse_squad_race_grace_ended_during_the_edit_is_marked(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graced = await _in_grace(subscription_repository, user_repository, settings_repository, 93_103)
+    remnawave_store[93_103] = _grace_panel_user(graced, datetime_now() + timedelta(days=3))
+    real_get = subscription_repository.get_by_id_for_update
+    calls = 0
+
+    async def renewal_lands_meanwhile(subscription_id: int) -> SubscriptionDto:
+        # the edit read the row in grace and skipped the push; a renewal ends grace
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            await subscription_repository.set_grace_until(subscription_id, None)
+        return await real_get(subscription_id)
+
+    monkeypatch.setattr(subscription_repository, "get_by_id_for_update", renewal_lands_meanwhile)
+    use_case = UpdateSubscriptionSquadsUseCase(
+        subscription_repository, user_repository, remnawave_sdk, event_publisher, uow
+    )
+
+    await use_case(
+        OWNER,
+        UpdateSubscriptionSquadsDto(
+            subscription_id=graced.id, internal_squads=[_PLAN_SQUAD], external_squad=None
+        ),
+    )
+
+    marked = await subscription_repository.get_by_id(graced.id)
+    assert marked.panel_restore_due_at is not None
+
+
+async def test_sync_keeps_the_row_while_a_restore_is_due(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    created = await create_subscription(
+        subscription_repository,
+        user_repository,
+        telegram_id=93_104,
+        remnawave_user_id=93_104,
+        status=SubscriptionStatus.ACTIVE,
+        expire_at=datetime_now() + timedelta(days=30),
+    )
+    await subscription_repository.mark_panel_restore_due(created.id, datetime_now())
+    before = await subscription_repository.get_by_id(created.id)
+    stale = _grace_panel_user(before, datetime_now() + timedelta(hours=1), status="LIMITED")
+    panel = UserResponseDto.model_validate(stale)
+    sync = _sync(subscription_repository, uow, event_publisher)
+
+    kept = await sync.system(from_panel(panel, before.remnawave_user_id, "webhook"))
+
+    assert kept is not None
+    assert kept.status is SubscriptionStatus.ACTIVE
+    assert truncate_to_ms(kept.expire_at) == truncate_to_ms(before.expire_at)
+    assert kept.traffic_limit == before.traffic_limit
+    deleted = replace(
+        from_panel(panel, before.remnawave_user_id, "webhook"), status=SubscriptionStatus.DELETED
+    )
+    gone = await sync.system(deleted)
+    assert gone is not None and gone.status is SubscriptionStatus.DELETED
+
+
+def test_rows_after_grace_do_not_differ_from_the_panel_by_its_grace_end() -> None:
+    ended = datetime_now() - timedelta(days=1)
+    subscription = make_subscription_dto(
+        status=SubscriptionStatus.EXPIRED,
+        expire_at=ended - timedelta(days=3),
+        grace_ended_at=ended,
+    )
+    payload = _user_payload(
+        user_id=subscription.remnawave_user_id,
+        username="rs_1",
+        expire_at=ended,
+        traffic_limit_bytes=subscription.traffic_limit * GB_TO_BYTES,
+        traffic_limit_strategy=subscription.traffic_limit_strategy.value,
+        hwid_device_limit=subscription.device_limit,
+        active_internal_squads=[],
+    )
+    payload["status"] = "EXPIRED"
+    payload["tag"] = subscription.tag
+    payload["subscriptionUrl"] = subscription.url
+    user = UserResponseDto.model_validate(payload)
+
+    assert differs_from_panel(subscription, user) is False
+    extended = (ended + timedelta(days=30)).isoformat()
+    later = UserResponseDto.model_validate({**payload, "expireAt": extended})
+    assert differs_from_panel(subscription, later) is True

@@ -1703,3 +1703,28 @@ async def test_restore_cron_pushes_grace_config_and_keeps_a_failed_mark(
     assert remnawave_store[94_410]["tag"] == "GRACE"
     after = await subscription_repository.get_by_id(subscription.id)
     assert after.panel_restore_due_at is None
+
+
+async def test_restore_cron_drops_a_mark_the_panel_refuses(
+    grace: _Grace,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    subscription = await _expired(
+        subscription_repository, user_repository, plan, remnawave_store, 94_411
+    )
+    async with uow:
+        await subscription_repository.mark_panel_restore_due(subscription.id, datetime_now())
+    # deleted in the panel, its webhook lost
+    del remnawave_store[94_411]
+
+    await grace.restore.system()
+
+    after = await subscription_repository.get_by_id(subscription.id)
+    assert after.panel_restore_due_at is None

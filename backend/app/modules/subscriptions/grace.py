@@ -3,6 +3,7 @@ from typing import Final, Optional
 
 from app.core.constants import GRACE_ENTRY_WINDOW
 from app.core.enums import SubscriptionStatus
+from app.core.utils.time import truncate_to_ms
 from app.modules.plans import PlanDto
 from app.modules.settings import GraceSettingsDto
 from app.modules.subscriptions.dto import SubscriptionDto
@@ -47,3 +48,11 @@ def grace_entry_allowed(
 
 def grace_until_for(settings: GraceSettingsDto, now: datetime) -> datetime:
     return expiry_after(now, settings.duration_days, exact_days=True)
+
+
+def grace_end_echo(subscription: SubscriptionDto, expire_at: datetime) -> bool:
+    """The panel refuses a past expiry, so after grace it keeps the grace end: that date
+    from the panel isn't the row's."""
+    return subscription.grace_ended_at is not None and truncate_to_ms(expire_at) == truncate_to_ms(
+        subscription.grace_ended_at
+    )
