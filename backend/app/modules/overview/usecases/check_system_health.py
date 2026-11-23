@@ -10,13 +10,18 @@ from app.core.db.uow import UnitOfWork
 from app.core.events import EVENT_ROW_FIELDS, SystemEvent
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
+from app.core.utils.time import datetime_now
+from app.modules.event_log import EventOutboxRepository
 from app.modules.notifications import DeliverNotificationDto, DeliverNotificationUseCase
 from app.modules.overview.events import SystemHealthDegradedEvent, SystemHealthRestoredEvent
 from app.modules.overview.system_health import (
     HealthState,
     advance,
+    drop_worker_consequences,
     read_health_problems,
+    read_service_problems,
 )
+from app.modules.transactions import TransactionStatsRepository
 
 _STATE_KEY: Final[str] = f"{REDIS_KEY_PREFIX}system_health:state"
 
@@ -30,16 +35,25 @@ class CheckSystemHealthUseCase(UseCase[None, None]):
         uow: UnitOfWork,
         event_publisher: EventPublisher,
         deliver_notification_use_case: DeliverNotificationUseCase,
+        outbox_repository: EventOutboxRepository,
+        transaction_stats: TransactionStatsRepository,
     ) -> None:
         self._redis = redis
         self._uow = uow
         self._event_publisher = event_publisher
         self._deliver_notification_use_case = deliver_notification_use_case
+        self._outbox_repository = outbox_repository
+        self._transaction_stats = transaction_stats
 
     async def _execute(self, actor: Actor, data: None) -> None:
         raw = await self._redis.get(_STATE_KEY)
         state = HealthState(**json.loads(raw)) if raw else HealthState(streaks={}, alerted={})
-        transition = advance(state, await read_health_problems(self._redis))
+        problems = await read_health_problems(self._redis)
+        async with self._uow:
+            problems += await read_service_problems(
+                self._redis, self._outbox_repository, self._transaction_stats, datetime_now()
+            )
+        transition = advance(state, drop_worker_consequences(state, problems))
         events: list[SystemEvent] = [
             SystemHealthDegradedEvent(
                 kind=p.kind.value, subject=p.subject or "", value=p.value or 0

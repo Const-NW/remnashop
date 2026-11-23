@@ -22,7 +22,12 @@ from app.modules.broadcasts import BroadcastRepository
 from app.modules.email import read_smtp_failure
 from app.modules.event_log import EventOutboxRepository
 from app.modules.overview.dto import AttentionDto, AttentionItemDto, AttentionKind
-from app.modules.overview.system_health import read_health_problems
+from app.modules.overview.system_health import (
+    GATEWAY_FAILED_SPIKE,
+    GATEWAY_FAILED_WINDOW,
+    OUTBOX_STUCK_AFTER,
+    read_health_problems,
+)
 from app.modules.plans import PlanDto, PlanRepository
 from app.modules.settings import (
     BotSettingsDto,
@@ -38,8 +43,6 @@ from app.modules.subscriptions import (
 from app.modules.transactions import TransactionRepository, TransactionStatsRepository
 from app.modules.users import UserRepository
 
-_FAILED_SPIKE: Final[int] = 5
-_FAILED_WINDOW: Final[timedelta] = timedelta(hours=1)
 _UNFULFILLED_AFTER: Final[timedelta] = timedelta(minutes=10)
 _UNFULFILLED_WINDOW: Final[timedelta] = timedelta(days=7)
 # checkout orders expire after 30 min, so this has to be shorter to ever fire
@@ -48,8 +51,6 @@ _STALE_PENDING_AFTER: Final[timedelta] = timedelta(minutes=15)
 _STALE_PENDING_SPIKE: Final[int] = 5
 _EXPIRING_WITHIN: Final[timedelta] = timedelta(days=7)
 _EXPIRING_URGENT: Final[timedelta] = timedelta(hours=24)
-# the sweep runs every minute
-_OUTBOX_STUCK_AFTER: Final[timedelta] = timedelta(minutes=5)
 # the scheduled check runs hourly
 _BACKUP_GRACE: Final[timedelta] = timedelta(hours=2)
 _BROADCAST_FAILED_WINDOW: Final[timedelta] = timedelta(days=1)
@@ -208,7 +209,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         if Permission.TRANSACTIONS_VIEW not in perms:
             return []
         failed = await self._transaction_stats.count_failed_by_gateway(
-            datetime_now() - _FAILED_WINDOW
+            datetime_now() - GATEWAY_FAILED_WINDOW
         )
         return [
             AttentionItemDto(
@@ -218,7 +219,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
                 subject=gateway.value,
             )
             for gateway, count in failed.items()
-            if count >= _FAILED_SPIKE
+            if count >= GATEWAY_FAILED_SPIKE
         ]
 
     async def _backup_failed(self, perms: set[Permission]) -> list[AttentionItemDto]:
@@ -311,7 +312,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         ]
 
     async def _outbox_stuck(self) -> list[AttentionItemDto]:
-        stats = await self._outbox_repository.get_stuck_stats(datetime_now() - _OUTBOX_STUCK_AFTER)
+        stats = await self._outbox_repository.get_stuck_stats(datetime_now() - OUTBOX_STUCK_AFTER)
         return [
             AttentionItemDto(
                 kind=AttentionKind.OUTBOX_STUCK,

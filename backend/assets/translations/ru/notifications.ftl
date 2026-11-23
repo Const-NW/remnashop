@@ -272,6 +272,12 @@ ntf-system-health-degraded = { $kind ->
         [process_down] Процесс { $subject } не отвечает.
         [host_disk_full] Диск сервера заполнен на { $value }%.
         [host_memory_high] Память сервера занята на { $value }%.
+        [outbox_stuck] Очередь событий не обрабатывается: дольше 5 минут ждут { $value }.
+        [gateway_failures] Платежи через { $subject } не проходят: ошибок за час — { $value }.
+        [smtp_failed] Почта не отправляется: { $subject ->
+            [bulk] SMTP для рассылок
+           *[main] основной SMTP
+        } отвечает ошибкой.
        *[event_loop_lag] Процесс { $subject } работает с задержкой: p99 event loop — { $value } мс.
     }
     .title = Критическое состояние системы!
@@ -279,6 +285,12 @@ ntf-system-health-restored = { $kind ->
         [process_down] Процесс { $subject } снова работает.
         [host_disk_full] Заполненность диска сервера вернулась к норме.
         [host_memory_high] Использование памяти сервера вернулось к норме.
+        [outbox_stuck] Очередь событий снова обрабатывается.
+        [gateway_failures] Платежи через { $subject } снова проходят.
+        [smtp_failed] Почта снова отправляется: { $subject ->
+            [bulk] SMTP для рассылок
+           *[main] основной SMTP
+        } работает.
        *[event_loop_lag] Задержка процесса { $subject } вернулась к норме.
     }
     .title = Состояние системы восстановлено!

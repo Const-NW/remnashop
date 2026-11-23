@@ -263,6 +263,12 @@ ntf-system-health-degraded = { $kind ->
         [process_down] The { $subject } process is not responding.
         [host_disk_full] The server disk is { $value }% full.
         [host_memory_high] Server memory is { $value }% used.
+        [outbox_stuck] The event queue is not being processed: { $value } waiting over 5 minutes.
+        [gateway_failures] Payments through { $subject } are failing: { $value } failures in the last hour.
+        [smtp_failed] Email is not being sent: the { $subject ->
+            [bulk] broadcast SMTP
+           *[main] main SMTP
+        } answers with an error.
        *[event_loop_lag] The { $subject } process is responding slowly: event loop p99 is { $value } ms.
     }
     .title = Critical system state!
@@ -270,6 +276,12 @@ ntf-system-health-restored = { $kind ->
         [process_down] The { $subject } process is running again.
         [host_disk_full] Server disk usage is back to normal.
         [host_memory_high] Server memory usage is back to normal.
+        [outbox_stuck] The event queue is being processed again.
+        [gateway_failures] Payments through { $subject } go through again.
+        [smtp_failed] Email is being sent again: the { $subject ->
+            [bulk] broadcast SMTP
+           *[main] main SMTP
+        } works.
        *[event_loop_lag] The { $subject } process delay is back to normal.
     }
     .title = System state restored!
