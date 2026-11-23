@@ -26,7 +26,9 @@ from app.core.enums import (
 from app.core.error_codes import ErrorCode
 from app.core.ports import EventPublisher
 from app.core.utils.time import datetime_now, truncate_to_ms
+from app.modules.plans.addon_repository import AddOnRepository
 from app.modules.plans.dto import (
+    CreateAddOnDto,
     CreatePlanDto,
     PlanDto,
     SetPlanDurationDto,
@@ -42,6 +44,7 @@ from app.modules.subscriptions.credit import remaining_term_credit
 from app.modules.subscriptions.credit_segment_repository import CreditSegmentRepository
 from app.modules.subscriptions.domain import OrderNotPaidError
 from app.modules.subscriptions.dto import (
+    GrantAddOnDto,
     PurchaseSubscriptionDto,
     SubscriptionDto,
     UpdateSubscriptionDto,
@@ -55,8 +58,10 @@ from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.unlimited import expiry_after
 from app.modules.subscriptions.usecases import (
     EnterGraceUseCase,
+    GrantAddOnUseCase,
     PurchaseSubscriptionUseCase,
     SyncSubscriptionStatusUseCase,
+    UpdateSubscriptionSquadsUseCase,
     UpdateSubscriptionUseCase,
 )
 from app.modules.users.dto import UserDto
@@ -958,3 +963,100 @@ async def test_refund_restore_of_a_row_replaced_in_grace_brings_it_back_without_
     # its grace was given: no second one for the same expiry
     settings = await settings_repository.get_grace_settings()
     assert grace_entry_allowed(restored, plan, settings, datetime_now()) is False
+
+
+async def test_traffic_addon_in_grace_waits_in_the_row(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    addon_repository: AddOnRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    target = await _in_grace(
+        subscription_repository, user_repository, settings_repository, remnawave_store, plan, 95_101
+    )
+    addon = await addon_repository.create(
+        CreateAddOnDto(name="t50", type=AddOnType.TRAFFIC, amount=50, base_price=Decimal("1"))
+    )
+
+    granted = await GrantAddOnUseCase(
+        subscription_repository,
+        addon_repository,
+        user_repository,
+        remnawave_sdk,
+        uow,
+        event_publisher,
+    ).system(GrantAddOnDto(subscription_id=target.id, addon_id=addon.id))
+
+    assert granted.effective_traffic_limit == target.effective_traffic_limit + 50
+    assert remnawave_store[95_101]["trafficLimitBytes"] == 512 * MB_TO_BYTES
+
+
+async def test_squad_edit_in_grace_waits_in_the_row(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    target = await _in_grace(
+        subscription_repository, user_repository, settings_repository, remnawave_store, plan, 95_102
+    )
+
+    edited = await UpdateSubscriptionSquadsUseCase(
+        subscription_repository, user_repository, remnawave_sdk, event_publisher, uow
+    )(
+        OWNER,
+        UpdateSubscriptionSquadsDto(
+            subscription_id=target.id, internal_squads=[_NEW_PLAN_SQUAD], external_squad=None
+        ),
+    )
+
+    assert edited.internal_squads == [_NEW_PLAN_SQUAD]
+    assert [s["uuid"] for s in remnawave_store[95_102]["activeInternalSquads"]] == [
+        str(_GRACE_SQUAD)
+    ]
+
+
+async def test_plan_change_in_grace_to_a_plan_without_squads_clears_the_grace_squads(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    new_plan = await _plan(plan_repository, None, "NEWPLAN")
+    target = await _in_grace(
+        subscription_repository, user_repository, settings_repository, remnawave_store, plan, 95_103
+    )
+
+    await _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)(
+        await _buyer(user_repository, target),
+        PurchaseSubscriptionDto(
+            user_id=target.user_id,
+            plan_snapshot=snapshot_from_plan(
+                new_plan, price_paid=Decimal("299.00"), duration_days=30, tag=new_plan.tag
+            ),
+            duration_days=30,
+            price_paid=Decimal("299.00"),
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.CHANGE,
+            target_subscription_id=target.id,
+            idempotency_key=uuid4().hex,
+        ),
+    )
+
+    assert remnawave_store[95_103]["activeInternalSquads"] == []

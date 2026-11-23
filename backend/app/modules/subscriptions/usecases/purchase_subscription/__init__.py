@@ -82,6 +82,7 @@ class PurchaseSubscriptionUseCase(UseCase[PurchaseSubscriptionDto, SubscriptionD
                 remnawave_sdk, uow, pricing_repository, settings_repository, lifecycle_service
             ),
             lifecycle_service,
+            settings_repository,
         )
 
     async def _assert_squads_in_panel(self, data: PurchaseSubscriptionDto) -> None:
