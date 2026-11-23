@@ -1146,6 +1146,14 @@ async def test_sweep_enters_grace_for_a_row_whose_expiry_webhook_never_came(
     assert after.grace_until is not None
     assert remnawave_store[94_801]["tag"] == "GRACE"
     assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+    synced = await session.scalars(
+        select(EventOutboxEntry.payload)
+        .where(EventOutboxEntry.payload["subscription_id"].as_integer() == before.id)
+        .where(EventOutboxEntry.event_type == "SubscriptionStatusSyncedEvent")
+    )
+    assert [(row["old_status"], row["new_status"], row["source"]) for row in synced.all()] == [
+        ("ACTIVE", "EXPIRED", "grace_sweep")
+    ]
 
 
 async def test_panel_disable_during_grace_reaches_the_row(

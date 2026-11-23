@@ -22,6 +22,7 @@ from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import (
     SubscriptionExpiredEvent,
     SubscriptionGraceStartedEvent,
+    SubscriptionStatusSyncedEvent,
 )
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
@@ -123,7 +124,18 @@ class EnterGraceUseCase(UseCase[int, bool]):
             return None
         if subscription.status is SubscriptionStatus.ACTIVE:
             # the expiry webhook was lost: its sync would have set this
-            await self._lifecycle_service.sync_status(subscription.id, SubscriptionStatus.EXPIRED)
+            expired = await self._lifecycle_service.sync_status(
+                subscription.id, SubscriptionStatus.EXPIRED
+            )
+            await self._event_publisher.publish(
+                SubscriptionStatusSyncedEvent(
+                    subscription_id=subscription.id,
+                    old_status=subscription.status,
+                    new_status=expired.status,
+                    source="grace_sweep",
+                    user_id=subscription.user_id,
+                )
+            )
         return await self._subscription_repository.set_grace_until(
             subscription.id, grace_until_for(settings, now)
         )

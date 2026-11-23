@@ -27,7 +27,7 @@ SubscriptionEditAction: TypeAlias = Literal[
     "update",
 ]
 
-StatusSyncSource: TypeAlias = Literal["admin_pull", "panel_sync", "webhook"]
+StatusSyncSource: TypeAlias = Literal["admin_pull", "panel_sync", "webhook", "grace_sweep"]
 
 
 @dataclass(frozen=True, kw_only=True)
