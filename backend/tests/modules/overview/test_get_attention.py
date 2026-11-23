@@ -183,8 +183,33 @@ async def test_lists_everything_that_needs_attention(
     by_kind = {i.kind: i for i in result.items}
     assert by_kind["node_offline"].subject == "de-1"
     assert by_kind["gateway_failures"].count == 5
+    assert by_kind["paid_not_fulfilled"].severity == "critical"
     assert by_kind["expiring_paid"].count == 2
     assert by_kind["expiring_paid"].subject == "1"
+
+
+async def test_expiring_paid_waits_for_one_ending_within_a_day(
+    session: AsyncSession,
+    user_repository: UserRepository,
+    subscription_repository: SubscriptionRepository,
+    settings_repository: SettingsRepository,
+    uow: UnitOfWork,
+    redis_alive: Redis,
+) -> None:
+    await create_subscription(
+        subscription_repository,
+        user_repository,
+        telegram_id=840_201,
+        remnawave_user_id=840_201,
+        status=SubscriptionStatus.ACTIVE,
+        expire_at=datetime_now() + timedelta(days=3),
+    )
+
+    result = await _use_case(session, _sdk(_NodesStub([])), uow, settings_repository, redis_alive)(
+        OWNER
+    )
+
+    assert "expiring_paid" not in {i.kind for i in result.items}
 
 
 async def test_admin_without_transactions_view_gets_no_payment_items(

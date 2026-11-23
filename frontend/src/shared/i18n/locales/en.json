@@ -171,7 +171,7 @@
         "sub": "The panel does not respond or the reply is not recognized",
         "what": "The node list could not be retrieved from the Remnawave panel: the panel did not respond or returned a response in an unknown format.",
         "why": "While the panel is unavailable, subscriptions are not issued or renewed, and sync and device management do not work. A changed response format may break individual features.",
-        "fix": "Check that the panel is reachable and that the URL and token in the settings are correct. If the panel was updated recently, make sure this shop version supports it. Details are in the api logs."
+        "fix": "Check that the panel is reachable and that REMNAWAVE_HOST and REMNAWAVE_TOKEN in .env are correct. If the panel was updated recently, make sure this shop version supports it. Details are in the api logs."
       },
       "nodeOffline": {
         "title": "Connection to node “{{node}}” lost",
@@ -207,7 +207,7 @@
         "title": "Backups are not being created on schedule",
         "sub": "Last successful backup: {{since}}",
         "never": "No backups since it was enabled",
-        "what": "Automatic backups are enabled, but there has been no successful backup for longer than the set interval.",
+        "what": "Automatic backups are enabled, but there has been no successful database backup for longer than the schedule interval plus 2 hours.",
         "why": "Without a current backup, data since the last successful backup cannot be restored after a server or database failure.",
         "fix": "Check that the worker and scheduler are running; they create backups. Then start a backup manually and make sure it succeeds."
       },
@@ -254,7 +254,7 @@
         "sub_one": "{{formatted}} subscription in the next 7 days",
         "sub_other": "{{formatted}} subscriptions in the next 7 days",
         "urgent": "{{base}}, {{urgent}} of them within the next day",
-        "what": "Paid subscriptions that expire in the next 7 days.",
+        "what": "Some paid subscriptions expire within the next day. The count covers every paid subscription expiring in the next 7 days.",
         "why": "Without a reminder, some customers will not renew. This revenue can still be retained.",
         "fix": "Review retention and, if needed, send a broadcast with a reminder or a renewal promo code."
       },
