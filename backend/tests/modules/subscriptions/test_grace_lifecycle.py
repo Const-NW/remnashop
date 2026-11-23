@@ -820,6 +820,7 @@ async def test_a_row_that_keeps_failing_does_not_hold_up_the_grace_end(
     user_repository: UserRepository,
     settings_repository: SettingsRepository,
     plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
     remnawave_store: FakeUserStore,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -840,8 +841,14 @@ async def test_a_row_that_keeps_failing_does_not_hold_up_the_grace_end(
         remnawave_store,
         94_502,
     )
-    # gone from the panel: every end push is refused
-    del remnawave_store[94_501]
+    real_update_user = remnawave_sdk.users.update_user
+
+    async def _down_for_stuck(request: Any) -> Any:
+        if request.id == 94_501:
+            raise _panel_error(500)
+        return await real_update_user(request)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _down_for_stuck)
 
     await grace.sweep.system()
     await grace.sweep.system()
@@ -1345,3 +1352,82 @@ async def test_grace_end_empties_the_grace_squads_of_a_row_without_any(
     await grace.end.system(subscription.id)
 
     assert remnawave_store[94_401]["activeInternalSquads"] == []
+
+
+async def test_renewal_during_the_grace_end_push_keeps_its_config(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subscription, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_402,
+    )
+    renewed_until = truncate_to_ms(datetime_now() + timedelta(days=30))
+    lifecycle = SubscriptionLifecycleService(
+        subscription_repository, CreditSegmentRepository(session)
+    )
+    real_update_user = remnawave_sdk.users.update_user
+    calls = 0
+
+    async def renewal_then_push(request: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            # a renewal commits and pushes its own config before the end's push lands
+            async with uow:
+                await lifecycle.sync_expire_at(subscription.id, renewed_until)
+                await lifecycle.sync_status(subscription.id, SubscriptionStatus.ACTIVE)
+                await subscription_repository.set_grace_until(subscription.id, None)
+                await subscription_repository.set_tag(subscription.id, "RENEWED")
+            remnawave_store[94_402].update(
+                {"expireAt": renewed_until.isoformat(), "status": "ACTIVE", "tag": "RENEWED"}
+            )
+            stale = request.model_copy(update={"tag": "PLAN"})
+            return await real_update_user(stale)
+        return await real_update_user(request)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", renewal_then_push)
+
+    await grace.end.system(subscription.id)
+
+    panel = remnawave_store[94_402]
+    assert panel["tag"] == "RENEWED"
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_402)) == renewed_until
+    assert await _events(session, subscription.id) == []
+
+
+async def test_grace_end_of_a_panel_user_deleted_without_a_webhook(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    subscription, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_403,
+    )
+    del remnawave_store[94_403]
+
+    await grace.end.system(subscription.id)
+
+    assert (await subscription_repository.get_by_id(subscription.id)).grace_until is None
+    assert await _events(session, subscription.id) == ["SubscriptionExpiredEvent"]

@@ -3,6 +3,8 @@ from typing import Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import ErrorCode as RemnawaveErrorCode
+from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
@@ -53,28 +55,42 @@ class EndGraceUseCase(UseCase[int, None]):
         try:
             # the row's own config, its past expiry left out
             await self._remnawave_sdk.users.update_user(restore(subscription, left_grace=settings))
+        except RemnawaveNotFoundError as error:
+            # a missing squad or a proxy's bare 404 may pass on a retry
+            if error.code != RemnawaveErrorCode.USER_NOT_FOUND:
+                raise RetryableTaskError(
+                    f"Grace end push of subscription '{data}' failed"
+                ) from error
+            # deleted in the panel, its webhook lost: nothing holds the grace config now
+            logger.warning(f"Panel user of subscription '{data}' is gone, ending its grace as is")
         except Exception as error:
             raise RetryableTaskError(f"Grace end push of subscription '{data}' failed") from error
 
         async with self._uow:
-            subscription = await self._subscription_repository.get_by_id_for_update(data)
-            replaced = subscription.status is SubscriptionStatus.DELETED
-            if not replaced:
-                # an admin's extension or a parallel run cleared it meanwhile
-                if not _ended(subscription.grace_until):
-                    return
+            current = await self._subscription_repository.get_by_id_for_update(data)
+            replaced = current.status is SubscriptionStatus.DELETED
+            # a renewal or an admin's extension cleared it meanwhile: the push above went
+            # out from the row before it and may have landed over theirs
+            stale = not replaced and not _ended(current.grace_until)
+            if not replaced and not stale:
                 await self._subscription_repository.end_grace(data)
                 # an admin's switch-off during grace: access ends, but it didn't expire
-                if subscription.status is SubscriptionStatus.EXPIRED:
-                    owner = await subscription_owner(self._user_repository, subscription)
+                if current.status is SubscriptionStatus.EXPIRED:
+                    owner = await subscription_owner(self._user_repository, current)
                     await self._event_publisher.publish(
                         SubscriptionExpiredEvent(user=owner, subscription_id=data)
                     )
         if replaced:
             # a plan change took the panel user over while the push ran
             await revert_panel_to_owner(
-                self._remnawave_sdk, self._subscription_repository, self._uow, subscription
+                self._remnawave_sdk, self._subscription_repository, self._uow, current
             )
+            return
+        if stale:
+            await self._remnawave_sdk.users.update_user(
+                restore(current, grace=settings, left_grace=settings)
+            )
+            logger.info(f"Subscription '{data}' left grace while its end was being pushed")
             return
         logger.info(f"Grace of subscription '{data}' ended")
 
