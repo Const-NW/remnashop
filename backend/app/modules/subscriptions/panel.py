@@ -202,8 +202,10 @@ def restore(
             # an admin's switch-off outlives grace: None leaves the panel's status as is
             contact["status"] = None
         if subscription.grace_until <= datetime_now():
-            # grace ended, End hasn't run yet: a past expireAt is refused
+            # grace ended, End hasn't run yet: a past expireAt is refused, and ACTIVE
+            # would revive the panel user it expired
             contact["expire_at"] = None
+            contact["status"] = None
         return grace_panel_update(subscription, grace, subscription.grace_until, **contact)
     return panel_update(
         **contact,

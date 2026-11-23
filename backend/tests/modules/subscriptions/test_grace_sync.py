@@ -409,3 +409,12 @@ async def test_bulk_to_panel_pushes_the_grace_config_over_a_drifted_panel(
     pushed = remnawave_store[93_008]
     assert pushed["trafficLimitBytes"] == 512 * MB_TO_BYTES
     assert pushed["tag"] == "GRACE"
+
+
+def test_restore_after_the_grace_end_sends_no_status() -> None:
+    settings = GraceSettingsDto(enabled=True, traffic_limit_mb=512)
+    lapsed = make_subscription_dto(
+        status=SubscriptionStatus.EXPIRED, grace_until=datetime_now() - timedelta(minutes=1)
+    )
+
+    assert restore(lapsed, grace=settings).status is None
