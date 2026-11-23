@@ -87,9 +87,14 @@ class EndGraceUseCase(UseCase[int, None]):
             )
             return
         if stale:
-            await self._remnawave_sdk.users.update_user(
-                restore(current, grace=settings, left_grace=settings)
-            )
+            # the grace end is recorded either way; the next sync or push sets it right
+            try:
+                await self._remnawave_sdk.users.update_user(
+                    restore(current, grace=settings, left_grace=settings)
+                )
+            except Exception:
+                logger.exception(f"Failed to put subscription '{data}' back after its grace end")
+                return
             logger.info(f"Subscription '{data}' left grace while its end was being pushed")
             return
         logger.info(f"Grace of subscription '{data}' ended")

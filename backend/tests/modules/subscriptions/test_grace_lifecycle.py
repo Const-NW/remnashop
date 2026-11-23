@@ -1556,3 +1556,63 @@ async def test_finishing_an_entry_keeps_an_admins_switch_off(
     assert remnawave_store[94_407]["status"] == "DISABLED"
     assert (await subscription_repository.get_by_id(before.id)).grace_started_at is not None
     assert await _events(session, before.id) == []
+
+
+async def test_repeat_grace_push_to_a_deleted_panel_user_gives_grace_up(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_408)
+    await subscription_repository.set_grace_until(before.id, datetime_now() + timedelta(days=3))
+    del remnawave_store[94_408]
+
+    await grace.enter.system(before.id)
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_failed_stale_grace_end_correction_is_only_logged(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subscription, _ = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_409,
+    )
+    real_update_user = remnawave_sdk.users.update_user
+    calls = 0
+
+    async def renewal_then_down(request: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            async with uow:
+                await subscription_repository.set_grace_until(subscription.id, None)
+            return await real_update_user(request)
+        raise _panel_error(500)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", renewal_then_down)
+
+    await grace.end.system(subscription.id)
+
+    assert calls == 2

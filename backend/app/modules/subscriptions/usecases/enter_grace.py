@@ -5,6 +5,7 @@ from typing import Final, Optional
 import httpx
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import ErrorCode as RemnawaveErrorCode
 from remnapy.exceptions import ApiError as RemnawaveApiError
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
@@ -38,6 +39,13 @@ _NEVER_SENT: Final[tuple[type[Exception], ...]] = (httpx.ConnectError, httpx.Con
 # what the panel says about the request itself; anything else (auth, rate limit,
 # outage) may pass on a retry
 _REFUSAL_STATUSES: Final[frozenset[int]] = frozenset({400, 404, 409, 422})
+
+
+def _panel_user_gone(error: Exception) -> bool:
+    return (
+        isinstance(error, RemnawaveNotFoundError)
+        and error.code == RemnawaveErrorCode.USER_NOT_FOUND
+    )
 
 
 def _refused(error: Exception) -> bool:
@@ -213,7 +221,12 @@ class EnterGraceUseCase(UseCase[int, bool]):
         grace was given up; raises a retryable error otherwise."""
         failed = f"Grace push of subscription '{subscription.id}' failed"
         if not claimed:
-            raise RetryableTaskError(failed) from error
+            if not _panel_user_gone(error):
+                raise RetryableTaskError(failed) from error
+            # deleted in the panel, its webhook lost: a retry would never land
+            await self._give_up(subscription.id, grace_until)
+            logger.warning(f"{failed}: the panel user is gone, grace given up")
+            return False
         if _refused(error):
             await self._give_up(subscription.id, grace_until)
             logger.warning(f"{failed}: the panel refused it, the subscription gets no grace")
