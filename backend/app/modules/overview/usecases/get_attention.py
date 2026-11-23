@@ -251,7 +251,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         return [
             AttentionItemDto(
                 kind=AttentionKind.PAID_NOT_FULFILLED,
-                severity="warning",
+                severity="critical",
                 count=len(stuck),
                 since=min((t.paid_at for t in stuck if t.paid_at), default=None),
             )
@@ -273,6 +273,9 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         count, urgent = await self._subscription_stats.count_expiring_paid(
             now, now + _EXPIRING_WITHIN, now + _EXPIRING_URGENT
         )
+        # listed once one ends within a day: a live shop always has some ending within a week
+        if urgent == 0:
+            return []
         return [
             AttentionItemDto(
                 kind=AttentionKind.EXPIRING_PAID,
