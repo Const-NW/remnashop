@@ -595,3 +595,44 @@ async def test_import_rejects_the_whole_file_on_invalid_html(
     entry = await translation_repository.get(Locale.EN, "msg-x", "")
     assert entry is not None
     assert entry.value == "Fine"
+
+
+async def test_import_creates_the_icon_row_of_a_known_label(
+    settings_repository: SettingsRepository,
+    translation_repository: TranslationRepository,
+    uow: UnitOfWork,
+    redis: Redis,
+) -> None:
+    await _seed(settings_repository, translation_repository)
+    await translation_repository.seed_missing(Locale.EN, "btn-menu", "trial", "Try for free")
+    use_case = ImportTranslationsUseCase(
+        translation_repository,
+        uow,
+        make_bot_commands_sync(settings_repository.session, uow),
+        RedisBotSignals(redis),
+        RecordingEventPublisher(),
+    )
+
+    result = await use_case(
+        OWNER,
+        TranslationsImportDto(
+            version=EXPORT_VERSION,
+            texts=[
+                TranslationTextExportDto(
+                    locale=Locale.EN,
+                    message_id="btn-menu",
+                    attribute_id="trial-icon-id",
+                    value="5368324170671202286",
+                ),
+                # no label behind it, so still nothing to attach the icon to
+                TranslationTextExportDto(
+                    locale=Locale.EN, message_id="btn-menu", attribute_id="gone-icon", value="🎁"
+                ),
+            ],
+        ),
+    )
+
+    assert (result.applied, result.skipped) == (1, 1)
+    icon = await translation_repository.get(Locale.EN, "btn-menu", "trial-icon-id")
+    assert icon is not None
+    assert (icon.value, icon.default_value) == ("5368324170671202286", "")

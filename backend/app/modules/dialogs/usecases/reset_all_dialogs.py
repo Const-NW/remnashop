@@ -41,13 +41,20 @@ class ResetAllDialogsUseCase(UseCase[None, list[DialogWindowDto]]):
             text_keys: set[str] = set()
             for window in catalog.all_windows():
                 text_keys.update(window.text_keys)
-                text_keys.update(b.text_key for b in window.buttons)
+                for button in window.buttons:
+                    text_keys.update(
+                        (
+                            button.text_key,
+                            catalog.icon_text_key(button.text_key),
+                            catalog.icon_id_text_key(button.text_key),
+                        )
+                    )
 
             # "Everything back to how it shipped" includes windows that were not
             # shipped at all: a custom one has no default to fall back to.
             for key in await self._dialog_repository.list_custom_keys():
                 await self._dialog_repository.delete_custom_window(key)
-                await drop_window_banners(self._banner_repository, self._config, key)
+                await drop_window_banners(self._banner_repository, self._config, self._uow, key)
             for key in await self._dialog_repository.list_seed_keys():
                 await self._dialog_repository.reset_to_snapshot(key)
             for locale in locales:

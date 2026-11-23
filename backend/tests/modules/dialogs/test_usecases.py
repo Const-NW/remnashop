@@ -623,7 +623,7 @@ async def test_reset_all_restores_every_seed_window(
     assert [b.text_key for b in window.buttons] == ["btn-menu.trial"]
 
 
-async def test_reset_all_restores_an_edited_button_label(
+async def test_reset_all_restores_an_edited_button_label_and_icon(
     dialog_repository,
     translation_repository,
     settings_repository,
@@ -654,6 +654,8 @@ async def test_reset_all_restores_an_edited_button_label(
         await translation_repository.add_active_locale(Locale.EN)
     await translation_repository.seed_missing(Locale.EN, "btn-menu", "trial", "Try for free")
     await translation_repository.update_value(Locale.EN, "btn-menu", "trial", "Edited")
+    await translation_repository.seed_missing(Locale.EN, "btn-menu", "trial-icon", "")
+    await translation_repository.update_value(Locale.EN, "btn-menu", "trial-icon", "🎁")
 
     use_case = ResetAllDialogsUseCase(
         dialog_repository,
@@ -669,6 +671,9 @@ async def test_reset_all_restores_an_edited_button_label(
     restored = await translation_repository.get(Locale.EN, "btn-menu", "trial")
     assert restored is not None
     assert restored.value == "Try for free"
+    icon = await translation_repository.get(Locale.EN, "btn-menu", "trial-icon")
+    assert icon is not None
+    assert icon.value == ""
 
 
 async def test_update_dialog_text_rejects_a_dotted_message_id(

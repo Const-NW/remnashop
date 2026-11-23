@@ -1,5 +1,9 @@
+from typing import Optional
+
 from app.core.actor import Actor
+from app.core.constants import ICON_ID_KEY_SUFFIX, ICON_KEY_SUFFIX
 from app.core.db.uow import UnitOfWork
+from app.core.enums import Locale
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import ValidationError
 from app.core.ports import BotSignals, EventPublisher
@@ -60,6 +64,12 @@ class ImportTranslationsUseCase(UseCase[TranslationsImportDto, TranslationsImpor
                 # a string this install doesn't have (a disabled locale, a key
                 # from an older catalog) is skipped; nothing would ever read it
                 default_value = defaults.get((text.locale, text.message_id, text.attribute_id))
+                if default_value is None and _icon_label(text) in defaults:
+                    # an icon row exists only once something sets it
+                    await self._translation_repository.seed_missing(
+                        text.locale, text.message_id, text.attribute_id, ""
+                    )
+                    default_value = ""
                 if default_value is None:
                     skipped += 1
                     continue
@@ -82,3 +92,11 @@ class ImportTranslationsUseCase(UseCase[TranslationsImportDto, TranslationsImpor
 
         await self._bot_commands.push()
         return TranslationsImportResultDto(applied=len(applied), skipped=skipped)
+
+
+def _icon_label(text: TranslationTextExportDto) -> Optional[tuple[Locale, str, str]]:
+    """The label row an icon attribute belongs to; None for any other key."""
+    if not text.attribute_id.endswith((ICON_KEY_SUFFIX, ICON_ID_KEY_SUFFIX)):
+        return None
+    label = text.attribute_id.removesuffix(ICON_ID_KEY_SUFFIX).removesuffix(ICON_KEY_SUFFIX)
+    return text.locale, text.message_id, label

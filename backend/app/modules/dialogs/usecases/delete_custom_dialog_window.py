@@ -40,7 +40,7 @@ class DeleteCustomDialogWindowUseCase(UseCase[str, None]):
                     "Only custom windows can be deleted", code=ErrorCode.DIALOG_WINDOW_NOT_DELETABLE
                 )
             await self._dialog_repository.delete_custom_window(data)
-            await drop_window_banners(self._banner_repository, self._config, data)
+            await drop_window_banners(self._banner_repository, self._config, self._uow, data)
             await self._event_publisher.publish(
                 DialogChangedEvent(actor=actor, action="delete", window_key=data)
             )
