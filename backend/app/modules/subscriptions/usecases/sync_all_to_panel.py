@@ -16,7 +16,7 @@ from app.core.exceptions import RemnawavePanelUnavailableError, ValidationError
 from app.core.ports import EventPublisher
 from app.core.usecase import UseCase
 from app.core.utils.time import datetime_now
-from app.modules.settings import SettingsRepository
+from app.modules.settings import GraceSettingsDto, SettingsRepository
 from app.modules.subscriptions.dto import (
     PanelSyncResultDto,
     SubscriptionDto,
@@ -87,7 +87,7 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
         try:
             by_panel_id = {s.remnawave_user_id: s for s in subscriptions}
             listing = await scan_panel(
-                self._remnawave_sdk, linked, partial(_lags_behind, by_panel_id, owners)
+                self._remnawave_sdk, linked, partial(_lags_behind, by_panel_id, owners, grace)
             )
             for position, subscription in enumerate(subscriptions):
                 lags = listing.tracked.get(subscription.remnawave_user_id)
@@ -226,9 +226,12 @@ class SyncAllToPanelUseCase(UseCase[SyncToPanelOptionsDto, PanelSyncResultDto]):
 
 
 def _lags_behind(
-    by_panel_id: dict[int, SubscriptionDto], owners: dict[int, UserDto], user: UserResponseDto
+    by_panel_id: dict[int, SubscriptionDto],
+    owners: dict[int, UserDto],
+    grace: GraceSettingsDto,
+    user: UserResponseDto,
 ) -> Optional[bool]:
     subscription = by_panel_id.get(user.id)
     if subscription is None:
         return None
-    return panel_lags_behind(subscription, user, owners[subscription.user_id])
+    return panel_lags_behind(subscription, user, owners[subscription.user_id], grace)

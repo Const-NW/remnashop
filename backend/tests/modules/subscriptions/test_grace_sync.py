@@ -375,3 +375,37 @@ def test_restore_leaving_grace_empties_the_grace_squads() -> None:
 
     assert restore(row, left_grace=with_squads).active_internal_squads == []
     assert "active_internal_squads" not in restore(row, left_grace=without_squads).model_fields_set
+
+
+async def test_bulk_to_panel_pushes_the_grace_config_over_a_drifted_panel(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> None:
+    subscription = await _in_grace(
+        subscription_repository, user_repository, settings_repository, 93_008
+    )
+    assert subscription.grace_until is not None
+    remnawave_store[93_008] = _grace_panel_user(
+        subscription, subscription.grace_until, trafficLimitBytes=100 * GB_TO_BYTES, tag=None
+    )
+
+    await SyncAllToPanelUseCase(
+        subscription_repository,
+        user_repository,
+        remnawave_sdk,
+        uow,
+        redis,
+        event_publisher,
+        AppConfig.get(),
+        settings_repository,
+    ).system(SyncToPanelOptionsDto(recreate_missing=False, delete_orphans=False))
+
+    pushed = remnawave_store[93_008]
+    assert pushed["trafficLimitBytes"] == 512 * MB_TO_BYTES
+    assert pushed["tag"] == "GRACE"
