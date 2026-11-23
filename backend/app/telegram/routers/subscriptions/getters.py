@@ -53,6 +53,13 @@ DEVICE_HAS_NAME_KEY: Final[str] = "device_has_name"
 _KNOWN_PLATFORMS: Final[frozenset[str]] = frozenset({"ios", "android", "windows", "macos", "linux"})
 
 
+def card_grace(runner: TranslatorRunner, subscription: SubscriptionDto) -> str:
+    """The grace line set off from the limits by an empty line. The empty line can't
+    live in the template: with no grace the line drops and the gap would stay."""
+    line = grace_line(runner, subscription)
+    return TrustedHtml(f"\n{line}") if line else ""
+
+
 def _platform_icon_key(platform: Optional[str]) -> str:
     normalized = (platform or "default").lower()
     return normalized if normalized in _KNOWN_PLATFORMS else "default"
@@ -195,7 +202,7 @@ async def subscription_card_getter(
             is_unlimited=int(subscription.is_unlimited),
             traffic_limit=subscription.effective_traffic_limit,
             device_limit=subscription.effective_device_limit,
-            grace=grace_line(runner, subscription),
+            grace=card_grace(runner, subscription),
             **resolve_variable_kwargs(data),
         )
     data["buttons"] = await render_dialog_buttons(

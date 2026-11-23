@@ -93,8 +93,8 @@ def test_expired_block_shows_grace_only_in_grace() -> None:
     grace = {"grace_until": datetime(2027, 1, 4, 12, 0, tzinfo=timezone.utc)}
     forever = {"grace_until": datetime(2099, 12, 31, tzinfo=timezone.utc)}
 
-    assert "• Льготный период до 04.01.2027" in _menu(status="EXPIRED", subscription=grace)
-    assert "• Льготный период\n" in _menu(status="EXPIRED", subscription=forever)
+    assert "• <b>Льготный период</b> до 04.01.2027" in _menu(status="EXPIRED", subscription=grace)
+    assert "• <b>Льготный период</b>\n" in _menu(status="EXPIRED", subscription=forever)
     assert "Льготный" not in _menu(status="EXPIRED")
 
 

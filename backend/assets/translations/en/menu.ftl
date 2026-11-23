@@ -74,7 +74,7 @@ frg-subscription-status = { $status ->
        *[other] { $status }
     }
 frg-subscription-unlimited = Unlimited
-frg-subscription-grace = • Grace period{ $grace_until ->
+frg-subscription-grace = • <b>Grace period</b>{ $grace_until ->
         [none] {""}
        *[other] {" "}until { $grace_until }
     }
