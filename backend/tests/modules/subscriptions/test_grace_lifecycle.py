@@ -1528,3 +1528,31 @@ async def test_sweep_finishes_an_interrupted_grace_entry(
     assert remnawave_store[94_406]["tag"] == "GRACE"
     assert remnawave_store[94_406]["lastTrafficResetAt"] is not None
     assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def test_finishing_an_entry_keeps_an_admins_switch_off(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_407)
+    await subscription_repository.set_grace_until(before.id, datetime_now() + timedelta(days=3))
+    # switched off by an admin before the interrupted entry is finished
+    await session.execute(
+        update(Subscription)
+        .where(Subscription.id == before.id)
+        .values(status=SubscriptionStatus.DISABLED)
+    )
+    remnawave_store[94_407]["status"] = "DISABLED"
+
+    await grace.sweep.system()
+
+    assert remnawave_store[94_407]["status"] == "DISABLED"
+    assert (await subscription_repository.get_by_id(before.id)).grace_started_at is not None
+    assert await _events(session, before.id) == []

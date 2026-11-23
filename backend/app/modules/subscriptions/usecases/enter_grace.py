@@ -26,7 +26,7 @@ from app.modules.subscriptions.events import (
 )
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
-from app.modules.subscriptions.panel import grace_panel_update, restore, revert_panel_to_owner
+from app.modules.subscriptions.panel import restore, revert_panel_to_owner
 from app.modules.subscriptions.panel_sync import from_panel
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases.sync_subscription_status import (
@@ -98,11 +98,8 @@ class EnterGraceUseCase(UseCase[int, bool]):
         # a repeat run (redelivery, sweep, duplicate webhook) finds the claim: it pushes
         # the grace config again, and finishes the entry if the run that claimed didn't
         try:
-            await self._remnawave_sdk.users.update_user(
-                grace_panel_update(
-                    subscription, settings, grace_until, id=subscription.remnawave_user_id
-                )
-            )
+            # restore keeps an admin's switch-off made after the claim
+            await self._remnawave_sdk.users.update_user(restore(subscription, grace=settings))
         except Exception as error:
             if not await self._recover_failed_push(
                 subscription, grace_until, error, claimed=claimed
@@ -134,6 +131,9 @@ class EnterGraceUseCase(UseCase[int, bool]):
             ):
                 return
             await self._subscription_repository.mark_grace_started(data, datetime_now())
+            # switched off by an admin: no access to announce
+            if current.status is SubscriptionStatus.DISABLED:
+                return
             owner = await subscription_owner(self._user_repository, current)
             await self._event_publisher.publish(
                 SubscriptionGraceStartedEvent(
