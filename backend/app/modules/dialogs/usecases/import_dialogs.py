@@ -1,6 +1,7 @@
 from dataclasses import replace
 
 from app.core.actor import Actor
+from app.core.config import AppConfig
 from app.core.db.uow import UnitOfWork
 from app.core.enums import DialogWindowKind, Locale
 from app.core.error_codes import ErrorCode
@@ -8,6 +9,7 @@ from app.core.exceptions import ValidationError
 from app.core.ports import BotSignals, EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.modules.banners import BannerRepository
 from app.modules.dialogs import catalog
 from app.modules.dialogs.dto import (
     CreateCustomWindowDto,
@@ -22,11 +24,13 @@ from app.modules.dialogs.export import (
     dialog_text_keys,
 )
 from app.modules.dialogs.repository import DialogRepository
+from app.modules.dialogs.usecases._banners import drop_window_banners
 from app.modules.dialogs.usecases._window_texts import validate_stored_window_texts
 from app.modules.dialogs.validation import validate_buttons
 from app.modules.translations import (
     TranslationRepository,
     assert_fluent_compiles,
+    find_disallowed_placeable,
     join_message_key,
     serialize_to_fluent,
 )
@@ -43,12 +47,16 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
         self,
         dialog_repository: DialogRepository,
         translation_repository: TranslationRepository,
+        banner_repository: BannerRepository,
+        config: AppConfig,
         uow: UnitOfWork,
         bot_signals: BotSignals,
         event_publisher: EventPublisher,
     ) -> None:
         self._dialog_repository = dialog_repository
         self._translation_repository = translation_repository
+        self._banner_repository = banner_repository
+        self._config = config
         self._uow = uow
         self._bot_signals = bot_signals
         self._event_publisher = event_publisher
@@ -67,6 +75,9 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
             for current in existing:
                 if current.kind == DialogWindowKind.CUSTOM and current.key not in imported_keys:
                     await self._dialog_repository.delete_custom_window(current.key)
+                    await drop_window_banners(
+                        self._banner_repository, self._config, self._uow, current.key
+                    )
 
             known_keys = {
                 current.key
@@ -144,6 +155,7 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
                 banner_name_provided=True,
                 # seed windows are always on, whatever an older export says
                 is_enabled=True if window.kind == DialogWindowKind.SEED else window.is_enabled,
+                name=window.name if window.kind == DialogWindowKind.CUSTOM else None,
             ),
         )
         await self._dialog_repository.replace_buttons(window.key, buttons)
@@ -161,12 +173,21 @@ class ImportDialogsUseCase(UseCase[DialogExportDto, None]):
                     "pass the attribute as attribute_id",
                     code=ErrorCode.DIALOG_TEXT_KEY_HAS_ATTRIBUTE,
                 )
-            if join_message_key(text.message_id, text.attribute_id) not in text_keys:
+            full_key = join_message_key(text.message_id, text.attribute_id)
+            if full_key not in text_keys:
                 # Import must not become a back door into translations that have
                 # nothing to do with dialogs, such as bot command descriptions.
                 continue
+            window_key = catalog.window_key_for_text_key(full_key)
+            disallowed = find_disallowed_placeable(
+                text.value, catalog.allowed_text_variables(window_key)
+            )
+            if disallowed is not None:
+                raise ValidationError(disallowed, code=ErrorCode.DIALOG_TEXT_VARIABLE_NOT_ALLOWED)
+            # an icon's default stays empty, so a reset takes the icon off
+            default = "" if catalog.is_icon_text_key(full_key) else text.value
             await self._translation_repository.seed_missing(
-                text.locale, text.message_id, text.attribute_id, text.value
+                text.locale, text.message_id, text.attribute_id, default
             )
             await self._translation_repository.update_value(
                 text.locale, text.message_id, text.attribute_id, text.value

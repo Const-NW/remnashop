@@ -187,6 +187,12 @@ def text_variable_keys() -> frozenset[str]:
     return frozenset(key for key in _VARIABLES if _FLUENT_IDENTIFIER_RE.match(key))
 
 
+def allowed_text_variables(window_key: Optional[str]) -> frozenset[str]:
+    keys = text_variable_keys()
+    window = _WINDOWS.get(window_key) if window_key else None
+    return keys | frozenset(window.text_variables) if window is not None else keys
+
+
 def text_keys() -> frozenset[str]:
     # Custom windows aren't in the in-process catalog: callers add a prefix check on top.
     keys: set[str] = set()

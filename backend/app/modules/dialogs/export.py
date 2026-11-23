@@ -15,5 +15,12 @@ def dialog_text_keys(windows: list[DialogWindowDto]) -> set[str]:
     keys: set[str] = set()
     for window in windows:
         keys.update(catalog.window_text_keys(window.key))
-        keys.update(button.text_key for button in window.buttons)
+        for button in window.buttons:
+            keys.update(
+                (
+                    button.text_key,
+                    catalog.icon_text_key(button.text_key),
+                    catalog.icon_id_text_key(button.text_key),
+                )
+            )
     return keys
