@@ -816,7 +816,24 @@
       },
       "id": "ID",
       "eventCode": "Код события",
-      "json": "JSON"
+      "json": "JSON",
+      "report": {
+        "day": "За сутки",
+        "newUsers": "Новых пользователей",
+        "newTrials": "Новых пробных",
+        "trialConversions": "Пробная → платная",
+        "newPayers": "Новых платящих",
+        "revenue": "Выручка",
+        "subscriptions": "Подписки сейчас",
+        "activeTrials": "Активных пробных",
+        "activePaid": "Активных платных",
+        "paidNeverConnected": "Платных без подключения",
+        "payments": "Оплаты",
+        "purchases": "Покупки",
+        "renewals": "Продления",
+        "changes": "Смены тарифа",
+        "referrers": "Топ по приглашениям"
+      }
     },
     "events": {
       "LoginSucceededEvent": "Вход в панель управления",
