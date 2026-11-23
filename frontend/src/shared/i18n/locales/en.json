@@ -1611,7 +1611,6 @@
       "enabledLabel": "Grace period",
       "enabledHint": "When a subscription ends, the customer keeps access with the limits below instead of losing it at once.",
       "trafficLabel": "Traffic limit",
-      "trafficUnlimited": "Unlimited",
       "unit": {
         "MB": "MB",
         "GB": "GB"

@@ -126,7 +126,6 @@ export function GraceSettingsSection() {
               <Field
                 label={t("settings.grace.trafficLabel")}
                 htmlFor="grace-traffic"
-                hint={trafficMb === 0 ? t("settings.grace.trafficUnlimited") : undefined}
                 error={trafficMb === undefined ? t("errors.validation.min", { min: 0 }) : undefined}
               >
                 <div className="flex items-center gap-2">
