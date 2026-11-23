@@ -1076,3 +1076,49 @@ async def test_plan_change_in_grace_to_a_plan_without_squads_clears_the_grace_sq
     )
 
     assert remnawave_store[95_103]["activeInternalSquads"] == []
+
+
+async def test_failed_plan_change_in_grace_puts_the_grace_config_back(
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = await _plan(plan_repository, _PLAN_SQUAD, "PLAN")
+    new_plan = await _plan(plan_repository, _NEW_PLAN_SQUAD, "NEWPLAN")
+    target = await _in_grace(
+        subscription_repository, user_repository, settings_repository, remnawave_store, plan, 95_104
+    )
+    assert target.grace_until is not None
+
+    async def _db_down(_subscription_id: int) -> SubscriptionDto:
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(subscription_repository, "mark_deleted", _db_down)
+
+    with pytest.raises(RuntimeError):
+        await _purchase(subscription_repository, remnawave_sdk, uow, event_publisher)(
+            await _buyer(user_repository, target),
+            PurchaseSubscriptionDto(
+                user_id=target.user_id,
+                plan_snapshot=snapshot_from_plan(
+                    new_plan, price_paid=Decimal("299.00"), duration_days=30, tag=new_plan.tag
+                ),
+                duration_days=30,
+                price_paid=Decimal("299.00"),
+                currency=Currency.RUB,
+                purchase_type=PurchaseType.CHANGE,
+                target_subscription_id=target.id,
+                idempotency_key=uuid4().hex,
+            ),
+        )
+
+    panel = remnawave_store[95_104]
+    assert panel["tag"] == "GRACE"
+    assert panel["trafficLimitBytes"] == 512 * MB_TO_BYTES
+    assert truncate_to_ms(_panel_expire_at(remnawave_store, 95_104)) == target.grace_until

@@ -95,7 +95,7 @@ class ChangePurchase:
             return await self._attempt(actor, data, data.target_subscription_id)
         except _TargetMovedError as moved:
             with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(restore(moved.current))
+                await self._remnawave_sdk.users.update_user(await self._restore(moved.current))
             raise SupersededError(
                 "Subscription kept changing while this request was in flight",
                 code=ErrorCode.PURCHASE_SUPERSEDED,
@@ -176,7 +176,7 @@ class ChangePurchase:
             # revert, so a DB failure doesn't leave the still-ACTIVE `old` on a
             # plan config nobody paid for
             with suppress(Exception):
-                await self._remnawave_sdk.users.update_user(restore(old))
+                await self._remnawave_sdk.users.update_user(await self._restore(old))
             raise
 
         if data.duration_days == 0 and old.is_unlimited and data.price_paid == ZERO_AMOUNT:
@@ -191,6 +191,14 @@ class ChangePurchase:
             f"({credit_days}d credit applied)"
         )
         return updated
+
+    async def _restore(self, row: SubscriptionDto) -> UpdateUserRequestDto:
+        """The config a failed change puts back: the grace one while the row is in grace."""
+        if row.grace_until is None:
+            return restore(row)
+        async with self._uow:
+            grace = await self._settings_repository.get_grace_settings()
+        return restore(row, grace=grace)
 
     async def _plan_config(
         self, old: SubscriptionDto, plan: PlanSnapshot, expire_at: datetime
