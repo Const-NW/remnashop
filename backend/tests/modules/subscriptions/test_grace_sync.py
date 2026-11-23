@@ -554,6 +554,13 @@ async def test_sync_keeps_the_row_while_a_restore_is_due(
     assert kept.status is SubscriptionStatus.ACTIVE
     assert truncate_to_ms(kept.expire_at) == truncate_to_ms(before.expire_at)
     assert kept.traffic_limit == before.traffic_limit
+    disabled = replace(
+        from_panel(panel, before.remnawave_user_id, "webhook"), status=SubscriptionStatus.DISABLED
+    )
+    switched_off = await sync.system(disabled)
+    assert switched_off is not None
+    assert switched_off.status is SubscriptionStatus.DISABLED
+    assert truncate_to_ms(switched_off.expire_at) == truncate_to_ms(before.expire_at)
     deleted = replace(
         from_panel(panel, before.remnawave_user_id, "webhook"), status=SubscriptionStatus.DELETED
     )

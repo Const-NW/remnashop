@@ -1728,3 +1728,36 @@ async def test_restore_cron_drops_a_mark_the_panel_refuses(
 
     after = await subscription_repository.get_by_id(subscription.id)
     assert after.panel_restore_due_at is None
+
+
+async def test_restore_cron_goes_on_past_a_row_that_fails(
+    grace: _Grace,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    broken = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_412)
+    fine = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_413)
+    async with uow:
+        await subscription_repository.mark_panel_restore_due(broken.id, datetime_now())
+        await subscription_repository.mark_panel_restore_due(fine.id, datetime_now())
+    real_find = subscription_repository.find_by_remnawave_user_id_for_update
+
+    async def lock_fails_for_one(remnawave_user_id: int) -> Any:
+        if remnawave_user_id == 94_412:
+            raise RuntimeError("deadlock detected")
+        return await real_find(remnawave_user_id)
+
+    monkeypatch.setattr(
+        subscription_repository, "find_by_remnawave_user_id_for_update", lock_fails_for_one
+    )
+
+    await grace.restore.system()
+
+    assert (await subscription_repository.get_by_id(fine.id)).panel_restore_due_at is None

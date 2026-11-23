@@ -226,9 +226,13 @@ def panel_diff(
 ) -> list[PanelFieldDiffDto]:
     """Fields where the row and the panel disagree, in the panel's (effective) terms."""
     config = panel_config(user)
+    # after grace the panel keeps the grace end: not a difference to pull or push
+    echoed = grace_end_echo(subscription, user.expire_at)
     shop = {
         "status": subscription.status.value,
-        "expire_at": truncate_to_ms(subscription.expire_at).isoformat(),
+        "expire_at": truncate_to_ms(
+            user.expire_at if echoed else subscription.expire_at
+        ).isoformat(),
         "url": subscription.url,
         "traffic_limit": str(subscription.effective_traffic_limit),
         "device_limit": str(subscription.effective_device_limit),

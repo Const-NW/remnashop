@@ -47,25 +47,32 @@ class RestoreDuePanelConfigsUseCase(UseCase[None, None]):
         for listed in due:
             if time.monotonic() > deadline:
                 return
-            async with self._uow:
-                marked = await self._subscription_repository.get_by_id_for_update(listed.id)
-                if marked.panel_restore_due_at is None:
-                    continue
-                # a plan change hands the panel user to a new row: that one's config
-                owner = await self._subscription_repository.find_by_remnawave_user_id_for_update(
-                    marked.remnawave_user_id
+            try:
+                await self._restore(listed, settings)
+            except Exception:
+                logger.exception(f"Failed to restore the panel config of '{listed.id}'")
+
+    async def _restore(self, listed: SubscriptionDto, settings: GraceSettingsDto) -> None:
+        async with self._uow:
+            # a plan change hands the panel user to a new row: that one's config. Its lock
+            # comes first, as a plan change's rollback takes them
+            owner = await self._subscription_repository.find_by_remnawave_user_id_for_update(
+                listed.remnawave_user_id
+            )
+            marked = await self._subscription_repository.get_by_id_for_update(listed.id)
+            if marked.panel_restore_due_at is None:
+                return
+            # pushed under the row lock: a renewal, edit or grace step on this row waits,
+            # so the panel can't get a config older than the row's last one
+            if await self._push(marked.id, owner, settings):
+                await self._subscription_repository.clear_panel_restore_due(
+                    marked.id, marked.panel_restore_due_at
                 )
-                # pushed under the row lock: a renewal, edit or grace step on this row waits,
-                # so the panel can't get a config older than the row's last one
-                if await self._push(marked.id, owner, settings):
-                    await self._subscription_repository.clear_panel_restore_due(
-                        marked.id, marked.panel_restore_due_at
-                    )
-                else:
-                    # to the back of the queue
-                    await self._subscription_repository.mark_panel_restore_due(
-                        marked.id, datetime_now()
-                    )
+            else:
+                # to the back of the queue
+                await self._subscription_repository.mark_panel_restore_due(
+                    marked.id, datetime_now()
+                )
 
     async def _push(
         self, marked_id: int, owner: Optional[SubscriptionDto], settings: GraceSettingsDto

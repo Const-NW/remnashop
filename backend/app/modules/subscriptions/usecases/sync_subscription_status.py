@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Optional
 
 from loguru import logger
@@ -73,7 +74,7 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
                     subscription.id, None
                 )
             elif _awaits_restore(subscription, data):
-                return await self._sync_url(subscription, data)
+                return await self._sync_awaiting_restore(subscription, data)
 
             subscription = await self._sync_status(subscription, data)
             if subscription.status is SubscriptionStatus.DELETED:
@@ -87,6 +88,15 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
         if left_grace is not None:
             await self._push_out_of_grace(subscription, left_grace)
         return subscription
+
+    async def _sync_awaiting_restore(
+        self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
+    ) -> SubscriptionDto:
+        if SubscriptionStatus.DISABLED in (subscription.status, data.status):
+            # an admin's switch-off, or its undoing, is the panel's even now; a stale
+            # EXPIRED or LIMITED would cut a paid row off
+            subscription = await self._sync_status(subscription, replace(data, expire_at=None))
+        return await self._sync_url(subscription, data)
 
     async def _sync_panel_dates(
         self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
