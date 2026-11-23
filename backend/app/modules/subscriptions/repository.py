@@ -580,6 +580,25 @@ class SubscriptionRepository:
         row.grace_until = None
         await self.session.flush()
 
+    async def carries_grace(self, remnawave_user_id: int) -> bool:
+        """In grace, or its expiry is one a grace already ended."""
+        return bool(
+            await self.session.scalar(
+                select(
+                    select(Subscription.id)
+                    .where(
+                        Subscription.remnawave_user_id == remnawave_user_id,
+                        Subscription.status != SubscriptionStatus.DELETED,
+                        or_(
+                            Subscription.grace_until.is_not(None),
+                            Subscription.expire_at <= Subscription.grace_ended_at,
+                        ),
+                    )
+                    .exists()
+                )
+            )
+        )
+
     async def _list_where(self, *conditions: Any, limit: int) -> list[SubscriptionDto]:
         result = await self.session.execute(
             select(Subscription)

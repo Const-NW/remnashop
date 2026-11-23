@@ -137,10 +137,15 @@ class ProcessRemnawaveWebhookUseCase(UseCase[ProcessRemnawaveWebhookDto, None]):
     async def _handled_by_grace(self, remnawave_user_id: int) -> bool:
         """Whether grace took this expiry over, so the plain expiry event isn't published."""
         async with self._uow:
+            settings = await self._settings_repository.get_grace_settings()
+            # switched off: only a grace given before still needs handling
+            if not settings.enabled and not await self._subscription_repository.carries_grace(
+                remnawave_user_id
+            ):
+                return False
             subscription = await self._subscription_repository.find_by_remnawave_user_id(
                 remnawave_user_id
             )
-            settings = await self._settings_repository.get_grace_settings()
         if subscription is None or subscription.status is SubscriptionStatus.DELETED:
             return False
         if subscription.grace_until is None:

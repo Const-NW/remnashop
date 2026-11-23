@@ -1177,3 +1177,76 @@ async def test_panel_disable_during_grace_reaches_the_row(
     enabled = await subscription_repository.get_by_id(before.id)
     assert enabled.status is SubscriptionStatus.EXPIRED
     assert enabled.grace_until == grace_until
+
+
+async def _disable_grace(settings_repository: SettingsRepository) -> None:
+    await settings_repository.update_grace_settings(
+        UpdateGraceSettingsDto(enabled=False, fields_set=frozenset({"enabled"}))
+    )
+
+
+async def test_expiry_with_grace_off_skips_the_grace_path(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_951)
+
+    async def _not_run(*_args: Any) -> Any:
+        raise AssertionError("the grace path ran with grace off")
+
+    repository = grace.webhook._subscription_repository
+    real_find = repository.find_by_remnawave_user_id
+    loads: list[int] = []
+
+    async def _find(remnawave_user_id: int) -> Optional[SubscriptionDto]:
+        loads.append(remnawave_user_id)
+        return await real_find(remnawave_user_id)
+
+    monkeypatch.setattr(repository, "find_by_remnawave_user_id", _find)
+    monkeypatch.setattr(grace.enter, "_execute", _not_run)
+    monkeypatch.setattr(grace.end, "_execute", _not_run)
+
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_951, "EXPIRED", before.expire_at)
+    )
+
+    # the notice's own lookup only
+    assert loads == [94_951]
+    assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_grace_switched_off_mid_grace_still_ends_it_once(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+) -> None:
+    subscription, ended_at = await _grace_ended(
+        subscription_repository,
+        user_repository,
+        settings_repository,
+        plan_repository,
+        remnawave_store,
+        94_952,
+    )
+    await _disable_grace(settings_repository)
+
+    await grace.webhook.system(_webhook(config, "user.expired", 94_952, "EXPIRED", ended_at))
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_952, "EXPIRED", ended_at, onlineAt=None)
+    )
+
+    assert (await subscription_repository.get_by_id(subscription.id)).grace_until is None
+    assert remnawave_store[94_952]["tag"] == "PLAN"
+    assert await _events(session, subscription.id) == ["SubscriptionExpiredEvent"]
