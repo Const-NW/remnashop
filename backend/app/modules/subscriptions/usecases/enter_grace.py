@@ -1,9 +1,10 @@
 from contextlib import suppress
 from datetime import datetime
-from typing import Optional
+from typing import Final, Optional
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.exceptions import ApiError as RemnawaveApiError
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
@@ -17,16 +18,31 @@ from app.modules.plans import PlanDto, PlanRepository
 from app.modules.settings import GraceSettingsDto, SettingsRepository
 from app.modules.subscriptions.dto import SubscriptionDto
 from app.modules.subscriptions.eligibility import subscription_owner
-from app.modules.subscriptions.events import SubscriptionGraceStartedEvent
+from app.modules.subscriptions.events import (
+    SubscriptionExpiredEvent,
+    SubscriptionGraceStartedEvent,
+)
 from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
 from app.modules.subscriptions.panel import grace_panel_update, restore, revert_panel_to_owner
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
+# a panel answer that may pass on a retry, unlike the rest of 4xx
+_TRANSIENT_STATUSES: Final[frozenset[int]] = frozenset({408, 429})
+
+
+def _refused(error: Exception) -> bool:
+    return (
+        isinstance(error, RemnawaveApiError)
+        and 400 <= error.status_code < 500
+        and error.status_code not in _TRANSIENT_STATUSES
+    )
+
 
 class EnterGraceUseCase(UseCase[int, bool]):
     """Keeps an expired paid subscription's panel user going on the grace config;
-    True while the subscription is in grace."""
+    True while the subscription is in grace or once a panel refusal gave grace up
+    and told the customer of the expiry: either way, no plain expiry notice is due."""
 
     # system-only: the expiry webhook and the grace sweep
     required_permission = None
@@ -81,7 +97,10 @@ class EnterGraceUseCase(UseCase[int, bool]):
                 )
             )
         except Exception as error:
-            await self._recover_failed_push(subscription, grace_until, error, claimed=claimed)
+            if not await self._recover_failed_push(
+                subscription, grace_until, error, claimed=claimed
+            ):
+                return True
 
         if not await self._still_in_grace(data, grace_until, settings, claimed=claimed):
             return False
@@ -103,16 +122,35 @@ class EnterGraceUseCase(UseCase[int, bool]):
         error: Exception,
         *,
         claimed: bool,
-    ) -> None:
-        """Returns when the push landed after all; raises a retryable error otherwise."""
+    ) -> bool:
+        """True when the push landed after all, False when the panel refused it and
+        grace was given up; raises a retryable error otherwise."""
         failed = f"Grace push of subscription '{subscription.id}' failed"
         if not claimed:
             raise RetryableTaskError(failed) from error
+        if _refused(error):
+            await self._give_up(subscription.id, grace_until)
+            logger.warning(f"{failed}: the panel refused it, the subscription gets no grace")
+            return False
         # a timeout or a 5xx may still have applied the write
         if not await self._push_landed(subscription, grace_until):
             async with self._uow:
                 await self._subscription_repository.set_grace_until(subscription.id, None)
             raise RetryableTaskError(failed) from error
+        return True
+
+    async def _give_up(self, data: int, grace_until: datetime) -> None:
+        """A refusal won't pass on a retry: the expiry is told as it would be without grace."""
+        async with self._uow:
+            current = await self._subscription_repository.get_by_id_for_update(data)
+            # a renewal or a plan change took the row out of grace meanwhile
+            if current.grace_until != grace_until or current.status is SubscriptionStatus.DELETED:
+                return
+            await self._subscription_repository.give_up_grace(data)
+            owner = await subscription_owner(self._user_repository, current)
+            await self._event_publisher.publish(
+                SubscriptionExpiredEvent(user=owner, subscription_id=data)
+            )
 
     async def _push_landed(self, subscription: SubscriptionDto, grace_until: datetime) -> bool:
         try:

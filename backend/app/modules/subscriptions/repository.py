@@ -573,6 +573,13 @@ class SubscriptionRepository:
         entitlements_by_subscription = await self._load_entitlements([row.id])
         return self._to_dto(row, entitlements_by_subscription.get(row.id, []))
 
+    async def give_up_grace(self, subscription_id: int) -> None:
+        """Closes this expiry to grace, as if a grace of it had ended at once."""
+        row = await self._get_or_raise(subscription_id)
+        row.grace_ended_at = row.expire_at
+        row.grace_until = None
+        await self.session.flush()
+
     async def _list_where(self, *conditions: Any, limit: int) -> list[SubscriptionDto]:
         result = await self.session.execute(
             select(Subscription)

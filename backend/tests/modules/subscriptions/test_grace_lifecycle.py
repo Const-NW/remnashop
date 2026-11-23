@@ -1056,3 +1056,64 @@ async def test_plan_change_during_the_grace_end_push_gets_the_new_rows_config(
     assert remnawave_store[94_602]["tag"] == "NEWPLAN"
     assert remnawave_store[94_602]["status"] == "ACTIVE"
     assert await _events(session, subscription.id) == []
+
+
+async def test_grace_push_refused_on_the_expiry_webhook_sends_the_expiry_notice(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    config: AppConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_701)
+
+    async def _refused(_request: Any) -> Any:
+        raise _panel_error(400)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _refused)
+
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_701, "EXPIRED", before.expire_at)
+    )
+    await grace.sweep.system()
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_701, "EXPIRED", before.expire_at, onlineAt=None)
+    )
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    assert remnawave_store[94_701]["status"] == "EXPIRED"
+    assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
+
+
+async def test_grace_push_refused_on_the_sweep_sends_the_expiry_notice(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_702)
+
+    async def _refused(_request: Any) -> Any:
+        raise _panel_error(400)
+
+    monkeypatch.setattr(remnawave_sdk.users, "update_user", _refused)
+
+    await grace.sweep.system()
+    await grace.sweep.system()
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_until is None
+    assert await _events(session, before.id) == ["SubscriptionExpiredEvent"]
