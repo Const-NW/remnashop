@@ -279,12 +279,13 @@ function itemText(item: AttentionItem, t: TFunction, language: string): { title:
         sub: counted("dashboard.attention.emailUndeliverable.sub"),
       };
     case "expiring_paid": {
-      // subject: how many of them end within a day
-      const urgent = Number(item.subject ?? 0);
-      const base = counted("dashboard.attention.expiringPaid.sub");
+      // subject: how many of them end within a day, never 0
       return {
         title: t("dashboard.attention.expiringPaid.title"),
-        sub: urgent > 0 ? t("dashboard.attention.expiringPaid.urgent", { base, urgent: urgent.toLocaleString(language) }) : base,
+        sub: t("dashboard.attention.expiringPaid.urgent", {
+          base: counted("dashboard.attention.expiringPaid.sub"),
+          urgent: Number(item.subject ?? 0).toLocaleString(language),
+        }),
       };
     }
     case "api_token_expiring":

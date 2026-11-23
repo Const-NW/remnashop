@@ -273,7 +273,7 @@ class GetAttentionUseCase(UseCase[None, AttentionDto]):
         count, urgent = await self._subscription_stats.count_expiring_paid(
             now, now + _EXPIRING_WITHIN, now + _EXPIRING_URGENT
         )
-        # a shop with paid subscriptions always has some ending within a week
+        # listed once one ends within a day: a live shop always has some ending within a week
         if urgent == 0:
             return []
         return [
