@@ -132,6 +132,8 @@ class SubscriptionRepository:
             internal_squads=list(row.internal_squads),
             external_squad=row.external_squad,
             is_trial=row.is_trial,
+            grace_until=row.grace_until,
+            grace_ended_at=row.grace_ended_at,
         )
 
     async def _get_or_raise(self, subscription_id: int) -> Subscription:
@@ -507,11 +509,10 @@ class SubscriptionRepository:
 
     async def mark_deleted(self, subscription_id: int) -> SubscriptionDto:
         row = await self._get_or_raise(subscription_id)
-        row.status = self._to_state(row).mark_deleted().status
-        # a refund may bring the row back: as a plain expired one, its grace used up
-        if row.grace_until is not None:
-            row.grace_ended_at = row.grace_until
-        row.grace_until = None
+        state = self._to_state(row).mark_deleted()
+        row.status = state.status
+        row.grace_until = state.grace_until
+        row.grace_ended_at = state.grace_ended_at
         row.grace_started_at = None
 
         await self.session.flush()
