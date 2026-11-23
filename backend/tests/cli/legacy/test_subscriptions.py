@@ -322,6 +322,8 @@ def test_subscription_in_grace_keeps_real_expiry() -> None:
     assert item["status"] is SubscriptionStatus.EXPIRED
     assert item["expire_at"] == NOW
     assert item["grace_until"] == GRACE_UNTIL
+    # entered by the old app: the new one must not enter, or announce, it again
+    assert item["grace_started_at"] == NOW
     assert "subscriptions: 1 in grace" in report.notes
 
 

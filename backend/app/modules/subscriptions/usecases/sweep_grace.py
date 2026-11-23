@@ -41,6 +41,8 @@ class SweepGraceUseCase(UseCase[None, None]):
             # grace already given still ends after the feature is switched off
             entering = (
                 await self._subscription_repository.list_grace_entry_candidates(now, _BATCH)
+                # an entry that claimed and died before it finished
+                + await self._subscription_repository.list_grace_unstarted(now, _BATCH)
                 if settings.enabled
                 else []
             )

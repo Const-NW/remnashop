@@ -666,8 +666,13 @@ async def test_expired_with_unpushed_claim_pushes_grace(
     assert truncate_to_ms(_panel_expire_at(remnawave_store, 94_013)) == truncate_to_ms(
         claimed.grace_until
     )
+    assert panel["lastTrafficResetAt"] is not None
     assert (await subscription_repository.get_by_id(before.id)).grace_until == claimed.grace_until
-    assert await _events(session, before.id) == []
+    # the interrupted entry is finished once
+    await grace.webhook.system(
+        _webhook(config, "user.expired", 94_013, "EXPIRED", before.expire_at)
+    )
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
 
 
 async def test_enable_in_grace_keeps_the_row_expired_on_the_grace_config(
@@ -1463,3 +1468,63 @@ async def test_sweep_takes_a_panel_extension_instead_of_entering_grace(
     assert truncate_to_ms(after.expire_at) == extended_until
     assert remnawave_store[94_404]["tag"] == "PLAN"
     assert await _events(session, before.id) == []
+
+
+async def test_retry_after_an_unreadable_panel_finishes_the_entry_once(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+    uow: UnitOfWork,
+    event_publisher: EventPublisher,
+    redis: Redis,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_405)
+    broken = RemnawaveSDK(
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(500, json={"message": "panel down"})
+            ),
+            base_url="http://fake-panel.test/api",
+        )
+    )
+    with pytest.raises(RetryableTaskError):
+        await _Grace(session, broken, uow, event_publisher, redis).enter.system(before.id)
+
+    assert await grace.enter.system(before.id) is True
+    assert await grace.enter.system(before.id) is True
+
+    after = await subscription_repository.get_by_id(before.id)
+    assert after.grace_started_at is not None
+    assert remnawave_store[94_405]["lastTrafficResetAt"] is not None
+    assert remnawave_store[94_405]["tag"] == "GRACE"
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]
+
+
+async def test_sweep_finishes_an_interrupted_grace_entry(
+    grace: _Grace,
+    session: AsyncSession,
+    subscription_repository: SubscriptionRepository,
+    user_repository: UserRepository,
+    settings_repository: SettingsRepository,
+    plan_repository: PlanRepository,
+    remnawave_store: FakeUserStore,
+) -> None:
+    await _enable_grace(settings_repository)
+    plan = await _paid_plan(plan_repository)
+    before = await _expired(subscription_repository, user_repository, plan, remnawave_store, 94_406)
+    # the claim committed, the worker died before the push
+    await subscription_repository.set_grace_until(before.id, datetime_now() + timedelta(days=3))
+
+    await grace.sweep.system()
+    await grace.sweep.system()
+
+    assert (await subscription_repository.get_by_id(before.id)).grace_started_at is not None
+    assert remnawave_store[94_406]["tag"] == "GRACE"
+    assert remnawave_store[94_406]["lastTrafficResetAt"] is not None
+    assert await _events(session, before.id) == ["SubscriptionGraceStartedEvent"]

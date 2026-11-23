@@ -113,6 +113,7 @@ class SubscriptionRepository:
             term_anchor_day=row.term_anchor_day,
             paused_by_channel_leave=row.paused_by_channel_leave,
             grace_until=row.grace_until,
+            grace_started_at=row.grace_started_at,
             grace_ended_at=row.grace_ended_at,
             addon_entitlements=entitlements,
             created_at=row.created_at,
@@ -511,6 +512,7 @@ class SubscriptionRepository:
         if row.grace_until is not None:
             row.grace_ended_at = row.grace_until
         row.grace_until = None
+        row.grace_started_at = None
 
         await self.session.flush()
         await self.session.refresh(row)
@@ -561,6 +563,8 @@ class SubscriptionRepository:
     ) -> SubscriptionDto:
         row = await self._get_or_raise(subscription_id)
         row.grace_until = value
+        # a new grace, or none: either way not entered yet
+        row.grace_started_at = None
         await self.session.flush()
         await self.session.refresh(row)
         entitlements_by_subscription = await self._load_entitlements([row.id])
@@ -570,6 +574,7 @@ class SubscriptionRepository:
         row = await self._get_or_raise(subscription_id)
         row.grace_ended_at = row.grace_until
         row.grace_until = None
+        row.grace_started_at = None
         await self.session.flush()
         await self.session.refresh(row)
         entitlements_by_subscription = await self._load_entitlements([row.id])
@@ -580,6 +585,12 @@ class SubscriptionRepository:
         row = await self._get_or_raise(subscription_id)
         row.grace_ended_at = row.expire_at
         row.grace_until = None
+        row.grace_started_at = None
+        await self.session.flush()
+
+    async def mark_grace_started(self, subscription_id: int, at: datetime) -> None:
+        row = await self._get_or_raise(subscription_id)
+        row.grace_started_at = at
         await self.session.flush()
 
     async def carries_grace(self, remnawave_user_id: int) -> bool:
@@ -643,6 +654,15 @@ class SubscriptionRepository:
                 ),
             )
             .exists(),
+            limit=limit,
+        )
+
+    async def list_grace_unstarted(self, now: datetime, limit: int) -> list[SubscriptionDto]:
+        """Claimed, but the entry that claimed it never finished."""
+        return await self._list_where(
+            Subscription.grace_until > now,
+            Subscription.grace_started_at.is_(None),
+            Subscription.status != SubscriptionStatus.DELETED,
             limit=limit,
         )
 

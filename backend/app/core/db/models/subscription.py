@@ -63,6 +63,9 @@ class Subscription(BaseSql, TimestampMixin):
     paused_by_channel_leave: Mapped[bool] = mapped_column(default=False, server_default="false")
     # set while the grace period holds the panel user active past expiry; cleared on renewal
     grace_until: Mapped[Optional[datetime]]
+    # the grace entry finished (pushed, traffic reset, customer told); a claim without it
+    # is an entry a retry still has to finish
+    grace_started_at: Mapped[Optional[datetime]]
     # the last grace's end: the panel keeps it as its expiry, so a sync brings it into
     # expire_at and the row would look freshly expired again
     grace_ended_at: Mapped[Optional[datetime]]

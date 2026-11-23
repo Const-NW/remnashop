@@ -96,7 +96,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
         grace_until = subscription.grace_until
         assert grace_until is not None
         # a repeat run (redelivery, sweep, duplicate webhook) finds the claim: it pushes
-        # the grace config again and leaves the traffic counter alone
+        # the grace config again, and finishes the entry if the run that claimed didn't
         try:
             await self._remnawave_sdk.users.update_user(
                 grace_panel_update(
@@ -109,29 +109,41 @@ class EnterGraceUseCase(UseCase[int, bool]):
             ):
                 return True
 
-        return await self._finish(subscription, grace_until, settings, claimed=claimed)
-
-    async def _finish(
-        self,
-        subscription: SubscriptionDto,
-        grace_until: datetime,
-        settings: GraceSettingsDto,
-        *,
-        claimed: bool,
-    ) -> bool:
-        data = subscription.id
-        if not await self._still_in_grace(data, grace_until, settings, claimed=claimed):
+        if not await self._still_in_grace(data, grace_until, settings):
             return False
-        if not claimed:
-            return True
+        if subscription.grace_started_at is None:
+            await self._finish_entry(subscription, grace_until, settings)
+        return True
 
+    async def _finish_entry(
+        self, subscription: SubscriptionDto, grace_until: datetime, settings: GraceSettingsDto
+    ) -> None:
+        data = subscription.id
         # grace traffic counts from zero; a failed reset leaves the old counter running
         try:
             await self._remnawave_sdk.users.reset_user_traffic(subscription.remnawave_user_id)
         except Exception:
             logger.exception(f"Failed to reset traffic of subscription '{data}' entering grace")
+        async with self._uow:
+            current = await self._subscription_repository.get_by_id_for_update(data)
+            # a parallel run finished it, or the row left grace meanwhile
+            if (
+                current.grace_until != grace_until
+                or current.grace_started_at is not None
+                or current.status is SubscriptionStatus.DELETED
+            ):
+                return
+            await self._subscription_repository.mark_grace_started(data, datetime_now())
+            owner = await subscription_owner(self._user_repository, current)
+            await self._event_publisher.publish(
+                SubscriptionGraceStartedEvent(
+                    user=owner,
+                    subscription_id=data,
+                    grace_until=grace_until.isoformat(),
+                    traffic_limit_mb=settings.traffic_limit_mb,
+                )
+            )
         logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
-        return True
 
     async def _extended_in_panel(self, data: int) -> bool:
         """A row left ACTIVE past its expiry lost its expiry webhook, and maybe the
@@ -243,26 +255,12 @@ class EnterGraceUseCase(UseCase[int, bool]):
         return truncate_to_ms(panel_user.expire_at) == truncate_to_ms(grace_until)
 
     async def _still_in_grace(
-        self, data: int, grace_until: datetime, settings: GraceSettingsDto, *, claimed: bool
+        self, data: int, grace_until: datetime, settings: GraceSettingsDto
     ) -> bool:
         """A renewal or an admin may have left grace while the push ran: the row wins."""
         async with self._uow:
-            current = await self._subscription_repository.get_by_id_for_update(data)
-            in_grace = (
-                current.grace_until == grace_until
-                and current.status is not SubscriptionStatus.DELETED
-            )
-            if in_grace and claimed:
-                owner = await subscription_owner(self._user_repository, current)
-                await self._event_publisher.publish(
-                    SubscriptionGraceStartedEvent(
-                        user=owner,
-                        subscription_id=data,
-                        grace_until=grace_until.isoformat(),
-                        traffic_limit_mb=settings.traffic_limit_mb,
-                    )
-                )
-        if in_grace:
+            current = await self._subscription_repository.get_by_id(data)
+        if current.grace_until == grace_until and current.status is not SubscriptionStatus.DELETED:
             return True
         if current.status is SubscriptionStatus.DELETED:
             # a plan change replaced the row: the panel user is the new row's now

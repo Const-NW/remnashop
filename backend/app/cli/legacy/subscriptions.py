@@ -241,6 +241,8 @@ def transform_subscriptions(
         grace = _grace_terms(row, status, index.expire_at.get(panel_id), grace_days, report)
         stale_grace += bool(grace.pop("stale_grace", False))
         item.update(grace)
+        # entered by the old app: the sweep must not finish the entry again
+        item["grace_started_at"] = item["expire_at"] if item["grace_until"] is not None else None
         in_grace += item["grace_until"] is not None
         result.append(item)
 
