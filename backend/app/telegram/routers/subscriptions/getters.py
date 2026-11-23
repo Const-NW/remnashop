@@ -28,6 +28,7 @@ from app.telegram.dialogs.context import build_condition_data, menu_flags, selec
 from app.telegram.dialogs.rendering import (
     UNAVAILABLE_BUTTONS_KEY,
     ButtonLabel,
+    TrustedHtml,
     label_with_icon,
     plan_title,
     render_dialog_buttons,
@@ -61,11 +62,14 @@ def grace_line(runner: TranslatorRunner, subscription: SubscriptionDto) -> str:
     """The card's grace-period line; empty (so the line drops) outside a grace."""
     if subscription.grace_until is None:
         return ""
-    return runner.get(
-        "frg-subscription-grace",
-        grace_until="none"
-        if is_unlimited_expiry(subscription.grace_until)
-        else format_date(subscription.grace_until),
+    return TrustedHtml(
+        render_window_text(
+            runner,
+            "frg-subscription-grace",
+            grace_until="none"
+            if is_unlimited_expiry(subscription.grace_until)
+            else format_date(subscription.grace_until),
+        )
     )
 
 

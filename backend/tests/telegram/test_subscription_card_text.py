@@ -4,7 +4,7 @@ from typing import Optional
 
 from app.core.constants import ASSETS_DIR
 from app.core.enums import Locale, SubscriptionStatus
-from app.telegram.dialogs.rendering import render_window_text
+from app.telegram.dialogs.rendering import TrustedHtml, render_window_text
 from app.telegram.i18n import build_translator_hub
 from app.telegram.routers.subscriptions.getters import grace_line
 
@@ -75,6 +75,15 @@ def _grace_line(grace_until: Optional[datetime]) -> str:
     runner = hub.get_translator_by_locale(Locale.EN.value)
     subscription = SimpleNamespace(grace_until=grace_until)
     return grace_line(runner, subscription).replace("\u2068", "").replace("\u2069", "")  # type: ignore[arg-type]
+
+
+def test_grace_line_is_trusted_html() -> None:
+    text = (ASSETS_DIR / "translations" / "en" / "menu.ftl").read_text()
+    hub = build_translator_hub([Locale.EN], {Locale.EN: text}, Locale.EN)
+    runner = hub.get_translator_by_locale(Locale.EN.value)
+    subscription = SimpleNamespace(grace_until=datetime(2026, 12, 5, tzinfo=timezone.utc))
+
+    assert isinstance(grace_line(runner, subscription), TrustedHtml)  # type: ignore[arg-type]
 
 
 def test_grace_line_names_the_date_or_nothing() -> None:
