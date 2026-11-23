@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Optional
 
 from loguru import logger
@@ -20,6 +21,7 @@ from app.modules.subscriptions.events import (
     SubscriptionConfigSyncedEvent,
     SubscriptionStatusSyncedEvent,
 )
+from app.modules.subscriptions.grace import grace_end_echo
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
 from app.modules.subscriptions.panel import restore
 from app.modules.subscriptions.panel_config import changed_config_fields, config_update
@@ -58,22 +60,8 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             # the row is the live one when there is one: the writes below skip
             # DELETED rows, so a loaded DELETED row means there is nothing to write
             live = subscription.status is not SubscriptionStatus.DELETED
-            if (
-                live
-                and data.first_connected_at is not None
-                and subscription.first_connected_at is None
-            ):
-                await self._subscription_repository.set_first_connected_at(
-                    data.remnawave_user_id, data.first_connected_at
-                )
-            if (
-                live
-                and data.panel_created_at is not None
-                and subscription.panel_created_at != data.panel_created_at
-            ):
-                await self._subscription_repository.set_panel_created_at(
-                    data.remnawave_user_id, data.panel_created_at
-                )
+            if live:
+                await self._sync_panel_dates(subscription, data)
 
             left_grace: Optional[GraceSettingsDto] = None
             if live and subscription.grace_until is not None:
@@ -85,6 +73,8 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
                 subscription = await self._subscription_repository.set_grace_until(
                     subscription.id, None
                 )
+            elif _awaits_restore(subscription, data):
+                return await self._sync_awaiting_restore(subscription, data)
 
             subscription = await self._sync_status(subscription, data)
             if subscription.status is SubscriptionStatus.DELETED:
@@ -99,15 +89,44 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             await self._push_out_of_grace(subscription, left_grace)
         return subscription
 
+    async def _sync_awaiting_restore(
+        self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
+    ) -> SubscriptionDto:
+        if SubscriptionStatus.DISABLED in (subscription.status, data.status):
+            # an admin's switch-off, or its undoing, is the panel's even now; a stale
+            # EXPIRED or LIMITED would cut a paid row off
+            subscription = await self._sync_status(subscription, replace(data, expire_at=None))
+        return await self._sync_url(subscription, data)
+
+    async def _sync_panel_dates(
+        self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
+    ) -> None:
+        if data.first_connected_at is not None and subscription.first_connected_at is None:
+            await self._subscription_repository.set_first_connected_at(
+                data.remnawave_user_id, data.first_connected_at
+            )
+        if (
+            data.panel_created_at is not None
+            and subscription.panel_created_at != data.panel_created_at
+        ):
+            await self._subscription_repository.set_panel_created_at(
+                data.remnawave_user_id, data.panel_created_at
+            )
+
     async def _push_out_of_grace(
         self, subscription: SubscriptionDto, grace: GraceSettingsDto
     ) -> None:
         # after the commit: a retried sync would take the grace config into the row,
-        # so a failed push is only logged
+        # so a failed push is left to the restore cron
         try:
             await self._remnawave_sdk.users.update_user(restore(subscription, left_grace=grace))
         except Exception:
             logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
+            async with self._uow:
+                # the minute cron pushes it again
+                await self._subscription_repository.mark_panel_restore_due(
+                    subscription.id, datetime_now()
+                )
 
     async def _sync_grace_status(
         self, subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
@@ -160,6 +179,7 @@ class SyncSubscriptionStatusUseCase(UseCase[SyncSubscriptionStatusDto, Optional[
             data.expire_at is not None
             and subscription.status is not SubscriptionStatus.DELETED
             and truncate_to_ms(subscription.expire_at) != truncate_to_ms(data.expire_at)
+            and not grace_end_echo(subscription, data.expire_at)
         )
         if not status_drifted and not expire_at_drifted:
             return subscription
@@ -218,4 +238,14 @@ def _leaves_grace(subscription: SubscriptionDto, data: SyncSubscriptionStatusDto
         data.expire_at is not None
         and truncate_to_ms(data.expire_at) != truncate_to_ms(subscription.grace_until)
         and data.expire_at > datetime_now()
+    )
+
+
+def _awaits_restore(subscription: SubscriptionDto, data: SyncSubscriptionStatusDto) -> bool:
+    """A push of the row's config failed and waits for the restore cron: the panel's
+    terms are stale until it lands; only a deletion is the panel's."""
+    return (
+        subscription.status is not SubscriptionStatus.DELETED
+        and subscription.panel_restore_due_at is not None
+        and data.status is not SubscriptionStatus.DELETED
     )

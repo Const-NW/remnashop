@@ -27,6 +27,11 @@ class Subscription(BaseSql, TimestampMixin):
             "grace_until",
             postgresql_where=text("grace_until IS NOT NULL"),
         ),
+        Index(
+            "ix_subscriptions_panel_restore_due_at",
+            "panel_restore_due_at",
+            postgresql_where=text("panel_restore_due_at IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -71,6 +76,9 @@ class Subscription(BaseSql, TimestampMixin):
     grace_ended_at: Mapped[Optional[datetime]]
     # the grace sweep's last pick: a row that keeps failing goes to the back of its queue
     grace_attempted_at: Mapped[Optional[datetime]]
+    # a push putting the panel user back to the row's config (or grace's) failed after a
+    # commit that can't be retried; a cron pushes it again until it lands
+    panel_restore_due_at: Mapped[Optional[datetime]]
     # kept on DELETED rows: a trial->paid or plan change replaces the row, not the customer
     first_connected_at: Mapped[Optional[datetime]]
     # the panel user's createdAt: its day of the month is when MONTH_ROLLING resets

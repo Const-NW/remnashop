@@ -7,7 +7,10 @@ from uuid import uuid4
 
 from loguru import logger
 from remnapy import RemnawaveSDK
+from remnapy.enums import ErrorCode as RemnawaveErrorCode
 from remnapy.enums import UserStatus
+from remnapy.exceptions import ApiError as RemnawaveApiError
+from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 from remnapy.models import CreateUserRequestDto, UpdateUserRequestDto, UserResponseDto
 
 from app.core.constants import GB_TO_BYTES, INT32_MAX, INT64_MAX, MB_TO_BYTES, WEB_PREFIX
@@ -179,6 +182,22 @@ def grace_panel_update(
     if settings.tag:
         fields["tag"] = settings.tag
     return panel_update(**(fields | extra))
+
+
+# what the panel says about the request itself; anything else (auth, rate limit,
+# outage) may pass on a retry
+_REFUSAL_STATUSES: Final[frozenset[int]] = frozenset({400, 404, 409, 422})
+
+
+def panel_user_gone(error: Exception) -> bool:
+    return (
+        isinstance(error, RemnawaveNotFoundError)
+        and error.code == RemnawaveErrorCode.USER_NOT_FOUND
+    )
+
+
+def panel_refused(error: Exception) -> bool:
+    return isinstance(error, RemnawaveApiError) and error.status_code in _REFUSAL_STATUSES
 
 
 def restore(

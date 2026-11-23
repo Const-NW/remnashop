@@ -36,6 +36,7 @@ from app.modules.subscriptions.dto import (
 )
 from app.modules.subscriptions.eligibility import subscription_owner
 from app.modules.subscriptions.events import PanelSyncStartedEvent, StatusSyncSource
+from app.modules.subscriptions.grace import grace_end_echo
 from app.modules.subscriptions.panel import (
     panel_user_from_row,
     restore,
@@ -225,9 +226,13 @@ def panel_diff(
 ) -> list[PanelFieldDiffDto]:
     """Fields where the row and the panel disagree, in the panel's (effective) terms."""
     config = panel_config(user)
+    # after grace the panel keeps the grace end: not a difference to pull or push
+    echoed = grace_end_echo(subscription, user.expire_at)
     shop = {
         "status": subscription.status.value,
-        "expire_at": truncate_to_ms(subscription.expire_at).isoformat(),
+        "expire_at": truncate_to_ms(
+            user.expire_at if echoed else subscription.expire_at
+        ).isoformat(),
         "url": subscription.url,
         "traffic_limit": str(subscription.effective_traffic_limit),
         "device_limit": str(subscription.effective_device_limit),
@@ -263,7 +268,10 @@ def differs_from_panel(subscription: SubscriptionDto, user: UserResponseDto) -> 
         return False
     return (
         subscription.status is not SubscriptionStatus(user.status)
-        or truncate_to_ms(subscription.expire_at) != truncate_to_ms(user.expire_at)
+        or (
+            truncate_to_ms(subscription.expire_at) != truncate_to_ms(user.expire_at)
+            and not grace_end_echo(subscription, user.expire_at)
+        )
         or bool(
             changed_config_fields(subscription, config_update(subscription, panel_config(user)))
         )

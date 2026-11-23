@@ -38,6 +38,7 @@ from app.modules.subscriptions.dto import (
     UpdateSubscriptionDto,
     UpdateSubscriptionSquadsDto,
 )
+from app.modules.subscriptions.grace import LIVE_STATUSES
 
 # pg_advisory_xact_lock namespace key, paired with a user_id (keys in
 # modules/plans/repository.py are 8221938/8221939).
@@ -115,6 +116,7 @@ class SubscriptionRepository:
             grace_until=row.grace_until,
             grace_started_at=row.grace_started_at,
             grace_ended_at=row.grace_ended_at,
+            panel_restore_due_at=row.panel_restore_due_at,
             addon_entitlements=entitlements,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -613,12 +615,16 @@ class SubscriptionRepository:
             )
         )
 
-    async def _list_where(self, *conditions: Any, limit: int) -> list[SubscriptionDto]:
+    async def _list_where(
+        self, *conditions: Any, limit: int, order: Any = Subscription.grace_attempted_at
+    ) -> list[SubscriptionDto]:
         result = await self.session.execute(
             select(Subscription)
             .where(*conditions)
-            .order_by(Subscription.grace_attempted_at.asc().nulls_first(), Subscription.id)
+            .order_by(order.asc().nulls_first(), Subscription.id)
             .limit(limit)
+            # the marks above are bulk updates: a row already in the session keeps old values
+            .execution_options(populate_existing=True)
         )
         rows = result.scalars().all()
         entitlements_by_subscription = await self._load_entitlements([row.id for row in rows])
@@ -630,7 +636,7 @@ class SubscriptionRepository:
                 Subscription.status == SubscriptionStatus.EXPIRED,
                 # its expiry webhook was lost (`grace.grace_entry_allowed`)
                 and_(
-                    Subscription.status == SubscriptionStatus.ACTIVE,
+                    Subscription.status.in_(LIVE_STATUSES),
                     Subscription.expire_at <= now,
                 ),
             ),
@@ -672,6 +678,32 @@ class SubscriptionRepository:
             Subscription.grace_until <= now,
             Subscription.status != SubscriptionStatus.DELETED,
             limit=limit,
+        )
+
+    async def list_panel_restore_due(self, limit: int) -> list[SubscriptionDto]:
+        return await self._list_where(
+            Subscription.panel_restore_due_at.is_not(None),
+            limit=limit,
+            order=Subscription.panel_restore_due_at,
+        )
+
+    async def mark_panel_restore_due(self, subscription_id: int, now: datetime) -> None:
+        await self.session.execute(
+            update(Subscription)
+            .where(Subscription.id == subscription_id)
+            # bookkeeping, not a change to the subscription
+            .values(panel_restore_due_at=now, updated_at=Subscription.updated_at)
+        )
+
+    async def clear_panel_restore_due(self, subscription_id: int, marked_at: datetime) -> None:
+        """Only the mark that was pushed: one set again meanwhile stays for the next run."""
+        await self.session.execute(
+            update(Subscription)
+            .where(
+                Subscription.id == subscription_id,
+                Subscription.panel_restore_due_at == marked_at,
+            )
+            .values(panel_restore_due_at=None, updated_at=Subscription.updated_at)
         )
 
     async def mark_grace_attempted(self, subscription_ids: list[int], now: datetime) -> None:

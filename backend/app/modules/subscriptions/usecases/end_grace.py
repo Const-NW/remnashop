@@ -94,6 +94,9 @@ class EndGraceUseCase(UseCase[int, None]):
                 )
             except Exception:
                 logger.exception(f"Failed to put subscription '{data}' back after its grace end")
+                async with self._uow:
+                    # the minute cron pushes it again
+                    await self._subscription_repository.mark_panel_restore_due(data, datetime_now())
                 return
             logger.info(f"Subscription '{data}' left grace while its end was being pushed")
             return

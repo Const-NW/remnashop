@@ -5,8 +5,6 @@ from typing import Final, Optional
 import httpx
 from loguru import logger
 from remnapy import RemnawaveSDK
-from remnapy.enums import ErrorCode as RemnawaveErrorCode
-from remnapy.exceptions import ApiError as RemnawaveApiError
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
 
 from app.core.actor import Actor
@@ -25,9 +23,14 @@ from app.modules.subscriptions.events import (
     SubscriptionGraceStartedEvent,
     SubscriptionStatusSyncedEvent,
 )
-from app.modules.subscriptions.grace import grace_entry_allowed, grace_until_for
+from app.modules.subscriptions.grace import LIVE_STATUSES, grace_entry_allowed, grace_until_for
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
-from app.modules.subscriptions.panel import restore, revert_panel_to_owner
+from app.modules.subscriptions.panel import (
+    panel_refused,
+    panel_user_gone,
+    restore,
+    revert_panel_to_owner,
+)
 from app.modules.subscriptions.panel_sync import from_panel
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.subscriptions.usecases.sync_subscription_status import (
@@ -36,20 +39,6 @@ from app.modules.subscriptions.usecases.sync_subscription_status import (
 from app.modules.users import UserRepository
 
 _NEVER_SENT: Final[tuple[type[Exception], ...]] = (httpx.ConnectError, httpx.ConnectTimeout)
-# what the panel says about the request itself; anything else (auth, rate limit,
-# outage) may pass on a retry
-_REFUSAL_STATUSES: Final[frozenset[int]] = frozenset({400, 404, 409, 422})
-
-
-def _panel_user_gone(error: Exception) -> bool:
-    return (
-        isinstance(error, RemnawaveNotFoundError)
-        and error.code == RemnawaveErrorCode.USER_NOT_FOUND
-    )
-
-
-def _refused(error: Exception) -> bool:
-    return isinstance(error, RemnawaveApiError) and error.status_code in _REFUSAL_STATUSES
 
 
 class EnterGraceUseCase(UseCase[int, bool]):
@@ -154,7 +143,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
         logger.info(f"Subscription '{data}' entered grace until {grace_until.isoformat()}")
 
     async def _extended_in_panel(self, data: int) -> bool:
-        """A row left ACTIVE past its expiry lost its expiry webhook, and maybe the
+        """A row left ACTIVE or LIMITED past its expiry lost its expiry webhook, and maybe the
         panel extension after it: the panel's date is read before grace cuts it short.
         True when the row isn't to enter grace now."""
         async with self._uow:
@@ -162,7 +151,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
             subscription = await self._subscription_repository.get_by_id(data)
         if not (
             settings.enabled
-            and subscription.status is SubscriptionStatus.ACTIVE
+            and subscription.status in LIVE_STATUSES
             and subscription.grace_until is None
             and subscription.expire_at <= datetime_now()
         ):
@@ -191,7 +180,7 @@ class EnterGraceUseCase(UseCase[int, bool]):
             plan = await self._plan_repository.get_by_id(subscription.plan_snapshot.plan_id)
         if not grace_entry_allowed(subscription, plan, settings, now):
             return None
-        if subscription.status is SubscriptionStatus.ACTIVE:
+        if subscription.status in LIVE_STATUSES:
             # the expiry webhook was lost: its sync would have set this
             expired = await self._lifecycle_service.sync_status(
                 subscription.id, SubscriptionStatus.EXPIRED
@@ -221,13 +210,13 @@ class EnterGraceUseCase(UseCase[int, bool]):
         grace was given up; raises a retryable error otherwise."""
         failed = f"Grace push of subscription '{subscription.id}' failed"
         if not claimed:
-            if not _panel_user_gone(error):
+            if not panel_user_gone(error):
                 raise RetryableTaskError(failed) from error
             # deleted in the panel, its webhook lost: a retry would never land
             await self._give_up(subscription.id, grace_until)
             logger.warning(f"{failed}: the panel user is gone, grace given up")
             return False
-        if _refused(error):
+        if panel_refused(error):
             await self._give_up(subscription.id, grace_until)
             logger.warning(f"{failed}: the panel refused it, the subscription gets no grace")
             return False
@@ -281,8 +270,14 @@ class EnterGraceUseCase(UseCase[int, bool]):
                 self._remnawave_sdk, self._subscription_repository, self._uow, current, settings
             )
         else:
-            await self._remnawave_sdk.users.update_user(
-                restore(current, grace=settings, left_grace=settings)
-            )
+            try:
+                await self._remnawave_sdk.users.update_user(
+                    restore(current, grace=settings, left_grace=settings)
+                )
+            except Exception:
+                logger.exception(f"Failed to put subscription '{data}' back after grace entry")
+                async with self._uow:
+                    # the minute cron pushes it again
+                    await self._subscription_repository.mark_panel_restore_due(data, datetime_now())
         logger.info(f"Subscription '{data}' left grace while it was being pushed")
         return False

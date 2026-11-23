@@ -280,11 +280,16 @@ class RenewPurchase:
         # overwrites a grace push that landed after this renewal's write, whether grace
         # was entered mid-flight or pushed again. Known gap: grace entered mid-flight,
         # the days may still count from the grace end the panel showed. The renewal is
-        # committed, so a failed push is left to the next sync
+        # committed, so a failed push is left to the restore cron
         try:
             await self._remnawave_sdk.users.update_user(restore(subscription, left_grace=grace))
         except Exception:
             logger.exception(f"Failed to take subscription '{subscription.id}' out of grace")
+            async with self._uow:
+                # the minute cron pushes it again
+                await self._subscription_repository.mark_panel_restore_due(
+                    subscription.id, datetime_now()
+                )
 
     async def _apply_current_plan(
         self, data: PurchaseSubscriptionDto, target: SubscriptionDto

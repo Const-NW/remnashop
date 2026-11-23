@@ -67,6 +67,7 @@ from app.modules.subscriptions.usecases import (
     ReissueSubscriptionUseCase,
     RenameDeviceUseCase,
     ResetSubscriptionTrafficUseCase,
+    RestoreDuePanelConfigsUseCase,
     SetSubscriptionEnabledUseCase,
     StartPanelSyncFromUseCase,
     StartPanelSyncToUseCase,
@@ -146,6 +147,7 @@ class SubscriptionsProvider(Provider):
         PruneIdempotencyKeysUseCase,
         EnterGraceUseCase,
         EndGraceUseCase,
+        RestoreDuePanelConfigsUseCase,
         SweepGraceUseCase,
     )
     subscription_revoker = alias(source=PanelSubscriptionRevoker, provides=SubscriptionRevoker)

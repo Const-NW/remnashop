@@ -23,12 +23,14 @@ from app.modules.subscriptions.usecases import (
     GrantAddOnUseCase,
     ProcessRemnawaveWebhookUseCase,
     PruneIdempotencyKeysUseCase,
+    RestoreDuePanelConfigsUseCase,
     SweepGraceUseCase,
     SyncAllFromPanelUseCase,
     SyncAllToPanelUseCase,
 )
 
-_GRACE_SWEEP_LOCK_TTL_S: Final[int] = 55
+# a minute cron's lock, short of its next run
+_MINUTE_CRON_LOCK_TTL_S: Final[int] = 55
 
 
 @broker.task(retry_on_error=True, max_retries=3)
@@ -144,6 +146,16 @@ async def prune_subscription_idempotency_task(
 async def sweep_grace_task(
     use_case: FromDishka[SweepGraceUseCase], redis: FromDishka[Redis]
 ) -> None:
-    async with cron_lock(redis, "grace_sweep", ttl_seconds=_GRACE_SWEEP_LOCK_TTL_S) as acquired:
+    async with cron_lock(redis, "grace_sweep", ttl_seconds=_MINUTE_CRON_LOCK_TTL_S) as acquired:
+        if acquired:
+            await use_case.system()
+
+
+@broker.task(schedule=[{"cron": "*/1 * * * *"}])
+@inject(patch_module=True)
+async def restore_due_panel_configs_task(
+    use_case: FromDishka[RestoreDuePanelConfigsUseCase], redis: FromDishka[Redis]
+) -> None:
+    async with cron_lock(redis, "panel_restore", ttl_seconds=_MINUTE_CRON_LOCK_TTL_S) as acquired:
         if acquired:
             await use_case.system()

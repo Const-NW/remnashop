@@ -11,6 +11,7 @@ from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
+from app.core.utils.time import datetime_now
 from app.modules.subscriptions.dto import SubscriptionDto, UpdateSubscriptionSquadsDto
 from app.modules.subscriptions.eligibility import get_manageable_subscription, subscription_owner
 from app.modules.subscriptions.events import SubscriptionEditedEvent
@@ -64,6 +65,12 @@ class UpdateSubscriptionSquadsUseCase(UseCase[UpdateSubscriptionSquadsDto, Subsc
             else:
                 owner = None
                 subscription = await self._subscription_repository.update_squads(data)
+                if pushed != (locked.grace_until is None):
+                    # grace started or ended while the edit ran: the panel holds the wrong
+                    # squads, the edit's over grace's or the previous ones over the edit's
+                    await self._subscription_repository.mark_panel_restore_due(
+                        data.subscription_id, datetime_now()
+                    )
                 subscriber = await subscription_owner(self._user_repository, subscription)
                 await self._event_publisher.publish(
                     SubscriptionEditedEvent(
