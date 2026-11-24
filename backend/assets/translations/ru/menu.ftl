@@ -541,6 +541,7 @@ gateway-name =
     .CLOUDPAYMENTS = CloudPayments
     .PAYPEAR = PayPear
     .CISPAY = cisPay
+    .PAY_2328 = 2328.io
 
 ntf-referrals =
     .disabled = ❌ Реферальная программа сейчас не работает.

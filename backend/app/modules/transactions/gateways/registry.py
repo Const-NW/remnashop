@@ -12,6 +12,7 @@ from app.modules.transactions.gateways.freekassa import FreeKassaGateway
 from app.modules.transactions.gateways.heleket import HeleketGateway
 from app.modules.transactions.gateways.lava import LavaGateway
 from app.modules.transactions.gateways.mulenpay import MulenPayGateway
+from app.modules.transactions.gateways.pay2328 import Pay2328Gateway
 from app.modules.transactions.gateways.paymaster import PayMasterGateway
 from app.modules.transactions.gateways.paypalych import PaypalychGateway
 from app.modules.transactions.gateways.paypear import PayPearGateway
@@ -51,6 +52,7 @@ GATEWAY_REGISTRY: Final[dict[PaymentGatewayType, type[PaymentGateway]]] = {
     PaymentGatewayType.CLOUDPAYMENTS: CloudPaymentsGateway,
     PaymentGatewayType.PAYPALYCH: PaypalychGateway,
     PaymentGatewayType.CISPAY: CisPayGateway,
+    PaymentGatewayType.PAY_2328: Pay2328Gateway,
     PaymentGatewayType.TELEGRAM_STARS: TelegramStarsGateway,
 }
 

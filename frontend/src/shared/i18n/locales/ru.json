@@ -1782,7 +1782,8 @@
         "SEVERPAY": "Должна совпадать с валютой мерчанта. Если пусто — RUB.",
         "CLOUDPAYMENTS": "Если пусто — RUB.",
         "PAYPALYCH": "Должна совпадать с валютой магазина. Если пусто — RUB.",
-        "CISPAY": "USD — только оплата криптовалютой (USDT). Если пусто — RUB: покупатель сам выбирает СБП, карту или криптовалюту на странице cisPay."
+        "CISPAY": "USD — только оплата криптовалютой (USDT). Если пусто — RUB: покупатель сам выбирает СБП, карту или криптовалюту на странице cisPay.",
+        "PAY_2328": "Если пусто — RUB."
       },
       "channels": {
         "title": "Каналы доступности",
@@ -1842,6 +1843,7 @@
         "ROLLYPAY": "RollyPay",
         "ANTILOPAY": "Antilopay",
         "AURAPAY": "AuraPay",
+        "PAY_2328": "2328.io",
         "CISPAY": "cisPay",
         "CLOUDPAYMENTS": "CloudPayments",
         "LAVA": "Lava",
@@ -1865,6 +1867,7 @@
         "payment_system_id": "ID платёжной системы",
         "private_key": "Приватный ключ",
         "project_id": "ID проекта",
+        "project_uuid": "UUID проекта",
         "public_id": "Публичный ID",
         "public_key": "Публичный ключ",
         "require_paid_purchase": "Только после оплаченной покупки",
