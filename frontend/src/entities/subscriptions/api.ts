@@ -243,6 +243,7 @@ export interface SubscriptionDevice {
   app: string | null;
   user_agent: string | null;
   created_at: string;
+  last_fetched_at: string;
 }
 
 export interface SubscriptionDeviceList {

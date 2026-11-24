@@ -8,7 +8,7 @@ import {
 } from "@entities/subscriptions/api";
 import { useAccountPermissions } from "@entities/user/use-current-user";
 import { getErrorMessage } from "@shared/api/http";
-import { formatDate } from "@shared/lib/relative-time";
+import { formatDate, formatRelative } from "@shared/lib/relative-time";
 import { toast } from "@shared/lib/toast";
 import { useAsyncResource } from "@shared/lib/use-async-resource";
 import { DialogCard } from "@shared/ui/glass/DialogCard";
@@ -65,7 +65,13 @@ export function SubscriptionDevicesTab({ subscriptionId, userId }: { subscriptio
                   .filter(Boolean)
                   .join(" · ") || t("common.none")
               }
-              description={<span className="font-mono">{device.hwid}</span>}
+              description={
+                <>
+                  <span className="font-mono">{device.hwid}</span>
+                  {" · "}
+                  {t("subscriptions.devices.lastFetched", { time: formatRelative(device.last_fetched_at, i18n.language) })}
+                </>
+              }
             >
               <span className="text-xs tabular-nums text-muted-foreground">{formatDate(device.created_at, i18n.language)}</span>
               {canDelete && (
