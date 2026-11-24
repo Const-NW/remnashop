@@ -31,6 +31,7 @@ _REPORTED_STATUSES: Final[dict[str, TransactionStatus]] = {
 }
 
 
+# Docs: https://2328.io/api/payments
 class Pay2328Gateway(PaymentGateway[Pay2328Settings]):
     settings_model = Pay2328Settings
     currency = Currency.RUB
