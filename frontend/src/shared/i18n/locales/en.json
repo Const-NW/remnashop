@@ -3983,7 +3983,7 @@
     },
     "devices": {
       "empty": "No connected devices",
-      "lastFetched": "fetched the subscription {{time}}",
+      "lastFetched": "Fetched the subscription {{time}}",
       "deleted": "Device deleted.",
       "deleteAll": "Delete all devices",
       "deleteAllTitle": "Delete all devices?",

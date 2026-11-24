@@ -17,6 +17,11 @@ import { Row } from "@shared/ui/glass/Row";
 import { IconButton } from "@shared/ui/IconButton";
 import { Spinner } from "@shared/ui/Spinner";
 
+// the panel's clock may run ahead of the browser's, and "in 2 minutes" reads wrong here
+function pastOrNow(iso: string): string {
+  return new Date(Math.min(Date.parse(iso), Date.now())).toISOString();
+}
+
 export function SubscriptionDevicesTab({ subscriptionId, userId }: { subscriptionId: number; userId: number }) {
   const { t, i18n } = useTranslation();
   const permissions = useAccountPermissions(userId);
@@ -65,11 +70,12 @@ export function SubscriptionDevicesTab({ subscriptionId, userId }: { subscriptio
                   .filter(Boolean)
                   .join(" · ") || t("common.none")
               }
+              // the time leads: the row truncates its description, and the HWID's tail matters less
               description={
                 <>
-                  <span className="font-mono">{device.hwid}</span>
+                  {t("subscriptions.devices.lastFetched", { time: formatRelative(pastOrNow(device.last_fetched_at), i18n.language) })}
                   {" · "}
-                  {t("subscriptions.devices.lastFetched", { time: formatRelative(device.last_fetched_at, i18n.language) })}
+                  <span className="font-mono">{device.hwid}</span>
                 </>
               }
             >
