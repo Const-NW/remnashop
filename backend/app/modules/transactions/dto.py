@@ -74,6 +74,7 @@ class TransactionDto(BaseDto, TimestampMixin):
     # None: a free order, nothing was paid through a gateway
     gateway_type: Optional[PaymentGatewayType] = None
     external_payment_id: Optional[str] = None
+    gateway_account: Optional[str] = None
     status: TransactionStatus = TransactionStatus.PENDING
     base_price: Decimal
     discount_percent: int = 0
@@ -116,6 +117,7 @@ class CreateTransactionDto:
     channel: PurchaseChannel
     target_subscription_id: Optional[int]
     gateway_type: Optional[PaymentGatewayType]
+    gateway_account: Optional[str] = None
     base_price: Decimal
     discount_percent: int
     discount_source: DiscountSource
@@ -199,6 +201,13 @@ class PaymentTextDto:
 class CheckoutResultDto(BaseDto):
     order_id: int
     confirmation_url: Optional[str] = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class CreateTestPaymentDto:
+    gateway_type: PaymentGatewayType
+    # the channel whose shop is tested, where a gateway has one per channel
+    channel: PurchaseChannel
 
 
 @dataclass(frozen=True, kw_only=True)

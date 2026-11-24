@@ -18,10 +18,13 @@ export function ChannelTiles({
   gateway,
   onChange,
   disabled,
+  sharedShop,
 }: {
   gateway: Gateway;
   onChange: (channels: GatewayChannels) => void;
   disabled: boolean;
+  /** both channels pay into one shop the gateway could split by channel */
+  sharedShop: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -56,6 +59,7 @@ export function ChannelTiles({
         })}
       </div>
       <TelegramWarning gateway={gateway} />
+      {sharedShop && <p className="text-xs text-warning">{t("settings.gateways.channels.sharedShopWarning")}</p>}
     </Field>
   );
 }

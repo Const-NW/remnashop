@@ -72,7 +72,7 @@ def transform_gateways(
         elif not is_gateway_configured(gateway_type, values):
             if is_active:
                 report.notes.append(
-                    f"{_TABLE}: {gateway_type.value} disabled, required fields are missing"
+                    f"{_TABLE}: {gateway_type.value} disabled, settings are incomplete or invalid"
                 )
             is_active = False
         result.append(

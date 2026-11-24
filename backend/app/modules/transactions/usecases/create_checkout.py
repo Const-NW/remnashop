@@ -73,6 +73,7 @@ class _OrderTerms:
 
     gateway_type: Optional[PaymentGatewayType]
     gateway_settings: dict[str, str]
+    gateway_account: Optional[str] = None
     currency: Currency
     quote: PriceQuote
     customer_email: Optional[str]
@@ -357,9 +358,20 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
             customer_email = await self._resolve_customer_email(
                 data, user, gateway_type, gateway_settings
             )
+        try:
+            gateway_account = self._gateway_factory.account_for(
+                gateway_type, gateway_settings, in_telegram=data.in_telegram
+            )
+        except PaymentGatewayError:
+            # settings changed since the availability check and no longer parse
+            raise ValidationError(
+                f"Gateway '{gateway_type.value}' is not available",
+                code=ErrorCode.GATEWAY_NOT_AVAILABLE,
+            ) from None
         return _OrderTerms(
             gateway_type=gateway_type,
             gateway_settings=gateway_settings,
+            gateway_account=gateway_account,
             currency=data.currency,
             quote=quote,
             customer_email=customer_email,
@@ -451,6 +463,7 @@ class CreateCheckoutUseCase(UseCase[CreateCheckoutDto, CheckoutResultDto, UserDt
                 channel=data.channel,
                 target_subscription_id=data.target_subscription_id,
                 gateway_type=terms.gateway_type,
+                gateway_account=terms.gateway_account,
                 base_price=quote.base_price,
                 discount_percent=quote.discount_percent,
                 discount_source=quote.discount_source,

@@ -165,7 +165,7 @@ class HandlePaymentWebhookUseCase(UseCase[HandleWebhookDto, WebhookAck]):
     def _assert_trusted_source(
         gateway: PaymentGateway, data: HandleWebhookDto, settings: dict[str, str]
     ) -> None:
-        if not gateway.trusted_networks:
+        if not gateway.trusted_networks or gateway.is_signed_notification(data.request):
             return
         if not gateway_flags(data.gateway_type, settings).get(VERIFY_IP_FIELD_KEY, True):
             return

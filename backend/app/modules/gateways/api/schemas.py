@@ -11,6 +11,7 @@ class GatewayResponse(BaseModel):
     is_active: bool
     is_configured: bool
     flags: dict[str, bool]
+    splits_channels: bool
     telegram_enabled: bool
     cabinet_enabled: bool
 
@@ -30,8 +31,11 @@ class ReorderGatewaysRequest(BaseModel):
 
 class GatewayFieldSpecResponse(BaseModel):
     key: str
-    kind: Literal["text", "secret", "number", "boolean"]
+    kind: Literal["text", "secret", "number", "boolean", "url"]
     required: bool
+    group: Optional[str]
+    requires_all_channels: bool
+    required_unless: Optional[str]
 
 
 class GatewayCatalogEntryResponse(BaseModel):

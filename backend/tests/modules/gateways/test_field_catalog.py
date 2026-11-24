@@ -118,10 +118,8 @@ def test_rub_only_gateways_have_no_currency_field() -> None:
 
 
 def test_yookassa_verify_ip_defaults_on_and_reads_back() -> None:
-    assert gateway_flags(PaymentGatewayType.YOOKASSA, {}) == {"verify_ip": True}
-    assert gateway_flags(PaymentGatewayType.YOOKASSA, {"verify_ip": "false"}) == {
-        "verify_ip": False
-    }
+    assert gateway_flags(PaymentGatewayType.YOOKASSA, {})["verify_ip"] is True
+    assert gateway_flags(PaymentGatewayType.YOOKASSA, {"verify_ip": "false"})["verify_ip"] is False
     assert gateway_flags(PaymentGatewayType.ROBOKASSA, {}) == {}
 
 
