@@ -1,13 +1,16 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import httpx
 import pytest
+from remnapy import RemnawaveSDK
 
 from app.core.enums import SubscriptionStatus
 from app.core.utils.time import datetime_now
 from app.modules.subscriptions.dto import SubscriptionDto
 from app.modules.subscriptions.panel import (
     configure_for_plan,
+    drop_connections,
     new_panel_user,
     restore,
     shop_user_key_from_username,
@@ -112,3 +115,12 @@ def test_a_custom_prefix_reads_only_its_own_names() -> None:
 def test_new_panel_user_is_named_with_the_prefix() -> None:
     username = new_panel_user(_user(), make_plan_snapshot(), _EXPIRE_AT, "shopb_").username
     assert username is not None and username.startswith("shopb_")
+
+
+async def test_drop_connections_failure_is_only_logged() -> None:
+    transport = httpx.MockTransport(lambda _: httpx.Response(500, json={"message": "down"}))
+    sdk = RemnawaveSDK(
+        client=httpx.AsyncClient(transport=transport, base_url="http://fake-panel.test/api")
+    )
+
+    await drop_connections(sdk, 1001)

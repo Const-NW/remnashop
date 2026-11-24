@@ -425,6 +425,7 @@ async def test_disable_then_enable(
     )
     assert disabled.status is SubscriptionStatus.DISABLED
     assert remnawave_store[granted.remnawave_user_id]["status"] == "DISABLED"
+    assert remnawave_store[granted.remnawave_user_id]["droppedConnections"] == 1
 
     enabled = await use_case(
         OWNER, SetSubscriptionEnabledDto(subscription_id=granted.id, enabled=True)
@@ -555,6 +556,7 @@ async def test_admin_reissue_updates_url_without_client_cooldown(
     plan_repository: PlanRepository,
     subscription_repository: SubscriptionRepository,
     remnawave_sdk: RemnawaveSDK,
+    remnawave_store: FakeUserStore,
     event_publisher: EventPublisher,
     uow: UnitOfWork,
 ) -> None:
@@ -571,6 +573,7 @@ async def test_admin_reissue_updates_url_without_client_cooldown(
 
     assert reissued.url != granted.url
     assert reissued.link_reset_at is None
+    assert remnawave_store[granted.remnawave_user_id]["droppedConnections"] == 1
 
 
 async def test_reset_traffic_of_deleted_subscription_is_rejected(
@@ -1174,6 +1177,7 @@ async def test_channel_leave_pauses_a_trial_and_rejoin_resumes_it(
     paused = await subscription_repository.get_by_id(trial.id)
     assert paused.status is SubscriptionStatus.DISABLED and paused.paused_by_channel_leave
     assert remnawave_store[trial.remnawave_user_id]["status"] == "DISABLED"
+    assert remnawave_store[trial.remnawave_user_id]["droppedConnections"] == 1
 
     assert await use_case.system(replace(leave, joined=True)) is not None
     resumed = await subscription_repository.get_by_id(trial.id)
