@@ -35,6 +35,11 @@ class GatewaySettings(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    @property
+    def splits_channels(self) -> bool:
+        """The bot and the cabinet pay into different shops."""
+        return False
+
     @classmethod
     def from_values(cls, values: dict[str, str]) -> Self:
         # a blank field is an unset one
@@ -78,6 +83,10 @@ class YooKassaSettings(GatewaySettings):
     relay_forward_secret: Optional[SecretStr] = Field(
         None, json_schema_extra=_grouped("relay_enabled")
     )
+
+    @property
+    def splits_channels(self) -> bool:
+        return self.cabinet_shop_enabled and not self.relay_enabled
 
     @model_validator(mode="after")
     def _require_active_fields(self) -> Self:

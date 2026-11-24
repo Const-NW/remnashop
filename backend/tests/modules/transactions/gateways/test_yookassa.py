@@ -16,6 +16,7 @@ from app.modules.gateways import is_gateway_configured
 from app.modules.gateways.field_catalog import (
     GATEWAY_FIELD_CATALOG,
     gateway_settings_error,
+    gateway_splits_channels,
     validate_gateway_field_values,
 )
 from app.modules.transactions.gateways.base import PaymentHttpClient, WebhookSignal
@@ -530,3 +531,18 @@ def test_the_dashboard_asks_for_the_shops_unless_the_relay_is_on() -> None:
         "cabinet_shop_id",
         "cabinet_api_key",
     }
+
+
+@pytest.mark.parametrize(
+    ("settings", "splits"),
+    [
+        (_SETTINGS, False),
+        (_CABINET_SETTINGS, True),
+        ({**_CABINET_SETTINGS, **_RELAY_SETTINGS}, False),
+        ({"shop_id": "1000"}, False),
+    ],
+)
+def test_the_channels_split_only_into_a_cabinet_shop_of_their_own(
+    settings: dict[str, str], splits: bool
+) -> None:
+    assert gateway_splits_channels(PaymentGatewayType.YOOKASSA, settings) is splits

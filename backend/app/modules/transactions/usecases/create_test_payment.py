@@ -92,6 +92,14 @@ class CreateTestPaymentUseCase(UseCase[CreateTestPaymentDto, TestPaymentDto, Use
         if customer_email is None and gateway_class.requires_customer_email(settings):
             customer_email = _TEST_CUSTOMER_EMAIL
 
+        try:
+            account = gateway_class.account_for(
+                settings, in_telegram=request.channel is PurchaseChannel.BOT
+            )
+        except PaymentGatewayError as error:  # settings changed since the check above
+            raise ValidationError(
+                f"Gateway '{data.value}' is not configured", code=ErrorCode.GATEWAY_NOT_CONFIGURED
+            ) from error
         currency = gateway_currency(data, settings)
         amount = _STARS_TEST_AMOUNT if data is PaymentGatewayType.TELEGRAM_STARS else _TEST_AMOUNT
         async with self._uow:
@@ -116,12 +124,11 @@ class CreateTestPaymentUseCase(UseCase[CreateTestPaymentDto, TestPaymentDto, Use
                     duration_days=0,
                     currency=currency,
                     purchase_type=PurchaseType.NEW,
+                    # whichever shop is tested: a BOT order would get the bot's outcome messages
                     channel=PurchaseChannel.CABINET,
                     target_subscription_id=None,
                     gateway_type=data,
-                    gateway_account=gateway_class.account_for(
-                        settings, in_telegram=request.channel is PurchaseChannel.BOT
-                    ),
+                    gateway_account=account,
                     base_price=amount,
                     discount_percent=0,
                     discount_source=DiscountSource.NONE,

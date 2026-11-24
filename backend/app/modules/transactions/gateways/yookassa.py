@@ -91,7 +91,7 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
         parsed = YooKassaSettings.from_values(settings)
         if parsed.relay_enabled:
             return RELAY_ACCOUNT
-        if parsed.cabinet_shop_enabled and not in_telegram:
+        if parsed.splits_channels and not in_telegram:
             return parsed.cabinet_shop_id
         return parsed.shop_id
 
@@ -108,7 +108,7 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
     def _auth(self, account: Optional[str]) -> tuple[str, str]:
         settings = self.settings
         # every stored shop, switched on or not: an order is checked in the shop it was paid into;
-        # None: an order from before the shops were split, paid into the main one
+        # None: paid into the main shop
         if account is None or account == settings.shop_id:
             shop_id, api_key = settings.shop_id, settings.api_key
         elif account == settings.cabinet_shop_id:

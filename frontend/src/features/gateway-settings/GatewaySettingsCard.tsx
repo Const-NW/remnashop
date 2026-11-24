@@ -32,6 +32,7 @@ import { ChannelTiles } from "./ChannelTiles";
 import { GATEWAY_DOCS_URLS } from "./docs-links";
 import { GATEWAY_LOGOS } from "./logos";
 import { inputModeFor, sanitizeFieldValue } from "./field-input";
+import { PaygateGuideDialog } from "./PaygateGuideDialog";
 
 const CURRENCY_HINT_GATEWAYS = new Set([
   "CRYPTOMUS",
@@ -97,11 +98,16 @@ export function GatewaySettingsCard({
   const canUpdate = permissions.includes("GATEWAYS_UPDATE");
   const canSetChannels = permissions.includes("GATEWAYS_CHANNELS_UPDATE");
   const canTest = gateway.is_configured && permissions.includes("GATEWAYS_TEST");
-  // a saved group that needs every channel gives each its own shop, tested separately
-  const testsPerChannel =
-    gateway.telegram_enabled &&
-    gateway.cabinet_enabled &&
-    groups.some((group) => group.toggle.requires_all_channels && gateway.flags[group.toggle.key]);
+  const bothChannels = gateway.telegram_enabled && gateway.cabinet_enabled;
+  // both channels in one shop although the gateway could split them (a saved group would)
+  const sharedShop =
+    bothChannels &&
+    gateway.is_configured &&
+    groups.some((group) => group.toggle.requires_all_channels) &&
+    !groups.some((group) => gateway.flags[group.toggle.key]);
+  const testsPerChannel = bothChannels && gateway.splits_channels;
+  // with one channel on, its shop
+  const testChannel: TestPaymentChannel = gateway.telegram_enabled ? "BOT" : "CABINET";
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -207,7 +213,7 @@ export function GatewaySettingsCard({
           </Button>
         </>
       ) : (
-        <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment("BOT")}>
+        <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment(testChannel)}>
           {isTesting ? t("settings.gateways.testPaymentCreating") : t("settings.gateways.testPayment")}
         </Button>
       )}
@@ -255,6 +261,7 @@ export function GatewaySettingsCard({
           {t(`settings.gateways.flagHints.${field.key}` as ParseKeys)}
         </p>
       </div>
+      {field.key === "relay_enabled" && <PaygateGuideDialog webhookUrl={webhookUrl} />}
       <Switch
         checked={checked}
         onChange={onChange}
@@ -265,9 +272,13 @@ export function GatewaySettingsCard({
 
   const renderValueField = (field: GatewayFieldSpec) => {
     // once configured, a blank field keeps the stored value
-    const asked = field.required || field.group !== null || field.required_unless !== null;
     const waived = field.required_unless !== null && isGroupOn(field.required_unless);
-    const mustFill = asked && !waived && !gateway.is_configured;
+    // a group being switched on is saved with its fields, even on a working gateway
+    const mustFill =
+      !waived &&
+      (field.group !== null
+        ? isGroupOn(field.group) && (!gateway.flags[field.group] || !gateway.is_configured)
+        : (field.required || field.required_unless !== null) && !gateway.is_configured);
     const inputProps = {
       id: `gateway-${gateway.type}-${field.key}`,
       inputMode: inputModeFor(field),
@@ -328,6 +339,7 @@ export function GatewaySettingsCard({
             // ignored mid-save rather than disabled: dimming both tiles reads as a flicker
             onChange={(channels) => savingFlag !== "channels" && void handleChannels(channels)}
             disabled={!canSetChannels}
+            sharedShop={sharedShop}
           />
           {flagFields.map((field) => renderFlag(field))}
           {webhookUrl !== null && (

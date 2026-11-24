@@ -106,6 +106,13 @@ def is_gateway_configured(gateway_type: PaymentGatewayType, values: dict[str, st
     return gateway_settings_error(gateway_type, values) is None
 
 
+def gateway_splits_channels(gateway_type: PaymentGatewayType, values: dict[str, str]) -> bool:
+    try:
+        return GATEWAY_SETTINGS[gateway_type].from_values(values).splits_channels
+    except PaymentGatewayError:
+        return False
+
+
 def gateway_flags(gateway_type: PaymentGatewayType, values: dict[str, str]) -> dict[str, bool]:
     # unlike every other field these aren't secrets, so the dashboard reads
     # them back and renders switches

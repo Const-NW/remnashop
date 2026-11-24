@@ -8,6 +8,8 @@ export interface Gateway {
   is_configured: boolean;
   /** current state of the gateway's boolean settings, the only readable ones */
   flags: Record<string, boolean>;
+  /** the bot and the cabinet pay into different shops */
+  splits_channels: boolean;
   /** offered in the bot and Mini App sessions */
   telegram_enabled: boolean;
   /** offered in the cabinet opened in a browser */

@@ -11,6 +11,7 @@ class GatewayResponse(BaseModel):
     is_active: bool
     is_configured: bool
     flags: dict[str, bool]
+    splits_channels: bool
     telegram_enabled: bool
     cabinet_enabled: bool
 

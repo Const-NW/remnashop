@@ -1708,7 +1708,31 @@
         "telegramHint": "The bot and the cabinet opened as a Mini App.",
         "cabinet": "Web cabinet",
         "cabinetHint": "The cabinet opened in a browser.",
-        "warning": "Telegram allows only Stars for digital goods in bots and Mini Apps and may block a bot that takes other payments."
+        "warning": "Telegram allows only Stars for digital goods in bots and Mini Apps and may block a bot that takes other payments.",
+        "sharedShopWarning": "Both channels pay into one shop. YooKassa’s security team may block a shop that takes payments from several platforms: turn on a separate shop for the web cabinet or payment through paygate."
+      },
+      "paygateGuide": {
+        "title": "paygate setup",
+        "intro": "paygate is a relay through which every channel pays into the aggregator’s one shop. The YooKassa key lives only on the relay: remnashop signs its requests to it, and the relay forwards the shop’s notifications to us with its own signature.",
+        "relayTitle": "On the paygate server (.env.prod)",
+        "relaySteps": [
+          "YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY — the aggregator’s shop.",
+          "INGRESS_SECRET and FORWARD_SECRET — two different random secrets. Enter the same values in the fields below.",
+          "INGRESS_ALLOWED_IPS — the public IP of the remnashop server.",
+          "PUBLIC_URL — the paygate address, https:// only.",
+          "FORWARD_URL and ALLOWED_RETURN_ORIGINS — the values below."
+        ],
+        "originsTip": "Add the web cabinet’s address to ALLOWED_RETURN_ORIGINS. paygate won’t create a payment returning anywhere not listed.",
+        "yookassaTitle": "In the YooKassa account",
+        "yookassaBody": "Point the webhook at paygate: PUBLIC_URL + WEBHOOK_PATH. Events: payment.succeeded, payment.canceled, refund.succeeded.",
+        "dashboardTitle": "In the dashboard",
+        "dashboardSteps": [
+          "“paygate URL” — the PUBLIC_URL value.",
+          "Both secrets — the same as INGRESS_SECRET and FORWARD_SECRET on paygate.",
+          "“Verify webhook IP” can stay on: a notification signed by paygate skips the IP check."
+        ],
+        "returnTitle": "Return after payment",
+        "returnBody": "With RETURN_MODE=buttons the buyer sees the aggregator’s page with buttons. For the cabinet to show the payment result itself, add its address to RETURN_DIRECT_ORIGINS."
       },
       "flagHints": {
         "require_paid_purchase": "Customers see this payment method only after paying another way at least once. With no other method in Telegram, new customers can’t pay in the bot or the Mini App.",
