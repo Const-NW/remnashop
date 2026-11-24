@@ -34,6 +34,7 @@ class GatewayFieldSpecResponse(BaseModel):
     required: bool
     group: Optional[str]
     requires_all_channels: bool
+    required_unless: Optional[str]
 
 
 class GatewayCatalogEntryResponse(BaseModel):

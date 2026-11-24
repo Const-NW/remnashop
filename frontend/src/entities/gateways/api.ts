@@ -26,6 +26,8 @@ export interface GatewayFieldSpec {
   group: string | null;
   /** a group's switch shown only while every channel is on (or the switch is) */
   requires_all_channels: boolean;
+  /** asked for while this switch is off; a grouped value field is asked for while shown */
+  required_unless: string | null;
 }
 
 export interface GatewayCatalogEntry {
@@ -74,10 +76,13 @@ export interface TestPayment {
 
 export type TestPaymentStatus = "PENDING" | "PAID" | "FAILED" | "CANCELED" | "REFUNDED";
 
-export function createTestPayment(type: string): Promise<TestPayment> {
-  return apiPost<TestPayment, { gateway_type: string }>("/transactions/test-payments", {
-    gateway_type: type,
-  });
+export type TestPaymentChannel = "BOT" | "CABINET";
+
+export function createTestPayment(type: string, channel: TestPaymentChannel): Promise<TestPayment> {
+  return apiPost<TestPayment, { gateway_type: string; channel: TestPaymentChannel }>(
+    "/transactions/test-payments",
+    { gateway_type: type, channel },
+  );
 }
 
 export function getTestPaymentStatus(orderId: number): Promise<{ status: TestPaymentStatus }> {

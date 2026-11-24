@@ -13,7 +13,11 @@ from app.core.enums import PaymentGatewayType, TransactionStatus
 from app.core.error_codes import ErrorCode
 from app.core.exceptions import PaymentGatewayError, ValidationError
 from app.modules.gateways import is_gateway_configured
-from app.modules.gateways.field_catalog import gateway_settings_error, validate_gateway_field_values
+from app.modules.gateways.field_catalog import (
+    GATEWAY_FIELD_CATALOG,
+    gateway_settings_error,
+    validate_gateway_field_values,
+)
 from app.modules.transactions.gateways.base import PaymentHttpClient, WebhookSignal
 from app.modules.transactions.gateways.yookassa import RELAY_ACCOUNT, YooKassaGateway
 from tests.modules.transactions.gateways.support import (
@@ -252,13 +256,13 @@ async def test_check_payment_finds_the_payment_by_its_stored_id() -> None:
     assert http.last.url.path == "/v3/payments/yk-1"
 
 
-_CABINET_SETTINGS = {
+_CABINET_SETTINGS: Final[dict[str, str]] = {
     **_SETTINGS,
     "cabinet_shop_enabled": "true",
     "cabinet_shop_id": "2000",
     "cabinet_api_key": "cabinet_key",
 }
-_RELAY_SETTINGS = {
+_RELAY_SETTINGS: Final[dict[str, str]] = {
     "relay_enabled": "true",
     "relay_url": "https://agg.example/",
     "relay_ingress_secret": "ingress",
@@ -508,3 +512,21 @@ def test_the_cabinet_shop_cannot_repeat_the_main_one() -> None:
         )
         is ErrorCode.GATEWAY_SHOP_DUPLICATE
     )
+
+
+def test_the_relay_needs_no_shop_ids_even_with_the_cabinet_switch_on() -> None:
+    values = {**_RELAY_SETTINGS, "cabinet_shop_enabled": "true"}
+
+    assert gateway_settings_error(PaymentGatewayType.YOOKASSA, values) is None
+
+
+def test_the_dashboard_asks_for_the_shops_unless_the_relay_is_on() -> None:
+    catalog = GATEWAY_FIELD_CATALOG[PaymentGatewayType.YOOKASSA]
+    waived_by = {spec.key: spec.required_unless for spec in catalog}
+
+    assert {key for key, switch in waived_by.items() if switch == "relay_enabled"} == {
+        "shop_id",
+        "api_key",
+        "cabinet_shop_id",
+        "cabinet_api_key",
+    }

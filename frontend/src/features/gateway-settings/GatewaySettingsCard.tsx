@@ -12,6 +12,7 @@ import {
   type Gateway,
   type GatewayChannels,
   type GatewayFieldSpec,
+  type TestPaymentChannel,
   type TestPaymentStatus,
 } from "@entities/gateways/api";
 import { usePermissions } from "@entities/user/use-current-user";
@@ -96,6 +97,11 @@ export function GatewaySettingsCard({
   const canUpdate = permissions.includes("GATEWAYS_UPDATE");
   const canSetChannels = permissions.includes("GATEWAYS_CHANNELS_UPDATE");
   const canTest = gateway.is_configured && permissions.includes("GATEWAYS_TEST");
+  // a saved group that needs every channel gives each its own shop, tested separately
+  const testsPerChannel =
+    gateway.telegram_enabled &&
+    gateway.cabinet_enabled &&
+    groups.some((group) => group.toggle.requires_all_channels && gateway.flags[group.toggle.key]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -162,12 +168,12 @@ export function GatewaySettingsCard({
     return () => clearInterval(timer);
   }, [testOrderId, testStatus, t]);
 
-  const handleTestPayment = async () => {
+  const handleTestPayment = async (channel: TestPaymentChannel) => {
     // opened synchronously so the popup blocker treats it as user-initiated
     const tab = window.open("", "_blank");
     setIsTesting(true);
     try {
-      const { order_id, confirmation_url } = await createTestPayment(gateway.type);
+      const { order_id, confirmation_url } = await createTestPayment(gateway.type, channel);
       setTestOrderId(order_id);
       setTestStatus("PENDING");
       if (tab && confirmation_url && isHttpsUrl(confirmation_url)) {
@@ -187,9 +193,24 @@ export function GatewaySettingsCard({
 
   const testButton = canTest && (
     <>
-      <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment()}>
-        {isTesting ? t("settings.gateways.testPaymentCreating") : t("settings.gateways.testPayment")}
-      </Button>
+      {testsPerChannel ? (
+        <>
+          <Button variant="glass" disabled={isTesting} onClick={() => void handleTestPayment("BOT")}>
+            {t("settings.gateways.testPaymentTelegram")}
+          </Button>
+          <Button
+            variant="glass"
+            disabled={isTesting}
+            onClick={() => void handleTestPayment("CABINET")}
+          >
+            {t("settings.gateways.testPaymentCabinet")}
+          </Button>
+        </>
+      ) : (
+        <Button variant="glass" isLoading={isTesting} onClick={() => void handleTestPayment("BOT")}>
+          {isTesting ? t("settings.gateways.testPaymentCreating") : t("settings.gateways.testPayment")}
+        </Button>
+      )}
       {testStatus !== null && (
         <span
           className={`text-xs ${
@@ -244,7 +265,9 @@ export function GatewaySettingsCard({
 
   const renderValueField = (field: GatewayFieldSpec) => {
     // once configured, a blank field keeps the stored value
-    const mustFill = field.required && !gateway.is_configured;
+    const asked = field.required || field.group !== null || field.required_unless !== null;
+    const waived = field.required_unless !== null && isGroupOn(field.required_unless);
+    const mustFill = asked && !waived && !gateway.is_configured;
     const inputProps = {
       id: `gateway-${gateway.type}-${field.key}`,
       inputMode: inputModeFor(field),

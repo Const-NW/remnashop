@@ -1677,6 +1677,8 @@
       "webhookLabel": "Webhook URL",
       "toggleError": "Failed to update gateway status.",
       "testPayment": "Test payment",
+      "testPaymentTelegram": "Test payment (Telegram)",
+      "testPaymentCabinet": "Test payment (Web cabinet)",
       "testPaymentCreating": "Creating…",
       "testPaymentPaid": "Test payment received.",
       "testPaymentStatus": {

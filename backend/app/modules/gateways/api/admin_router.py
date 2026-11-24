@@ -71,6 +71,7 @@ async def get_gateway_catalog(
                     required=field_spec.required,
                     group=field_spec.group,
                     requires_all_channels=field_spec.requires_all_channels,
+                    required_unless=field_spec.required_unless,
                 )
                 for field_spec in field_specs
             ],

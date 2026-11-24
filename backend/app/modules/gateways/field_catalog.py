@@ -12,6 +12,7 @@ from app.core.exceptions import PaymentGatewayError, ValidationError
 from app.modules.gateways.gateway_settings import (
     FIELD_GROUP_KEY,
     GATEWAY_SETTINGS,
+    REQUIRED_UNLESS_KEY,
     REQUIRES_ALL_CHANNELS_KEY,
     HttpsUrlStr,
     NumericStr,
@@ -44,6 +45,8 @@ class GatewayFieldSpec:
     group: Optional[str] = None
     # a group's switch shown only while every channel is on (or the switch is)
     requires_all_channels: bool = False
+    # a field the dashboard asks for while this switch is off (the model decides when it's set)
+    required_unless: Optional[str] = None
 
 
 _KIND_BY_TYPE: Final[dict[object, GatewayFieldKind]] = {
@@ -61,6 +64,7 @@ def _field_spec(key: str, field: FieldInfo) -> GatewayFieldSpec:
     default = str(field.default).lower() if kind is GatewayFieldKind.BOOLEAN else ""
     extra = field.json_schema_extra if isinstance(field.json_schema_extra, dict) else {}
     group = extra.get(FIELD_GROUP_KEY)
+    required_unless = extra.get(REQUIRED_UNLESS_KEY)
     return GatewayFieldSpec(
         key=key,
         kind=kind,
@@ -68,6 +72,7 @@ def _field_spec(key: str, field: FieldInfo) -> GatewayFieldSpec:
         default=default,
         group=group if isinstance(group, str) else None,
         requires_all_channels=extra.get(REQUIRES_ALL_CHANNELS_KEY) is True,
+        required_unless=required_unless if isinstance(required_unless, str) else None,
     )
 
 

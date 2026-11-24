@@ -1759,6 +1759,8 @@
       "webhookLabel": "URL вебхука",
       "toggleError": "Не удалось изменить статус шлюза.",
       "testPayment": "Тестовый платёж",
+      "testPaymentTelegram": "Тестовый платёж (Telegram)",
+      "testPaymentCabinet": "Тестовый платёж (Веб-кабинет)",
       "testPaymentCreating": "Создание…",
       "testPaymentPaid": "Тестовый платёж прошёл.",
       "testPaymentStatus": {

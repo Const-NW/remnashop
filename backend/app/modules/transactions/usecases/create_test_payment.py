@@ -24,7 +24,11 @@ from app.modules.gateways import GatewayRepository
 from app.modules.pricing import PricingRepository, convert_for_report
 from app.modules.settings import SettingsRepository
 from app.modules.subscriptions import PlanSnapshot
-from app.modules.transactions.dto import CreateTransactionDto, TestPaymentDto
+from app.modules.transactions.dto import (
+    CreateTestPaymentDto,
+    CreateTransactionDto,
+    TestPaymentDto,
+)
 from app.modules.transactions.events import GatewayTestPaymentCreatedEvent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY, gateway_currency
@@ -40,7 +44,7 @@ _TEST_ORDER_TTL: Final[timedelta] = timedelta(minutes=30)
 _TEST_CUSTOMER_EMAIL: Final[str] = "test@example.com"
 
 
-class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserDto]):
+class CreateTestPaymentUseCase(UseCase[CreateTestPaymentDto, TestPaymentDto, UserDto]):
     required_permission = Permission.GATEWAYS_TEST
 
     def __init__(
@@ -63,7 +67,8 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
         self._event_publisher = event_publisher
         self._payment_texts = payment_texts
 
-    async def _execute(self, actor: UserDto, data: PaymentGatewayType) -> TestPaymentDto:
+    async def _execute(self, actor: UserDto, request: CreateTestPaymentDto) -> TestPaymentDto:
+        data = request.gateway_type
         gateway_class = GATEWAY_REGISTRY.get(data)
         if gateway_class is None:
             raise ValidationError(
@@ -114,8 +119,9 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
                     channel=PurchaseChannel.CABINET,
                     target_subscription_id=None,
                     gateway_type=data,
-                    # the main shop, which the bot and the Mini App pay into
-                    gateway_account=gateway_class.account_for(settings, in_telegram=True),
+                    gateway_account=gateway_class.account_for(
+                        settings, in_telegram=request.channel is PurchaseChannel.BOT
+                    ),
                     base_price=amount,
                     discount_percent=0,
                     discount_source=DiscountSource.NONE,

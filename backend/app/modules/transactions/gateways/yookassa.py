@@ -203,7 +203,7 @@ class YooKassaGateway(PaymentGateway[YooKassaSettings]):
         )
 
     async def parse_webhook(self, request: WebhookRequest) -> Optional[WebhookSignal]:
-        # YooKassa does not sign notifications; fetch_payment is the check.
+        # YooKassa doesn't sign notifications (fetch_payment is the check); paygate does
         if self.is_signed_notification(request):
             self._verify_relay_signature(request)
         payload = parse_json(request.body, "YooKassa")

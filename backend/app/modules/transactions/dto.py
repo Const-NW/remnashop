@@ -204,6 +204,13 @@ class CheckoutResultDto(BaseDto):
 
 
 @dataclass(frozen=True, kw_only=True)
+class CreateTestPaymentDto:
+    gateway_type: PaymentGatewayType
+    # the channel whose shop is tested, where a gateway has one per channel
+    channel: PurchaseChannel
+
+
+@dataclass(frozen=True, kw_only=True)
 class TestPaymentDto:
     order_id: int
     confirmation_url: Optional[str]

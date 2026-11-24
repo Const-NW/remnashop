@@ -15,10 +15,19 @@ HttpsUrlStr = NewType("HttpsUrlStr", str)
 FIELD_GROUP_KEY: Final[str] = "group"
 # json_schema_extra key on a group's switch: it means something only with every channel on
 REQUIRES_ALL_CHANNELS_KEY: Final[str] = "requires_all_channels"
+# json_schema_extra key: the switch that makes a field the model requires optional
+REQUIRED_UNLESS_KEY: Final[str] = "required_unless"
+_UNLESS_RELAY: Final[JsonDict] = {REQUIRED_UNLESS_KEY: "relay_enabled"}
 
 
-def _grouped(switch: str, *, requires_all_channels: bool = False) -> JsonDict:
-    return {FIELD_GROUP_KEY: switch, REQUIRES_ALL_CHANNELS_KEY: requires_all_channels}
+def _grouped(
+    switch: str, *, requires_all_channels: bool = False, required_unless: Optional[str] = None
+) -> JsonDict:
+    return {
+        FIELD_GROUP_KEY: switch,
+        REQUIRES_ALL_CHANNELS_KEY: requires_all_channels,
+        REQUIRED_UNLESS_KEY: required_unless,
+    }
 
 
 class GatewaySettings(BaseModel):
@@ -45,16 +54,18 @@ class TelegramStarsSettings(GatewaySettings):
 
 class YooKassaSettings(GatewaySettings):
     # the Telegram shop (bot and Mini App), and the cabinet's too without a shop of its own
-    shop_id: Optional[str] = None
-    api_key: Optional[SecretStr] = None
+    shop_id: Optional[str] = Field(None, json_schema_extra=_UNLESS_RELAY)
+    api_key: Optional[SecretStr] = Field(None, json_schema_extra=_UNLESS_RELAY)
     vat_code: Optional[NumericStr] = None
     verify_ip: bool = True
     cabinet_shop_enabled: bool = Field(
         False, json_schema_extra=_grouped("cabinet_shop_enabled", requires_all_channels=True)
     )
-    cabinet_shop_id: Optional[str] = Field(None, json_schema_extra=_grouped("cabinet_shop_enabled"))
+    cabinet_shop_id: Optional[str] = Field(
+        None, json_schema_extra=_grouped("cabinet_shop_enabled", required_unless="relay_enabled")
+    )
     cabinet_api_key: Optional[SecretStr] = Field(
-        None, json_schema_extra=_grouped("cabinet_shop_enabled")
+        None, json_schema_extra=_grouped("cabinet_shop_enabled", required_unless="relay_enabled")
     )
     # every channel goes through one paygate relay, which holds its shop's key
     relay_enabled: bool = Field(False, json_schema_extra=_grouped("relay_enabled"))
@@ -86,7 +97,12 @@ class YooKassaSettings(GatewaySettings):
                 f"{type(self).__name__}: invalid or missing setting(s) {missing}"
             )
         # orders are told apart by shop id; one shop for both channels is the switch off
-        if self.cabinet_shop_enabled and self.cabinet_shop_id == self.shop_id:
+        # the relay ignores both shops, so their ids may be blank there
+        if (
+            not self.relay_enabled
+            and self.cabinet_shop_enabled
+            and self.cabinet_shop_id == self.shop_id
+        ):
             raise PaymentGatewayError(
                 f"{type(self).__name__}: the cabinet shop is the main one",
                 code=ErrorCode.GATEWAY_SHOP_DUPLICATE,
