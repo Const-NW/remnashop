@@ -70,16 +70,18 @@ export function SubscriptionDevicesTab({ subscriptionId, userId }: { subscriptio
                   .filter(Boolean)
                   .join(" · ") || t("common.none")
               }
-              // the time leads: the row truncates its description, and the HWID's tail matters less
+              // the date leads: the row truncates its description, and the HWID's tail matters less
               description={
                 <>
-                  {t("subscriptions.devices.lastFetched", { time: formatRelative(pastOrNow(device.last_fetched_at), i18n.language) })}
+                  {t("subscriptions.devices.added", { date: formatDate(device.created_at, i18n.language) })}
                   {" · "}
                   <span className="font-mono">{device.hwid}</span>
                 </>
               }
             >
-              <span className="text-xs tabular-nums text-muted-foreground">{formatDate(device.created_at, i18n.language)}</span>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {formatRelative(pastOrNow(device.last_fetched_at), i18n.language)}
+              </span>
               {canDelete && (
                 <IconButton
                   size="8"
