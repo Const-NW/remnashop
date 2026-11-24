@@ -245,6 +245,7 @@ class OwnTransactionListResponse(BaseModel):
 class PaymentMethodResponse(BaseModel):
     gateway_type: PaymentGatewayType
     currency: Currency
+    name: str
     requires_email: bool
     asks_email: bool
 

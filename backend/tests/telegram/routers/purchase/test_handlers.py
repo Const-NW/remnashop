@@ -291,9 +291,11 @@ async def test_new_purchase_start_does_not_list_subscriptions() -> None:
     manager.switch_to.assert_awaited_once_with(Purchase.PLAN)
 
 
-_RUB_METHOD = PaymentMethodDto(gateway_type=PaymentGatewayType.YOOKASSA, currency=Currency.RUB)
+_RUB_METHOD = PaymentMethodDto(
+    gateway_type=PaymentGatewayType.YOOKASSA, currency=Currency.RUB, name="YooKassa"
+)
 _STARS_METHOD = PaymentMethodDto(
-    gateway_type=PaymentGatewayType.TELEGRAM_STARS, currency=Currency.XTR
+    gateway_type=PaymentGatewayType.TELEGRAM_STARS, currency=Currency.XTR, name="Stars"
 )
 
 
@@ -514,7 +516,10 @@ async def test_selecting_a_duration_again_forgets_the_created_order(
 
 
 _RECEIPT_METHOD = PaymentMethodDto(
-    gateway_type=PaymentGatewayType.YOOKASSA, currency=Currency.RUB, requires_email=True
+    gateway_type=PaymentGatewayType.YOOKASSA,
+    currency=Currency.RUB,
+    name="YooKassa",
+    requires_email=True,
 )
 
 

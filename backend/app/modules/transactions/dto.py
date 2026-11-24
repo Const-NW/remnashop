@@ -56,6 +56,8 @@ class ListPaymentMethodsDto:
 class PaymentMethodDto:
     gateway_type: PaymentGatewayType
     currency: Currency
+    # gateway-name.<TYPE> in the customer's language, as the bot shows it
+    name: str
     requires_email: bool = False
     # False once the shop sends its own payment email: a customer's would be ignored
     asks_email: bool = True

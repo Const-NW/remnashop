@@ -1,13 +1,14 @@
 import pytest
 
 from app.core.db.uow import UnitOfWork
-from app.core.enums import Currency, PaymentGatewayType, TransactionStatus
+from app.core.enums import Currency, Locale, PaymentGatewayType, TransactionStatus
 from app.modules.gateways.repository import GatewayRepository
 from app.modules.settings.dto import UpdateShopSettingsDto
 from app.modules.settings.repository import SettingsRepository
-from app.modules.transactions.dto import ListPaymentMethodsDto
+from app.modules.transactions.dto import ListPaymentMethodsDto, PaymentMethodDto
 from app.modules.transactions.repository import TransactionRepository
 from app.modules.transactions.usecases import ListPaymentMethodsUseCase
+from app.modules.translations import TranslationRepository
 from app.modules.users import UserRepository
 from app.modules.users.dto import CreateUserDto, UserDto
 from tests.modules.transactions.test_repository import _order_dto
@@ -21,10 +22,11 @@ def use_case(
     gateway_repository: GatewayRepository,
     transaction_repository: TransactionRepository,
     settings_repository: SettingsRepository,
+    translation_repository: TranslationRepository,
     uow: UnitOfWork,
 ) -> ListPaymentMethodsUseCase:
     return ListPaymentMethodsUseCase(
-        gateway_repository, transaction_repository, settings_repository, uow
+        gateway_repository, transaction_repository, settings_repository, translation_repository, uow
     )
 
 
@@ -163,3 +165,42 @@ async def test_channel_flags_decide_where_a_gateway_is_offered(
         PaymentGatewayType.YOOKASSA
     ]
     assert await use_case(actor, _IN_CABINET) == []
+
+
+async def test_name_comes_from_the_customers_language_then_the_default(
+    use_case: ListPaymentMethodsUseCase,
+    translation_repository: TranslationRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    actor: UserDto,
+    active_yookassa: None,
+    active_stars: None,
+) -> None:
+    russian = await user_repository.create(
+        CreateUserDto(name="ru buyer", telegram_id=700_102, language=Locale.RU)
+    )
+    async with uow:
+        await translation_repository.seed_missing(Locale.EN, "gateway-name", "YOOKASSA", "Card")
+        await translation_repository.seed_missing(Locale.RU, "gateway-name", "YOOKASSA", "Карта")
+        await translation_repository.seed_missing(
+            Locale.EN, "gateway-name", "TELEGRAM_STARS", "Stars"
+        )
+        await translation_repository.seed_missing(Locale.RU, "gateway-name", "TELEGRAM_STARS", " ")
+
+    def names(methods: list[PaymentMethodDto]) -> dict[PaymentGatewayType, str]:
+        return {m.gateway_type: m.name for m in methods}
+
+    assert names(await use_case(russian, _IN_CABINET)) == {
+        PaymentGatewayType.YOOKASSA: "Карта",
+        PaymentGatewayType.TELEGRAM_STARS: "Stars",
+    }
+    assert names(await use_case(actor, _IN_CABINET)) == {
+        PaymentGatewayType.YOOKASSA: "Card",
+        PaymentGatewayType.TELEGRAM_STARS: "Stars",
+    }
+
+
+async def test_name_falls_back_to_the_gateway_type(
+    use_case: ListPaymentMethodsUseCase, actor: UserDto, active_yookassa: None
+) -> None:
+    assert [m.name for m in await use_case(actor, _IN_CABINET)] == ["YOOKASSA"]

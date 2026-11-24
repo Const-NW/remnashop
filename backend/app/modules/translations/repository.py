@@ -90,6 +90,17 @@ class TranslationRepository:
         )
         return [self._to_dto(row) for row in result.scalars()]
 
+    async def list_message(
+        self, message_id: str, locales: Sequence[Locale]
+    ) -> list[TranslationEntryDto]:
+        result = await self.session.execute(
+            select(BotTranslation).where(
+                BotTranslation.message_id == message_id,
+                BotTranslation.locale.in_(locales),
+            )
+        )
+        return [self._to_dto(row) for row in result.scalars()]
+
     async def fluent_fingerprint(self) -> str:
         """Changes with anything get_fluent_text_by_locale and the default locale
         read: computed in the database, so a cache check doesn't ship every row."""
