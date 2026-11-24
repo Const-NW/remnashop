@@ -1700,7 +1700,8 @@
         "SEVERPAY": "Must match the merchant currency. Defaults to RUB.",
         "CLOUDPAYMENTS": "Defaults to RUB.",
         "PAYPALYCH": "Must match the shop currency. Defaults to RUB.",
-        "CISPAY": "USD means crypto (USDT) only. Defaults to RUB: the customer picks SBP, card or crypto on the cisPay page."
+        "CISPAY": "USD means crypto (USDT) only. Defaults to RUB: the customer picks SBP, card or crypto on the cisPay page.",
+        "PAY_2328": "Defaults to RUB."
       },
       "channels": {
         "title": "Availability channels",
