@@ -4103,7 +4103,7 @@
         "model": "Модель",
         "userAgent": "User-Agent",
         "added": "Добавлено",
-        "lastFetched": "Обновлено"
+        "lastFetched": "Последний запрос"
       },
       "deleted": "Устройство удалено.",
       "deleteAll": "Удалить все устройства",

@@ -3991,7 +3991,7 @@
         "model": "Model",
         "userAgent": "User-Agent",
         "added": "Added",
-        "lastFetched": "Last fetch"
+        "lastFetched": "Last request"
       },
       "deleted": "Device deleted.",
       "deleteAll": "Delete all devices",
