@@ -4096,6 +4096,15 @@
     "devices": {
       "empty": "Нет подключённых устройств",
       "added": "Добавлено {{date}}",
+      "details": {
+        "hwid": "HWID",
+        "app": "Приложение",
+        "platform": "Платформа",
+        "model": "Модель",
+        "userAgent": "User-Agent",
+        "added": "Добавлено",
+        "lastFetched": "Обновлено"
+      },
       "deleted": "Устройство удалено.",
       "deleteAll": "Удалить все устройства",
       "deleteAllTitle": "Удалить все устройства?",

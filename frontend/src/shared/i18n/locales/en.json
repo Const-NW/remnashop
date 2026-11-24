@@ -3984,6 +3984,15 @@
     "devices": {
       "empty": "No connected devices",
       "added": "Added {{date}}",
+      "details": {
+        "hwid": "HWID",
+        "app": "App",
+        "platform": "Platform",
+        "model": "Model",
+        "userAgent": "User-Agent",
+        "added": "Added",
+        "lastFetched": "Last fetch"
+      },
       "deleted": "Device deleted.",
       "deleteAll": "Delete all devices",
       "deleteAllTitle": "Delete all devices?",
