@@ -30,8 +30,10 @@ class ReorderGatewaysRequest(BaseModel):
 
 class GatewayFieldSpecResponse(BaseModel):
     key: str
-    kind: Literal["text", "secret", "number", "boolean"]
+    kind: Literal["text", "secret", "number", "boolean", "url"]
     required: bool
+    group: Optional[str]
+    requires_all_channels: bool
 
 
 class GatewayCatalogEntryResponse(BaseModel):

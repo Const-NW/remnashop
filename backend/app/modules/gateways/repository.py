@@ -52,10 +52,13 @@ class GatewayRepository:
         self.session.add(row)
         return row
 
-    async def _get_row(self, gateway_type: PaymentGatewayType) -> Optional[PaymentGateway]:
-        row: Optional[PaymentGateway] = await self.session.scalar(
-            select(PaymentGateway).where(PaymentGateway.type == gateway_type)
-        )
+    async def _get_row(
+        self, gateway_type: PaymentGatewayType, *, for_update: bool = False
+    ) -> Optional[PaymentGateway]:
+        query = select(PaymentGateway).where(PaymentGateway.type == gateway_type)
+        if for_update:
+            query = query.with_for_update()
+        row: Optional[PaymentGateway] = await self.session.scalar(query)
         return row
 
     async def get_all(self) -> list[PaymentGatewayDto]:
@@ -77,6 +80,10 @@ class GatewayRepository:
 
     async def get_raw_settings(self, gateway_type: PaymentGatewayType) -> dict[str, str]:
         row = await self._get_row(gateway_type)
+        return json.loads(row.settings) if row and row.settings else {}
+
+    async def get_raw_settings_for_update(self, gateway_type: PaymentGatewayType) -> dict[str, str]:
+        row = await self._get_row(gateway_type, for_update=True)
         return json.loads(row.settings) if row and row.settings else {}
 
     async def update_settings(

@@ -94,6 +94,9 @@ class Transaction(BaseSql, TimestampMixin):
     # None: a free order, nothing was paid through a gateway
     gateway_type: Mapped[Optional[PaymentGatewayType]]
     external_payment_id: Mapped[Optional[str]] = mapped_column(String())
+    # the gateway's merchant account the payment was created in, where a gateway
+    # has more than one (YooKassa's per-channel shops); None: its only or main one
+    gateway_account: Mapped[Optional[str]] = mapped_column(String())
     status: Mapped[TransactionStatus] = mapped_column(
         default=TransactionStatus.PENDING, server_default="PENDING"
     )

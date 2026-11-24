@@ -114,6 +114,8 @@ class CreateTestPaymentUseCase(UseCase[PaymentGatewayType, TestPaymentDto, UserD
                     channel=PurchaseChannel.CABINET,
                     target_subscription_id=None,
                     gateway_type=data,
+                    # the main shop, which the bot and the Mini App pay into
+                    gateway_account=gateway_class.account_for(settings, in_telegram=True),
                     base_price=amount,
                     discount_percent=0,
                     discount_source=DiscountSource.NONE,

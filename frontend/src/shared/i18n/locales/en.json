@@ -1710,7 +1710,9 @@
       },
       "flagHints": {
         "require_paid_purchase": "Customers see this payment method only after paying another way at least once. With no other method in Telegram, new customers can’t pay in the bot or the Mini App.",
-        "verify_ip": "Accept notifications only from YooKassa addresses. If a proxy in front of the server (e.g. Cloudflare) hides the real IP, set up real IP forwarding (realip) in the reverse proxy; turn off only if that isn’t possible."
+        "verify_ip": "Accept notifications only from YooKassa addresses. If a proxy in front of the server (e.g. Cloudflare) hides the real IP, set up real IP forwarding (realip) in the reverse proxy; turn off only if that isn’t possible.",
+        "cabinet_shop_enabled": "Web cabinet payments go to their own shop; the bot and the Mini App keep the main one. Each order is checked in the shop it was paid into, so keep a shop’s ID and key here while its orders can still be refunded.",
+        "relay_enabled": "Every channel pays through one paygate relay, which holds its shop’s key; the shop fields aren’t used for new payments. Set paygate’s FORWARD_URL to the webhook URL above: its notifications are checked by signature instead of the YooKassa IP."
       },
       "title": "Payment gateways",
       "description": "Configure payment gateways and their availability to customers",
@@ -1768,7 +1770,14 @@
         "vat_code": "VAT code",
         "verify_ip": "Verify webhook IP",
         "wallet_id": "Wallet ID",
-        "webhook_secret": "Webhook secret"
+        "webhook_secret": "Webhook secret",
+        "cabinet_shop_enabled": "Separate shop for the web cabinet",
+        "cabinet_shop_id": "Shop ID (Web cabinet)",
+        "cabinet_api_key": "API key (Web cabinet)",
+        "relay_enabled": "Pay through paygate",
+        "relay_url": "paygate URL",
+        "relay_ingress_secret": "Request signing secret (INGRESS_SECRET)",
+        "relay_forward_secret": "Notification signing secret (FORWARD_SECRET)"
       }
     },
     "webPush": {
@@ -4591,6 +4600,8 @@
     "GATEWAY_NOT_TESTABLE": "This gateway can’t be tested from the dashboard.",
     "GATEWAY_TEST_NO_TELEGRAM": "Link Telegram to your account to pay a test invoice with Stars.",
     "GATEWAY_REORDER_INCOMPLETE": "The new order must include every gateway exactly once.",
+    "GATEWAY_SETTINGS_INCOMPLETE": "Fill in and save the fields this setting needs first.",
+    "GATEWAY_SHOP_DUPLICATE": "Turn off the separate web cabinet shop to use one shop for both channels.",
     "GATEWAY_REQUIRED": "Choose a payment method.",
     "HTTP_ERROR": "Request failed.",
     "IDENTITY_BLACKLISTED": "This sign-in method is blocked and can’t be linked.",

@@ -1,12 +1,21 @@
+import base64
+import hashlib
+import hmac
+import json
+import time
 from decimal import Decimal
+from typing import Final, Optional
 
 import httpx
 import pytest
 
-from app.core.enums import TransactionStatus
-from app.core.exceptions import PaymentGatewayError
+from app.core.enums import PaymentGatewayType, TransactionStatus
+from app.core.error_codes import ErrorCode
+from app.core.exceptions import PaymentGatewayError, ValidationError
+from app.modules.gateways import is_gateway_configured
+from app.modules.gateways.field_catalog import gateway_settings_error, validate_gateway_field_values
 from app.modules.transactions.gateways.base import PaymentHttpClient, WebhookSignal
-from app.modules.transactions.gateways.yookassa import YooKassaGateway
+from app.modules.transactions.gateways.yookassa import RELAY_ACCOUNT, YooKassaGateway
 from tests.modules.transactions.gateways.support import (
     NO_HTTP,
     ORDER_REF,
@@ -241,3 +250,261 @@ async def test_check_payment_finds_the_payment_by_its_stored_id() -> None:
 
     assert payment is not None and payment.provider_payment_id == "yk-1"
     assert http.last.url.path == "/v3/payments/yk-1"
+
+
+_CABINET_SETTINGS = {
+    **_SETTINGS,
+    "cabinet_shop_enabled": "true",
+    "cabinet_shop_id": "2000",
+    "cabinet_api_key": "cabinet_key",
+}
+_RELAY_SETTINGS = {
+    "relay_enabled": "true",
+    "relay_url": "https://agg.example/",
+    "relay_ingress_secret": "ingress",
+    "relay_forward_secret": "forward",
+}
+
+
+def _basic_auth(shop_id: str, key: str) -> str:
+    return "Basic " + base64.b64encode(f"{shop_id}:{key}".encode()).decode()
+
+
+@pytest.mark.parametrize(
+    ("settings", "in_telegram", "account"),
+    [
+        (_SETTINGS, False, "1000"),
+        (_CABINET_SETTINGS, True, "1000"),
+        (_CABINET_SETTINGS, False, "2000"),
+        ({**_CABINET_SETTINGS, **_RELAY_SETTINGS}, False, RELAY_ACCOUNT),
+    ],
+)
+def test_account_for_picks_the_channels_shop(
+    settings: dict[str, str], in_telegram: bool, account: Optional[str]
+) -> None:
+    assert YooKassaGateway.account_for(settings, in_telegram=in_telegram) == account
+
+
+@pytest.mark.parametrize(
+    ("account", "auth"),
+    [
+        ("2000", _basic_auth("2000", "cabinet_key")),
+        ("1000", _basic_auth("1000", "test_key")),
+        # an order from before the shops were split
+        (None, _basic_auth("1000", "test_key")),
+    ],
+)
+async def test_confirm_asks_the_shop_the_order_was_paid_into(
+    account: Optional[str], auth: str
+) -> None:
+    http = HttpRecorder(json_response(_payment()))
+    gateway = YooKassaGateway(
+        settings=_CABINET_SETTINGS, webhook_url=WEBHOOK_URL, return_url=RETURN_URL, http=http.client
+    )
+    order = make_order(external_payment_id="yk-1", gateway_account=account)
+
+    assert await gateway.check_payment(order) is not None
+    assert http.last.headers["Authorization"] == auth
+
+
+async def test_a_cabinet_order_is_still_checked_after_its_shop_is_switched_off() -> None:
+    http = HttpRecorder(json_response(_payment()))
+    gateway = YooKassaGateway(
+        settings={**_CABINET_SETTINGS, "cabinet_shop_enabled": "false"},
+        webhook_url=WEBHOOK_URL,
+        return_url=RETURN_URL,
+        http=http.client,
+    )
+
+    await gateway.check_payment(make_order(external_payment_id="yk-1", gateway_account="2000"))
+
+    assert http.last.headers["Authorization"] == _basic_auth("2000", "cabinet_key")
+
+
+async def test_an_order_of_a_shop_no_longer_configured_is_refused() -> None:
+    order = make_order(external_payment_id="yk-1", gateway_account="2000")
+
+    with pytest.raises(PaymentGatewayError):
+        await _gateway().check_payment(order)
+
+
+def test_settings_require_the_fields_of_the_active_mode() -> None:
+    assert is_gateway_configured(PaymentGatewayType.YOOKASSA, _SETTINGS)
+    assert is_gateway_configured(PaymentGatewayType.YOOKASSA, _RELAY_SETTINGS)
+    assert not is_gateway_configured(
+        PaymentGatewayType.YOOKASSA, {**_SETTINGS, "cabinet_shop_enabled": "true"}
+    )
+    assert not is_gateway_configured(
+        PaymentGatewayType.YOOKASSA, {**_RELAY_SETTINGS, "relay_forward_secret": ""}
+    )
+
+
+@pytest.mark.parametrize("url", ["http://agg.example", "https://", "agg.example"])
+def test_a_relay_url_other_than_https_is_refused_on_save(url: str) -> None:
+    with pytest.raises(ValidationError):
+        validate_gateway_field_values(PaymentGatewayType.YOOKASSA, {"relay_url": url})
+
+
+def _relay_gateway(http: PaymentHttpClient = NO_HTTP) -> YooKassaGateway:
+    return YooKassaGateway(
+        settings={**_SETTINGS, **_RELAY_SETTINGS},
+        webhook_url=WEBHOOK_URL,
+        return_url=RETURN_URL,
+        http=http,
+    )
+
+
+async def test_relay_request_is_signed_over_the_bytes_sent_and_carries_no_shop_key() -> None:
+    http = HttpRecorder(
+        json_response({"id": "yk-1", "confirmation": {"confirmation_url": "https://agg/go"}}),
+    )
+
+    await _relay_gateway(http.client).create_payment(
+        make_order(gateway_account=RELAY_ACCOUNT), PAYMENT_TEXT
+    )
+
+    request = http.last
+    assert str(request.url) == "https://agg.example/agg/v1/payments"
+    assert "Authorization" not in request.headers
+    assert request.headers["Idempotence-Key"] == ORDER_REF
+    timestamp = request.headers["X-Timestamp"]
+    expected = hmac.new(b"ingress", f"{timestamp}.".encode() + request.content, hashlib.sha256)
+    assert request.headers["X-Signature"] == expected.hexdigest()
+
+
+async def test_relay_status_request_signs_an_empty_body() -> None:
+    http = HttpRecorder(json_response(_payment()))
+
+    await _relay_gateway(http.client).check_payment(
+        make_order(external_payment_id="yk-1", gateway_account=RELAY_ACCOUNT)
+    )
+
+    request = http.last
+    assert request.url.path == "/agg/v1/payments/yk-1"
+    timestamp = request.headers["X-Timestamp"]
+    expected = hmac.new(b"ingress", f"{timestamp}.".encode(), hashlib.sha256)
+    assert request.headers["X-Signature"] == expected.hexdigest()
+
+
+def _relayed(body: bytes, *, secret: bytes = b"forward", age_s: int = 0) -> dict[str, str]:
+    timestamp = str(int(time.time()) - age_s)
+    signature = hmac.new(secret, f"{timestamp}.".encode() + body, hashlib.sha256).hexdigest()
+    return {"X-Paygate-Timestamp": timestamp, "X-Paygate-Signature": signature}
+
+
+async def test_relay_webhook_with_a_valid_signature_is_parsed() -> None:
+    body = json.dumps({"event": "payment.succeeded", "object": _payment()}).encode()
+
+    signal = await _relay_gateway().parse_webhook(webhook(body, _relayed(body)))
+
+    assert signal is not None and signal.claims_paid is True
+    assert signal.reference == ORDER_REF
+
+
+_PAID_BODY: Final[bytes] = json.dumps({"event": "payment.succeeded", "object": _payment()}).encode()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        _relayed(b"another body"),
+        _relayed(_PAID_BODY, secret=b"wrong"),
+        _relayed(_PAID_BODY, age_s=301),
+        {**_relayed(_PAID_BODY), "X-Paygate-Timestamp": "\u00b2"},
+    ],
+    ids=["other-body", "wrong-secret", "stale", "non-ascii-digit"],
+)
+async def test_relay_webhook_without_a_valid_signature_is_refused(
+    headers: dict[str, str],
+) -> None:
+    with pytest.raises(PaymentGatewayError):
+        await _relay_gateway().parse_webhook(webhook(_PAID_BODY, headers))
+
+
+@pytest.mark.parametrize(
+    ("settings", "account", "url"),
+    [
+        # relay switched off: its orders still go through it
+        ({**_SETTINGS, **_RELAY_SETTINGS, "relay_enabled": "false"}, RELAY_ACCOUNT, "agg.example"),
+        # relay switched on: orders paid directly are still checked directly
+        ({**_SETTINGS, **_RELAY_SETTINGS}, "1000", "api.yookassa.ru"),
+    ],
+)
+async def test_an_order_is_checked_the_way_it_was_paid(
+    settings: dict[str, str], account: str, url: str
+) -> None:
+    http = HttpRecorder(json_response(_payment()))
+    gateway = YooKassaGateway(
+        settings=settings, webhook_url=WEBHOOK_URL, return_url=RETURN_URL, http=http.client
+    )
+
+    await gateway.check_payment(make_order(external_payment_id="yk-1", gateway_account=account))
+
+    assert http.last.url.host == url
+
+
+async def test_a_relay_order_without_the_relay_configured_is_refused() -> None:
+    order = make_order(external_payment_id="yk-1", gateway_account=RELAY_ACCOUNT)
+
+    with pytest.raises(PaymentGatewayError):
+        await _gateway().check_payment(order)
+
+
+def test_a_relay_signed_notification_is_told_apart_by_its_header() -> None:
+    relay_off = YooKassaGateway(
+        settings={**_SETTINGS, **_RELAY_SETTINGS, "relay_enabled": "false"},
+        webhook_url=WEBHOOK_URL,
+        return_url=RETURN_URL,
+        http=NO_HTTP,
+    )
+    assert relay_off.is_signed_notification(webhook(_PAID_BODY, _relayed(_PAID_BODY)))
+    assert not _relay_gateway().is_signed_notification(webhook(_PAID_BODY))
+
+
+async def test_a_relay_signed_notification_is_checked_even_with_the_relay_off() -> None:
+    gateway = YooKassaGateway(
+        settings={**_SETTINGS, **_RELAY_SETTINGS, "relay_enabled": "false"},
+        webhook_url=WEBHOOK_URL,
+        return_url=RETURN_URL,
+        http=NO_HTTP,
+    )
+
+    with pytest.raises(PaymentGatewayError):
+        await gateway.parse_webhook(webhook(_PAID_BODY, _relayed(_PAID_BODY, secret=b"wrong")))
+
+
+async def test_an_order_from_before_the_split_never_falls_through_to_the_cabinet_shop() -> None:
+    gateway = YooKassaGateway(
+        settings={
+            **_RELAY_SETTINGS,
+            "cabinet_shop_id": "2000",
+            "cabinet_api_key": "cabinet_key",
+        },
+        webhook_url=WEBHOOK_URL,
+        return_url=RETURN_URL,
+        http=NO_HTTP,
+    )
+
+    with pytest.raises(PaymentGatewayError):
+        await gateway.check_payment(make_order(external_payment_id="yk-1", gateway_account=None))
+
+
+def test_a_paygate_header_without_a_forward_secret_keeps_the_ip_check() -> None:
+    assert not _gateway().is_signed_notification(webhook(_PAID_BODY, _relayed(_PAID_BODY)))
+
+
+@pytest.mark.parametrize(
+    "url", ["https://[abc", "https://agg.example/?x=1", "https://agg.example/#top"]
+)
+def test_a_relay_url_that_isnt_a_base_address_is_refused_on_save(url: str) -> None:
+    with pytest.raises(ValidationError):
+        validate_gateway_field_values(PaymentGatewayType.YOOKASSA, {"relay_url": url})
+
+
+def test_the_cabinet_shop_cannot_repeat_the_main_one() -> None:
+    assert (
+        gateway_settings_error(
+            PaymentGatewayType.YOOKASSA, {**_CABINET_SETTINGS, "cabinet_shop_id": "1000"}
+        )
+        is ErrorCode.GATEWAY_SHOP_DUPLICATE
+    )

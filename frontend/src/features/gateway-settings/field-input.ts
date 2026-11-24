@@ -13,6 +13,7 @@ export function sanitizeFieldValue(field: GatewayFieldSpec, value: string): stri
   return value.replace(/\s/g, "");
 }
 
-export function inputModeFor(field: GatewayFieldSpec): "numeric" | "text" {
-  return field.kind === "number" ? "numeric" : "text";
+export function inputModeFor(field: GatewayFieldSpec): "numeric" | "text" | "url" {
+  if (field.kind === "number") return "numeric";
+  return field.kind === "url" ? "url" : "text";
 }

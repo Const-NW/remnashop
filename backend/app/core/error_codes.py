@@ -152,6 +152,8 @@ class ErrorCode(UpperStrEnum):
     GATEWAY_NOT_TESTABLE = auto()
     GATEWAY_TEST_NO_TELEGRAM = auto()
     GATEWAY_REORDER_INCOMPLETE = auto()
+    GATEWAY_SETTINGS_INCOMPLETE = auto()
+    GATEWAY_SHOP_DUPLICATE = auto()
     GATEWAY_REQUIRED = auto()
     GRACE_SETTINGS_INVALID = auto()
     HTTP_ERROR = auto()

@@ -16,12 +16,16 @@ export interface Gateway {
 
 export type GatewayChannels = Partial<Pick<Gateway, "telegram_enabled" | "cabinet_enabled">>;
 
-export type GatewayFieldKind = "text" | "secret" | "number" | "boolean";
+export type GatewayFieldKind = "text" | "secret" | "number" | "boolean" | "url";
 
 export interface GatewayFieldSpec {
   key: string;
   kind: GatewayFieldKind;
   required: boolean;
+  /** the boolean field that shows this one (its own key, for that switch); null: always shown */
+  group: string | null;
+  /** a group's switch shown only while every channel is on (or the switch is) */
+  requires_all_channels: boolean;
 }
 
 export interface GatewayCatalogEntry {

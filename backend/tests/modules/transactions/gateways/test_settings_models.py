@@ -18,11 +18,16 @@ _SAMPLE: dict[GatewayFieldKind, str] = {
     GatewayFieldKind.SECRET: "secret",
     GatewayFieldKind.NUMBER: "42",
     GatewayFieldKind.BOOLEAN: "true",
+    GatewayFieldKind.URL: "https://relay.example",
 }
 
 
 def _full_form(gateway_type: PaymentGatewayType) -> dict[str, str]:
-    return {spec.key: _SAMPLE[spec.kind] for spec in GATEWAY_FIELD_CATALOG[gateway_type]}
+    # a text value per key, so two id fields never hold the same shop
+    return {
+        spec.key: f"{spec.key}-text" if spec.kind is GatewayFieldKind.TEXT else _SAMPLE[spec.kind]
+        for spec in GATEWAY_FIELD_CATALOG[gateway_type]
+    }
 
 
 @pytest.mark.parametrize("gateway_type", list(GATEWAY_REGISTRY), ids=lambda t: t.value)

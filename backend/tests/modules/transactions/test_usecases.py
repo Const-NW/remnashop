@@ -278,6 +278,44 @@ async def test_checkout_stores_channel(
     assert order.channel is PurchaseChannel.BOT
 
 
+@pytest.mark.parametrize(("in_telegram", "account"), [(True, "1"), (False, "2")])
+async def test_checkout_stores_the_yookassa_shop_of_its_channel(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    transaction_repository: TransactionRepository,
+    gateway_repository: GatewayRepository,
+    uow: UnitOfWork,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    in_telegram: bool,
+    account: str,
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(
+            PaymentGatewayType.YOOKASSA,
+            {"cabinet_shop_enabled": "true", "cabinet_shop_id": "2", "cabinet_api_key": "k2"},
+        )
+        await gateway_repository.set_channels(
+            PaymentGatewayType.YOOKASSA, telegram_enabled=True, cabinet_enabled=True
+        )
+
+    result = await create_checkout_use_case(
+        actor,
+        CreateCheckoutDto(
+            channel=PurchaseChannel.CABINET,
+            in_telegram=in_telegram,
+            plan_id=plan.id,
+            duration_days=30,
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.NEW,
+            gateway_type=PaymentGatewayType.YOOKASSA,
+        ),
+    )
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.gateway_account == account
+
+
 async def test_create_checkout_publishes_the_new_order(
     create_checkout_use_case: CreateCheckoutUseCase,
     _active_yookassa: None,

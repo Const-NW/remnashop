@@ -19,6 +19,7 @@ import { getErrorMessage } from "@shared/api/http";
 import { isHttpsUrl } from "@shared/lib/external-links";
 import { toast } from "@shared/lib/toast";
 import { Button } from "@shared/ui/Button";
+import { Collapse } from "@shared/ui/Collapse";
 import { Field } from "@shared/ui/glass/Field";
 import { CopyInput, Input, PasswordInput } from "@shared/ui/glass/Input";
 import { Row } from "@shared/ui/glass/Row";
@@ -70,8 +71,24 @@ export function GatewaySettingsCard({
   const [testStatus, setTestStatus] = useState<TestPaymentStatus | null>(null);
 
   const label = t(`settings.gateways.types.${gateway.type}` as ParseKeys);
-  const flagFields = fields.filter((field) => field.kind === "boolean");
+  const flagFields = fields.filter((field) => field.kind === "boolean" && field.group === null);
   const valueFields = fields.filter((field) => field.kind !== "boolean");
+  const ungroupedValueFields = valueFields.filter((field) => field.group === null);
+  const isGroupOn = (key: string) => values[key] === "true" || Boolean(gateway.flags[key]);
+  // a group: its switch, then the fields it shows while on
+  const groups = fields
+    .filter((field) => field.kind === "boolean" && field.group === field.key)
+    // kept while on, so a channel switched off doesn't hide a switch still in use
+    .filter(
+      (toggle) =>
+        !toggle.requires_all_channels ||
+        (gateway.telegram_enabled && gateway.cabinet_enabled) ||
+        isGroupOn(toggle.key),
+    )
+    .map((toggle) => ({
+      toggle,
+      fields: valueFields.filter((field) => field.group === toggle.key),
+    }));
   const docsUrl = GATEWAY_DOCS_URLS[gateway.type];
   const logoUrl = GATEWAY_LOGOS[gateway.type];
   const dirty = Object.values(values).some((value) => value !== "");
@@ -189,6 +206,79 @@ export function GatewaySettingsCard({
     </>
   );
 
+  // switching a group on only opens its fields: the switch is saved with them,
+  // since the server refuses it alone on a working gateway
+  const handleGroupToggle = (key: string, enabled: boolean) => {
+    if (gateway.flags[key]) {
+      if (!enabled) void handleFlag(key, false);
+      return;
+    }
+    setValues((prev) => {
+      const { [key]: _, ...rest } = prev;
+      return enabled ? { ...prev, [key]: "true" } : rest;
+    });
+  };
+
+  const renderFlag = (
+    field: GatewayFieldSpec,
+    checked = gateway.flags[field.key] ?? false,
+    onChange: (enabled: boolean) => void = (enabled) => void handleFlag(field.key, enabled),
+  ) => (
+    // 2px past the panel's 14px: the switch under the row's own (16px in)
+    <div key={field.key} className="flex items-center gap-3 pr-0.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-foreground">
+          {t(`settings.gateways.fields.${field.key}` as ParseKeys)}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t(`settings.gateways.flagHints.${field.key}` as ParseKeys)}
+        </p>
+      </div>
+      <Switch
+        checked={checked}
+        onChange={onChange}
+        disabled={!canUpdate || savingFlag === field.key}
+      />
+    </div>
+  );
+
+  const renderValueField = (field: GatewayFieldSpec) => {
+    // once configured, a blank field keeps the stored value
+    const mustFill = field.required && !gateway.is_configured;
+    const inputProps = {
+      id: `gateway-${gateway.type}-${field.key}`,
+      inputMode: inputModeFor(field),
+      value: values[field.key] ?? "",
+      onChange: (event: ChangeEvent<HTMLInputElement>) =>
+        setValues((prev) => ({
+          ...prev,
+          [field.key]: sanitizeFieldValue(field, event.target.value),
+        })),
+      placeholder: t("settings.gateways.placeholder"),
+      disabled: !canUpdate,
+    };
+    return (
+      <Field
+        key={field.key}
+        label={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
+        htmlFor={inputProps.id}
+        required={mustFill}
+        info={
+          field.key === "currency" && CURRENCY_HINT_GATEWAYS.has(gateway.type)
+            ? t(`settings.gateways.currencyHints.${gateway.type}` as ParseKeys)
+            : undefined
+        }
+      >
+        {field.kind === "secret" ? (
+          // "off" is ignored on password fields: the browser would offer the admin's saved password
+          <PasswordInput {...inputProps} autoComplete="new-password" />
+        ) : (
+          <Input {...inputProps} autoComplete="off" />
+        )}
+      </Field>
+    );
+  };
+
   return (
     <Row
       glyph={
@@ -216,65 +306,21 @@ export function GatewaySettingsCard({
             onChange={(channels) => savingFlag !== "channels" && void handleChannels(channels)}
             disabled={!canSetChannels}
           />
+          {flagFields.map((field) => renderFlag(field))}
           {webhookUrl !== null && (
             <Field label={t("settings.gateways.webhookLabel")} htmlFor={`gateway-${gateway.type}-webhook`}>
               <CopyInput id={`gateway-${gateway.type}-webhook`} value={webhookUrl} />
             </Field>
           )}
-          {flagFields.map((field) => (
-            // 2px past the panel's 14px: the switch under the row's own (16px in)
-            <div key={field.key} className="flex items-center gap-3 pr-0.5">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  {t(`settings.gateways.fields.${field.key}` as ParseKeys)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t(`settings.gateways.flagHints.${field.key}` as ParseKeys)}
-                </p>
-              </div>
-              <Switch
-                checked={gateway.flags[field.key] ?? false}
-                onChange={(enabled) => void handleFlag(field.key, enabled)}
-                disabled={!canUpdate || savingFlag === field.key}
-              />
+          {ungroupedValueFields.map(renderValueField)}
+          {groups.map(({ toggle, fields: groupFields }) => (
+            <div key={toggle.key} className="flex flex-col gap-3 border-t border-white/[0.08] pt-3">
+              {renderFlag(toggle, isGroupOn(toggle.key), (enabled) => handleGroupToggle(toggle.key, enabled))}
+              <Collapse open={isGroupOn(toggle.key)} className="flex flex-col gap-3">
+                {groupFields.map(renderValueField)}
+              </Collapse>
             </div>
           ))}
-          {valueFields.map((field) => {
-            // once configured, a blank field keeps the stored value
-            const mustFill = field.required && !gateway.is_configured;
-            const inputProps = {
-              id: `gateway-${gateway.type}-${field.key}`,
-              inputMode: inputModeFor(field),
-              value: values[field.key] ?? "",
-              onChange: (event: ChangeEvent<HTMLInputElement>) =>
-                setValues((prev) => ({
-                  ...prev,
-                  [field.key]: sanitizeFieldValue(field, event.target.value),
-                })),
-              placeholder: t("settings.gateways.placeholder"),
-              disabled: !canUpdate,
-            };
-            return (
-              <Field
-                key={field.key}
-                label={t(`settings.gateways.fields.${field.key}` as ParseKeys)}
-                htmlFor={inputProps.id}
-                required={mustFill}
-                info={
-                  field.key === "currency" && CURRENCY_HINT_GATEWAYS.has(gateway.type)
-                    ? t(`settings.gateways.currencyHints.${gateway.type}` as ParseKeys)
-                    : undefined
-                }
-              >
-                {field.kind === "secret" ? (
-                  // "off" is ignored on password fields: the browser would offer the admin's saved password
-                  <PasswordInput {...inputProps} autoComplete="new-password" />
-                ) : (
-                  <Input {...inputProps} autoComplete="off" />
-                )}
-              </Field>
-            );
-          })}
           {valueFields.length > 0 && canUpdate ? (
             <SaveFooter flush dirty={dirty} saving={isSubmitting} beside={testButton} />
           ) : (
