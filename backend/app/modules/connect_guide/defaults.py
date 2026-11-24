@@ -29,6 +29,7 @@ _HIDDIFY_APPLE: Final[str] = "https://apps.apple.com/app/hiddify-proxy-vpn/id659
 _HIDDIFY_GOOGLE: Final[str] = "https://play.google.com/store/apps/details?id=app.hiddify.com"
 _HIDDIFY_DESKTOP: Final[str] = "https://github.com/hiddify/hiddify-app/releases/latest"
 _FLCLASHX_DESKTOP: Final[str] = "https://github.com/pluralplay/FlClashX/releases/latest"
+_RABBITHOLE_APPLE: Final[str] = "https://apps.apple.com/app/rabbithole-vpn-client/id6683309629"
 
 
 def _text(ru: str, en: str) -> dict[Locale, str]:
@@ -97,6 +98,32 @@ def _happ(store: str) -> ConnectApp:
     return _app("happ", "Happ", store, f"happ://add/{_LINK}", featured=True)
 
 
+def _rabbithole(*, apple_tv: bool = False) -> ConnectApp:
+    app = _app("rabbithole", "RabbitHole", _RABBITHOLE_APPLE, f"rabbithole://add/{_LINK}")
+    if not apple_tv:
+        return app
+    return app.model_copy(
+        update={
+            "steps": [
+                app.steps[0],
+                ConnectStep(
+                    title=_text("Перенесите подписку с iPhone", "Transfer from iPhone"),
+                    body=_text(
+                        "Добавьте подписку в RabbitHole на iPhone. Откройте редактор "
+                        "конфигурации, выберите перенос на Apple TV и подтвердите "
+                        "получение на телевизоре.",
+                        "Add your subscription to RabbitHole on iPhone. Open the "
+                        "configuration editor, choose transfer to Apple TV and "
+                        "confirm on your TV.",
+                    ),
+                    icon="plus",
+                ),
+                app.steps[2],
+            ]
+        }
+    )
+
+
 def _platform(platform_id: PlatformId, *apps: ConnectApp) -> ConnectPlatform:
     return ConnectPlatform(id=platform_id, apps=list(apps))
 
@@ -107,6 +134,7 @@ DEFAULT_CATALOG: Final[ConnectCatalog] = ConnectCatalog(
             "ios",
             _happ(_HAPP_APPLE),
             _app("v2raytun", "v2RayTun", _V2RAYTUN_APPLE, f"v2raytun://import/{_LINK}"),
+            _rabbithole(),
         ),
         _platform(
             "android",
@@ -129,6 +157,7 @@ DEFAULT_CATALOG: Final[ConnectCatalog] = ConnectCatalog(
             "macos",
             _happ(_HAPP_APPLE),
             _app("hiddify", "Hiddify", _HIDDIFY_APPLE, f"hiddify://import/{_LINK}"),
+            _rabbithole(),
         ),
         _platform(
             "linux",
@@ -143,6 +172,6 @@ DEFAULT_CATALOG: Final[ConnectCatalog] = ConnectCatalog(
             ),
         ),
         _platform("androidtv", _happ(_HAPP_GOOGLE)),
-        _platform("appletv", _happ(_HAPP_APPLE_TV)),
+        _platform("appletv", _happ(_HAPP_APPLE_TV), _rabbithole(apple_tv=True)),
     ]
 )
