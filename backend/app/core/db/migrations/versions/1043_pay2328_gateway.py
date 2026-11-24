@@ -2,8 +2,8 @@ from typing import Final, Sequence, Union
 
 from alembic import op
 
-revision: str = "1042"
-down_revision: Union[str, None] = "1041"
+revision: str = "1043"
+down_revision: Union[str, None] = "1042"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
