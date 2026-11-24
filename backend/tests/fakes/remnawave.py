@@ -232,6 +232,15 @@ def _handle_revoke_subscription(path: str, store: FakeUserStore) -> httpx.Respon
     return httpx.Response(200, json={"response": payload})
 
 
+def _handle_drop_connections(request: httpx.Request, store: FakeUserStore) -> httpx.Response:
+    body = json.loads(request.content)
+    for user_id in body["dropBy"]["userIds"]:
+        payload = store.get(user_id)
+        if payload is not None:
+            payload["droppedConnections"] = payload.get("droppedConnections", 0) + 1
+    return httpx.Response(200, json={"response": {"eventSent": True}})
+
+
 def _handle_users_stream(request: httpx.Request, store: FakeUserStore) -> httpx.Response:
     size = int(request.url.params.get("size", 1000))
     start = int(request.url.params.get("cursor", 0))
@@ -291,7 +300,7 @@ def make_fake_remnawave_transport(
     hwid_store: Optional[FakeHwidStore] = None,
     panel_version: str = "3.0.0",
 ) -> tuple[httpx.MockTransport, FakeUserStore, FakeHwidStore]:
-    """Fakes the /users and /hwid/devices endpoints. Any other path 404s, so a
+    """Fakes the /users, /hwid/devices and /connections/drop endpoints. Any other path 404s, so a
     usecase reaching for an unknown endpoint fails loudly."""
 
     if store is None:
@@ -302,6 +311,8 @@ def make_fake_remnawave_transport(
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        if path == "/api/connections/drop" and request.method == "POST":
+            return _handle_drop_connections(request, store)
         if path == "/api/users/stream" and request.method == "GET":
             return _handle_users_stream(request, store)
         if path.endswith("/subscription-request-history") and request.method == "GET":

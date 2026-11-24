@@ -18,7 +18,7 @@ from app.modules.subscriptions.eligibility import (
 )
 from app.modules.subscriptions.events import SubscriptionEditAction, SubscriptionEditedEvent
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
-from app.modules.subscriptions.panel import restore
+from app.modules.subscriptions.panel import drop_connections, restore
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserRepository
 
@@ -61,6 +61,7 @@ class SetSubscriptionEnabledUseCase(UseCase[SetSubscriptionEnabledDto, Subscript
             panel_status = (await users.enable_user(subscription.remnawave_user_id)).status
         else:
             panel_status = (await users.disable_user(subscription.remnawave_user_id)).status
+            await drop_connections(self._remnawave_sdk, subscription.remnawave_user_id)
 
         action: SubscriptionEditAction = "enable" if data.enabled else "disable"
         try:

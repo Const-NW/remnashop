@@ -13,6 +13,7 @@ from app.modules.subscriptions.dto import ChannelMembershipDto, SubscriptionDto
 from app.modules.subscriptions.eligibility import lock_live_subscription
 from app.modules.subscriptions.events import SubscriptionEditedEvent
 from app.modules.subscriptions.lifecycle import SubscriptionLifecycleService
+from app.modules.subscriptions.panel import drop_connections
 from app.modules.subscriptions.repository import SubscriptionRepository
 from app.modules.users import UserDto, UserRepository
 
@@ -74,6 +75,7 @@ class ApplyChannelMembershipUseCase(UseCase[ChannelMembershipDto, Optional[UserD
                 panel_status = (await users.enable_user(subscription.remnawave_user_id)).status
             else:
                 panel_status = (await users.disable_user(subscription.remnawave_user_id)).status
+                await drop_connections(self._remnawave_sdk, subscription.remnawave_user_id)
             async with self._uow:
                 await lock_live_subscription(self._subscription_repository, subscription.id)
                 await self._lifecycle_service.sync_status(

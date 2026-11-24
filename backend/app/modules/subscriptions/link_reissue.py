@@ -4,6 +4,7 @@ from remnapy.models import DeleteUserAllHwidDeviceRequestDto
 
 from app.core.db.uow import UnitOfWork
 from app.modules.subscriptions.dto import SubscriptionDto
+from app.modules.subscriptions.panel import drop_connections
 from app.modules.subscriptions.repository import SubscriptionRepository
 
 
@@ -28,4 +29,5 @@ async def reissue_link(
         )
     except Exception:
         logger.exception(f"Failed to clear devices of reissued subscription '{subscription.id}'")
+    await drop_connections(remnawave_sdk, subscription.remnawave_user_id)
     return updated

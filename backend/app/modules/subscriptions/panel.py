@@ -11,7 +11,14 @@ from remnapy.enums import ErrorCode as RemnawaveErrorCode
 from remnapy.enums import UserStatus
 from remnapy.exceptions import ApiError as RemnawaveApiError
 from remnapy.exceptions import NotFoundError as RemnawaveNotFoundError
-from remnapy.models import CreateUserRequestDto, UpdateUserRequestDto, UserResponseDto
+from remnapy.models import (
+    CreateUserRequestDto,
+    DropByUserIds,
+    DropConnectionsRequestDto,
+    TargetAllNodes,
+    UpdateUserRequestDto,
+    UserResponseDto,
+)
 
 from app.core.constants import GB_TO_BYTES, INT32_MAX, INT64_MAX, MB_TO_BYTES, WEB_PREFIX
 from app.core.db.uow import UnitOfWork
@@ -198,6 +205,20 @@ def panel_user_gone(error: Exception) -> bool:
 
 def panel_refused(error: Exception) -> bool:
     return isinstance(error, RemnawaveApiError) and error.status_code in _REFUSAL_STATUSES
+
+
+async def drop_connections(remnawave_sdk: RemnawaveSDK, remnawave_user_id: int) -> None:
+    # nodes keep serving a disabled or reissued user over connections already open;
+    # the panel drops them asynchronously, and the cut-off itself already happened
+    try:
+        await remnawave_sdk.connections.drop_connections(
+            DropConnectionsRequestDto(
+                drop_by=DropByUserIds(user_ids=[remnawave_user_id]),
+                target_nodes=TargetAllNodes(),
+            )
+        )
+    except Exception:
+        logger.exception(f"Failed to drop connections of panel user '{remnawave_user_id}'")
 
 
 def restore(
