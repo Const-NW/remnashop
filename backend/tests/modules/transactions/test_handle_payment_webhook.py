@@ -284,6 +284,9 @@ class _ReportingGateway:
             return None
         return self._confirmed or signal
 
+    def is_signed_notification(self, request: object) -> bool:
+        return False
+
     def is_trusted_source(self, client_ip: str) -> bool:
         return client_ip == "10.0.0.1"
 

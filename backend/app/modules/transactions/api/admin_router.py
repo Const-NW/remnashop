@@ -30,6 +30,7 @@ from app.modules.transactions.api.schemas import (
 )
 from app.modules.transactions.dto import (
     CheckTransactionPaymentDto,
+    CreateTestPaymentDto,
     FulfillTransactionDto,
     GetTransactionSummaryDto,
     ListTransactionsDto,
@@ -191,7 +192,9 @@ async def create_test_payment(
     use_case: FromDishka[CreateTestPaymentUseCase],
     actor: UserDto = Depends(require_admin_user),
 ) -> TestPaymentResponse:
-    result = await use_case(actor, payload.gateway_type)
+    result = await use_case(
+        actor, CreateTestPaymentDto(gateway_type=payload.gateway_type, channel=payload.channel)
+    )
     return TestPaymentResponse.model_validate(result, from_attributes=True)
 
 

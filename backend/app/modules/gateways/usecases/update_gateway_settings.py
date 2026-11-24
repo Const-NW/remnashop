@@ -2,12 +2,15 @@ from loguru import logger
 
 from app.core.actor import Actor
 from app.core.db.uow import UnitOfWork
+from app.core.exceptions import ValidationError
 from app.core.ports import EventPublisher
 from app.core.security.permissions import Permission
 from app.core.usecase import UseCase
 from app.modules.gateways.dto import PaymentGatewayDto, UpdateGatewaySettingsDto
 from app.modules.gateways.events import GatewayChangedEvent
 from app.modules.gateways.field_catalog import (
+    gateway_settings_error,
+    is_gateway_configured,
     validate_gateway_field_keys,
     validate_gateway_field_values,
 )
@@ -32,6 +35,16 @@ class UpdateGatewaySettingsUseCase(UseCase[UpdateGatewaySettingsDto, PaymentGate
         validate_gateway_field_values(data.type, data.values)
 
         async with self._uow:
+            # locked: two saves each fine on their own could merge into a broken mode
+            current = await self._gateway_repository.get_raw_settings_for_update(data.type)
+            # a switch saved before the fields it needs would take a working gateway down
+            if is_gateway_configured(data.type, current):
+                error = gateway_settings_error(data.type, {**current, **data.values})
+                if error is not None:
+                    raise ValidationError(
+                        f"Settings of gateway '{data.type.value}' would stop working",
+                        code=error,
+                    )
             gateway = await self._gateway_repository.update_settings(data.type, data.values)
             await self._event_publisher.publish(
                 GatewayChangedEvent(

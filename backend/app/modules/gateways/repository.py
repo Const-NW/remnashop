@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db.models.payment_gateway import PaymentGateway
 from app.core.enums import PaymentGatewayType
 from app.modules.gateways.dto import PaymentGatewayDto, default_telegram_enabled
-from app.modules.gateways.field_catalog import gateway_flags, is_gateway_configured
+from app.modules.gateways.field_catalog import (
+    gateway_flags,
+    gateway_splits_channels,
+    is_gateway_configured,
+)
 
 
 class GatewayRepository:
@@ -26,6 +30,7 @@ class GatewayRepository:
             is_active=row.is_active,
             is_configured=is_gateway_configured(row.type, values),
             flags=gateway_flags(row.type, values),
+            splits_channels=gateway_splits_channels(row.type, values),
             telegram_enabled=row.telegram_enabled,
             cabinet_enabled=row.cabinet_enabled,
             created_at=row.created_at,
@@ -52,10 +57,13 @@ class GatewayRepository:
         self.session.add(row)
         return row
 
-    async def _get_row(self, gateway_type: PaymentGatewayType) -> Optional[PaymentGateway]:
-        row: Optional[PaymentGateway] = await self.session.scalar(
-            select(PaymentGateway).where(PaymentGateway.type == gateway_type)
-        )
+    async def _get_row(
+        self, gateway_type: PaymentGatewayType, *, for_update: bool = False
+    ) -> Optional[PaymentGateway]:
+        query = select(PaymentGateway).where(PaymentGateway.type == gateway_type)
+        if for_update:
+            query = query.with_for_update()
+        row: Optional[PaymentGateway] = await self.session.scalar(query)
         return row
 
     async def get_all(self) -> list[PaymentGatewayDto]:
@@ -77,6 +85,10 @@ class GatewayRepository:
 
     async def get_raw_settings(self, gateway_type: PaymentGatewayType) -> dict[str, str]:
         row = await self._get_row(gateway_type)
+        return json.loads(row.settings) if row and row.settings else {}
+
+    async def get_raw_settings_for_update(self, gateway_type: PaymentGatewayType) -> dict[str, str]:
+        row = await self._get_row(gateway_type, for_update=True)
         return json.loads(row.settings) if row and row.settings else {}
 
     async def update_settings(

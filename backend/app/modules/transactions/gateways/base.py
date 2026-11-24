@@ -105,9 +105,20 @@ class PaymentGateway(ABC, Generic[S]):
         return cast(S, self.settings_model.from_values(self._values))
 
     @classmethod
+    def account_for(cls, settings: dict[str, str], *, in_telegram: bool) -> Optional[str]:
+        """The merchant account an order from this channel is paid into, stored
+        with the order so its later checks ask the same one. None: the only one."""
+        return None
+
+    @classmethod
     def requires_customer_email(cls, settings: dict[str, str]) -> bool:
         """True when create_payment needs the buyer's email, so checkout asks the
         customer for one unless the shop sets its own payment email."""
+        return False
+
+    def is_signed_notification(self, request: WebhookRequest) -> bool:
+        """True when parse_webhook authenticates this notification by a
+        signature, so the source-IP check does not apply to it."""
         return False
 
     def is_trusted_source(self, client_ip: str) -> bool:

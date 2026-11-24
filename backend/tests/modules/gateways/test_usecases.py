@@ -2,6 +2,7 @@ import pytest
 
 from app.core.db.uow import UnitOfWork
 from app.core.enums import Locale, PaymentGatewayType, Role
+from app.core.error_codes import ErrorCode
 from app.core.exceptions import PermissionDeniedError, ValidationError
 from app.modules.gateways.dto import (
     ReorderGatewaysDto,
@@ -64,6 +65,40 @@ async def test_update_gateway_settings_persists_values(
         ),
     )
     assert gateway.is_configured
+
+
+async def test_a_switch_saved_before_its_fields_is_refused_on_a_working_gateway(
+    gateway_repository: GatewayRepository, uow: UnitOfWork, event_publisher
+) -> None:
+    use_case = UpdateGatewaySettingsUseCase(gateway_repository, event_publisher, uow)
+    yookassa = PaymentGatewayType.YOOKASSA
+    await use_case(
+        OWNER, UpdateGatewaySettingsDto(type=yookassa, values={"shop_id": "1", "api_key": "k"})
+    )
+
+    with pytest.raises(ValidationError) as refused:
+        await use_case(
+            OWNER, UpdateGatewaySettingsDto(type=yookassa, values={"relay_enabled": "true"})
+        )
+
+    assert refused.value.code is ErrorCode.GATEWAY_SETTINGS_INCOMPLETE
+    async with uow:
+        assert "relay_enabled" not in await gateway_repository.get_raw_settings(yookassa)
+
+
+async def test_a_gateway_being_set_up_may_be_saved_incomplete(
+    gateway_repository: GatewayRepository, uow: UnitOfWork, event_publisher
+) -> None:
+    use_case = UpdateGatewaySettingsUseCase(gateway_repository, event_publisher, uow)
+
+    gateway = await use_case(
+        OWNER,
+        UpdateGatewaySettingsDto(
+            type=PaymentGatewayType.YOOKASSA, values={"relay_enabled": "true"}
+        ),
+    )
+
+    assert not gateway.is_configured
 
 
 async def test_regular_user_cannot_update_gateway_settings(

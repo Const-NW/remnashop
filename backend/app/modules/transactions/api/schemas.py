@@ -146,6 +146,7 @@ class UnratedAnchorCountListResponse(BaseModel):
 
 class CreateTestPaymentRequest(BaseModel):
     gateway_type: PaymentGatewayType
+    channel: PurchaseChannel = PurchaseChannel.BOT
 
 
 class TestPaymentResponse(BaseModel):

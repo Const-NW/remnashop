@@ -82,7 +82,12 @@ from app.modules.subscriptions.idempotency_repository import PurchaseIdempotency
 from app.modules.subscriptions.usecases.purchase_subscription import STALE_CLAIM_AFTER
 from app.modules.transactions.api.schemas import CreateCheckoutRequest
 from app.modules.transactions.checkout_pricing import CheckoutPricer
-from app.modules.transactions.dto import CreateCheckoutDto, PaymentTextDto, TransactionDto
+from app.modules.transactions.dto import (
+    CreateCheckoutDto,
+    CreateTestPaymentDto,
+    PaymentTextDto,
+    TransactionDto,
+)
 from app.modules.transactions.gateways.base import PaymentIntent
 from app.modules.transactions.gateways.factory import PaymentGatewayFactory
 from app.modules.transactions.gateways.registry import GATEWAY_REGISTRY
@@ -144,6 +149,12 @@ async def _active_yookassa(gateway_repository: GatewayRepository, uow: UnitOfWor
             PaymentGatewayType.YOOKASSA, {"shop_id": "1", "api_key": "k"}
         )
         await gateway_repository.set_active(PaymentGatewayType.YOOKASSA, True)
+
+
+def _test_payment(
+    gateway_type: PaymentGatewayType, channel: PurchaseChannel = PurchaseChannel.BOT
+) -> CreateTestPaymentDto:
+    return CreateTestPaymentDto(gateway_type=gateway_type, channel=channel)
 
 
 @pytest.fixture
@@ -276,6 +287,44 @@ async def test_checkout_stores_channel(
 
     order = await transaction_repository.get_by_id(result.order_id)
     assert order.channel is PurchaseChannel.BOT
+
+
+@pytest.mark.parametrize(("in_telegram", "account"), [(True, "1"), (False, "2")])
+async def test_checkout_stores_the_yookassa_shop_of_its_channel(
+    create_checkout_use_case: CreateCheckoutUseCase,
+    transaction_repository: TransactionRepository,
+    gateway_repository: GatewayRepository,
+    uow: UnitOfWork,
+    _active_yookassa: None,
+    actor: UserDto,
+    plan: PlanDto,
+    in_telegram: bool,
+    account: str,
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(
+            PaymentGatewayType.YOOKASSA,
+            {"cabinet_shop_enabled": "true", "cabinet_shop_id": "2", "cabinet_api_key": "k2"},
+        )
+        await gateway_repository.set_channels(
+            PaymentGatewayType.YOOKASSA, telegram_enabled=True, cabinet_enabled=True
+        )
+
+    result = await create_checkout_use_case(
+        actor,
+        CreateCheckoutDto(
+            channel=PurchaseChannel.CABINET,
+            in_telegram=in_telegram,
+            plan_id=plan.id,
+            duration_days=30,
+            currency=Currency.RUB,
+            purchase_type=PurchaseType.NEW,
+            gateway_type=PaymentGatewayType.YOOKASSA,
+        ),
+    )
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.gateway_account == account
 
 
 async def test_create_checkout_publishes_the_new_order(
@@ -1109,7 +1158,7 @@ async def test_test_payment_persists_a_pending_test_order_hidden_from_the_order_
         FixedPaymentTexts(),
     )
 
-    result = await use_case(owner, PaymentGatewayType.YOOKASSA)
+    result = await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA))
 
     assert result.confirmation_url == fake_gateway.confirmation_url
     order = await transaction_repository.get_by_id(result.order_id)
@@ -1119,6 +1168,50 @@ async def test_test_payment_persists_a_pending_test_order_hidden_from_the_order_
     assert order.external_payment_id == "yk-fake-id"
     assert order.currency is Currency.RUB
     assert await transaction_repository.list_paginated() == ([], 0)
+
+
+@pytest.mark.parametrize(
+    ("channel", "account"), [(PurchaseChannel.BOT, "1"), (PurchaseChannel.CABINET, "2")]
+)
+async def test_test_payment_goes_to_the_shop_of_the_chosen_channel(
+    channel: PurchaseChannel,
+    account: str,
+    gateway_repository: GatewayRepository,
+    transaction_repository: TransactionRepository,
+    pricing_repository: PricingRepository,
+    settings_repository: SettingsRepository,
+    user_repository: UserRepository,
+    uow: UnitOfWork,
+    fake_gateway: _FakeGateway,
+) -> None:
+    async with uow:
+        await gateway_repository.update_settings(
+            PaymentGatewayType.YOOKASSA,
+            {
+                "shop_id": "1",
+                "api_key": "k",
+                "cabinet_shop_enabled": "true",
+                "cabinet_shop_id": "2",
+                "cabinet_api_key": "k2",
+            },
+        )
+        await gateway_repository.set_active(PaymentGatewayType.YOOKASSA, True)
+    owner = await user_repository.create(CreateUserDto(name="owner", role=Role.OWNER))
+    use_case = CreateTestPaymentUseCase(
+        gateway_repository,
+        transaction_repository,
+        pricing_repository,
+        settings_repository,
+        uow,
+        _FakeFactory(fake_gateway),
+        RecordingEventPublisher(),
+        FixedPaymentTexts(),
+    )
+
+    result = await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA, channel))
+
+    order = await transaction_repository.get_by_id(result.order_id)
+    assert order.gateway_account == account
 
 
 async def test_test_payment_stands_in_an_email_when_the_gateway_needs_a_receipt(
@@ -1147,7 +1240,7 @@ async def test_test_payment_stands_in_an_email_when_the_gateway_needs_a_receipt(
         FixedPaymentTexts(),
     )
 
-    await use_case(owner, PaymentGatewayType.YOOKASSA)
+    await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA))
 
     assert fake_gateway.create_payment_calls[0].customer_email == "test@example.com"
 
@@ -1174,7 +1267,7 @@ async def test_test_payment_rejects_an_unconfigured_gateway(
     )
 
     with pytest.raises(ValidationError):
-        await use_case(owner, PaymentGatewayType.YOOKASSA)
+        await use_case(owner, _test_payment(PaymentGatewayType.YOOKASSA))
     assert fake_gateway.create_payment_calls == []
 
 
@@ -2204,7 +2297,7 @@ async def test_test_payment_issues_a_stars_invoice_to_an_admin_with_telegram(
         FixedPaymentTexts(),
     )
 
-    result = await use_case(owner, PaymentGatewayType.TELEGRAM_STARS)
+    result = await use_case(owner, _test_payment(PaymentGatewayType.TELEGRAM_STARS))
 
     order = await transaction_repository.get_by_id(result.order_id)
     assert order.is_test
@@ -2239,7 +2332,7 @@ async def test_test_payment_refuses_stars_without_a_linked_telegram(
     )
 
     with pytest.raises(ValidationError) as error:
-        await use_case(owner, PaymentGatewayType.TELEGRAM_STARS)
+        await use_case(owner, _test_payment(PaymentGatewayType.TELEGRAM_STARS))
 
     assert error.value.code is ErrorCode.GATEWAY_TEST_NO_TELEGRAM
     assert fake_gateway.create_payment_calls == []

@@ -18,6 +18,7 @@ class PaymentGatewayDto(BaseDto, TimestampMixin):
     is_active: bool = False
     is_configured: bool = False
     flags: dict[str, bool] = Field(default_factory=dict)
+    splits_channels: bool = False
     telegram_enabled: bool = False
     cabinet_enabled: bool = True
 

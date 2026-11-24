@@ -13,6 +13,14 @@ class PaymentGatewayFactory:
         self._config = config
         self._http = http
 
+    def account_for(
+        self, gateway_type: PaymentGatewayType, settings: dict[str, str], *, in_telegram: bool
+    ) -> Optional[str]:
+        gateway_class = GATEWAY_REGISTRY.get(gateway_type)
+        if gateway_class is None:
+            return None
+        return gateway_class.account_for(settings, in_telegram=in_telegram)
+
     def build(
         self,
         gateway_type: PaymentGatewayType,
