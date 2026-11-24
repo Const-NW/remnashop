@@ -38,6 +38,7 @@ async def list_devices(
             app=client_app(device.user_agent),
             user_agent=device.user_agent,
             created_at=device.created_at,
+            last_fetched_at=device.updated_at,
         )
         for device in response.devices
     ]

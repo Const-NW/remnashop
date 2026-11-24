@@ -227,6 +227,7 @@ def _device(hwid: str, name: Optional[str]) -> DeviceDto:
         app="Happ 2.1.0",
         user_agent="Happ/2.1.0/ios",
         created_at=datetime(2026, 11, 12, tzinfo=timezone.utc),
+        last_fetched_at=datetime(2026, 11, 20, tzinfo=timezone.utc),
     )
 
 

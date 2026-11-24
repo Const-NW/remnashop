@@ -672,6 +672,8 @@ class DeviceDto(BaseModel):
     app: Optional[str]
     user_agent: Optional[str]
     created_at: datetime
+    # the device's last subscription request, as the panel records it
+    last_fetched_at: datetime
 
 
 @dataclass(frozen=True, kw_only=True)

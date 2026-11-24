@@ -101,7 +101,15 @@ async def test_lists_the_actors_devices(
 ) -> None:
     actor = await user_repository.create(CreateUserDto(name="device-lister"))
     subscription = await _create_active_subscription(subscription_repository, actor.id, 7001)
-    remnawave_hwid_store[7001] = [_device("abc", 7001, platform="android", deviceModel="Pixel")]
+    remnawave_hwid_store[7001] = [
+        _device(
+            "abc",
+            7001,
+            platform="android",
+            deviceModel="Pixel",
+            updatedAt="2026-11-20T08:00:00+00:00",
+        )
+    ]
     use_case = _list_devices(subscription_repository, remnawave_sdk, uow)
 
     devices = await use_case(actor, SubscriptionRefDto(subscription_id=subscription.id))
@@ -109,6 +117,7 @@ async def test_lists_the_actors_devices(
     assert len(devices) == 1
     assert devices[0].hwid == "abc"
     assert devices[0].platform == "android"
+    assert devices[0].last_fetched_at == datetime(2026, 11, 20, 8, tzinfo=timezone.utc)
 
 
 async def test_refuses_a_deleted_subscription(

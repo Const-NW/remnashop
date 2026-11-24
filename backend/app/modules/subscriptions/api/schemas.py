@@ -147,6 +147,7 @@ class DeviceResponse(BaseModel):
     app: Optional[str] = None
     user_agent: Optional[str] = None
     created_at: datetime
+    last_fetched_at: datetime
 
 
 class RenameDeviceRequest(BaseModel):
